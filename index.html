@@ -263,6 +263,10 @@ C:{title:"Unilateral & Pump",ex:[
     <div class="extags" id="ss-tags"></div>
   </div>
   <div class="coach" id="ss-coach"><span class="cico" id="ss-coachico"></span><span id="ss-coachtxt"></span></div>
+  <details class="cues" id="ss-warmup" style="display:none">
+    <summary>Warm-up ramp <span>▾</span></summary>
+    <div class="cbody" id="ss-warmupbody"></div>
+  </details>
   <details class="cues" id="ss-cues">
     <summary>Form cues & video <span>▾</span></summary>
     <div class="cbody"><ul id="ss-cuelist"></ul><a class="vidlink" id="ss-vid" target="_blank" rel="noopener">▶ Watch form videos</a></div>
@@ -272,7 +276,7 @@ C:{title:"Unilateral & Pump",ex:[
     <div class="setlabel"><span class="s" id="ss-setlabel"></span><span class="last" id="ss-last"></span></div>
     <div class="inrow">
       <div class="infield"><div class="flabel">Weight kg</div>
-        <div class="stepper"><button onclick="bump('kg',-1)">−</button><input id="in-kg" type="number" inputmode="decimal" step="0.5" oninput="renderPlates()"><button onclick="bump('kg',1)">+</button></div></div>
+        <div class="stepper"><button onclick="bump('kg',-1)">−</button><input id="in-kg" type="number" inputmode="decimal" step="0.5" oninput="renderPlates();renderWarmup()"><button onclick="bump('kg',1)">+</button></div></div>
       <div class="infield"><div class="flabel">Reps</div>
         <div class="stepper"><button onclick="bump('reps',-1)">−</button><input id="in-reps" type="number" inputmode="numeric" step="1"><button onclick="bump('reps',1)">+</button></div></div>
     </div>
@@ -306,6 +310,22 @@ C:{title:"Unilateral & Pump",ex:[
   <button class="bigbtn ghost" onclick="wipeData()" style="color:var(--plate-red)">Erase all data</button>
 </div>
 
+<div class="screen" id="scr-body">
+  <div class="topbar"><div><h1>Body</h1><div class="sub">Weekly, same conditions: morning, before food</div></div></div>
+  <div class="setcard">
+    <div class="inrow">
+      <div class="infield"><div class="flabel">Weight kg</div>
+        <div class="stepper"><button onclick="bumpM('bm-kg',-0.5)">−</button><input id="bm-kg" type="number" inputmode="decimal" step="0.1"><button onclick="bumpM('bm-kg',0.5)">+</button></div></div>
+      <div class="infield"><div class="flabel">Waist cm</div>
+        <div class="stepper"><button onclick="bumpM('bm-waist',-0.5)">−</button><input id="bm-waist" type="number" inputmode="decimal" step="0.5"><button onclick="bumpM('bm-waist',0.5)">+</button></div></div>
+    </div>
+    <div class="platebar" id="bm-hint">And take the three photos — front, side, back, same spot, same light.</div>
+  </div>
+  <button class="bigbtn primary" onclick="logMetric()">Save this week</button>
+  <div class="sectlabel">Trend</div>
+  <div id="bm-list"><div class="emptymsg">No entries yet. Weight can rise a couple of kg in the first fortnight from glycogen and water — waist and photos are the honest signals.</div></div>
+</div>
+
 <div class="restveil" id="restveil">
   <div class="rlabel">Rest</div>
   <div class="rtime" id="rest-time">2:30</div>
@@ -324,6 +344,7 @@ C:{title:"Unilateral & Pump",ex:[
 
 <div class="nav">
   <button id="nav-home" class="active" onclick="show('home')"><span class="ico">▦</span>Plan</button>
+  <button id="nav-body" onclick="show('body')"><span class="ico">◉</span>Body</button>
   <button id="nav-history" onclick="show('history')"><span class="ico">↗</span>History</button>
 </div>
 <div class="toast" id="toast"></div>
@@ -340,9 +361,9 @@ function load(){
   // migrate from v1 if present
   try{
     const v1=JSON.parse(localStorage.getItem("block1-log-v1"));
-    if(v1)return{block:1,logs:v1.logs||{},selWeek:v1.selWeek||1,swaps:{},prev:null};
+    if(v1)return{block:1,logs:v1.logs||{},selWeek:v1.selWeek||1,swaps:{},prev:null,metrics:[]};
   }catch(e){}
-  return{block:1,logs:{},selWeek:1,swaps:{},prev:null};
+  return{block:1,logs:{},selWeek:1,swaps:{},prev:null,metrics:[]};
 }
 function save(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast("Storage unavailable — back up now")}}
 function logKey(w,d){return w+"-"+d}
@@ -365,8 +386,10 @@ function show(name){
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
   $("scr-"+name).classList.add("active");
   $("nav-home").classList.toggle("active",name==="home");
+  $("nav-body").classList.toggle("active",name==="body");
   $("nav-history").classList.toggle("active",name==="history");
   if(name==="home")renderHome();
+  if(name==="body")renderBody();
   if(name==="history")renderHistory();
   window.scrollTo(0,0);
 }
@@ -486,6 +509,24 @@ function renderSet(){
   $("in-kg").value=seed?seed.kg:"";
   $("in-reps").value=seed?seed.reps:"";
   renderPlates();
+  renderWarmup();
+}
+
+/* ---------- warm-up ramp (first exercise, first set only) ---------- */
+function renderWarmup(){
+  const box=$("ss-warmup");
+  if(!S||S.exIdx!==0||S.setIdx!==0){box.style.display="none";return}
+  const kg=parseFloat($("in-kg").value);
+  if(isNaN(kg)||kg<=0){box.style.display="none";return}
+  const name=exName(S.d,0);
+  const isBar=BARBELL.has(name);
+  const round=v=>Math.max(isBar?BAR:2.5,Math.round(v/2.5)*2.5);
+  const steps=isBar
+    ?[["Empty bar ×10",BAR],["50% ×5",round(kg*0.5)],["75% ×3",round(kg*0.75)]]
+    :[["~50% ×10",round(kg*0.5)],["~75% ×5",round(kg*0.75)]];
+  $("ss-warmupbody").innerHTML="<ul>"+steps.map(([l,v])=>`<li>${l} — <b style="color:var(--ink)">${v} kg</b></li>`).join("")
+    +`</ul><div style="margin-top:8px;font-size:.78rem;color:var(--ink-faint)">Then straight into working sets. Warm-up sets aren't logged.</div>`;
+  box.style.display="block";
 }
 
 /* ---------- plate calculator ---------- */
@@ -508,7 +549,7 @@ function bump(f,dir){
   let v=parseFloat(el.value)||0;
   v=Math.max(0,Math.round((v+dir*step)*2)/2);
   el.value=f==="kg"?v:Math.round(v);
-  if(f==="kg")renderPlates();
+  if(f==="kg"){renderPlates();renderWarmup()}
 }
 
 function logSet(){
@@ -563,6 +604,37 @@ function doSwap(name){
 }
 function closeSwap(){$("swapsheet").classList.remove("active")}
 
+/* ================= BODY METRICS ================= */
+function bumpM(id,step){
+  const el=$(id);let v=parseFloat(el.value)||0;
+  el.value=Math.max(0,Math.round((v+step)*10)/10);
+}
+function logMetric(){
+  const kg=parseFloat($("bm-kg").value),waist=parseFloat($("bm-waist").value);
+  if(isNaN(kg)&&isNaN(waist)){toast("Enter at least one number");return}
+  if(!db.metrics)db.metrics=[];
+  db.metrics.push({date:new Date().toISOString().slice(0,10),kg:isNaN(kg)?null:kg,waist:isNaN(waist)?null:waist});
+  save();renderBody();toast("Saved — now the photos");
+}
+function delMetric(i){
+  if(confirm("Delete this entry?")){db.metrics.splice(i,1);save();renderBody()}
+}
+function renderBody(){
+  const m=db.metrics||[];
+  const last=m[m.length-1];
+  $("bm-kg").value=last&&last.kg!=null?last.kg:"";
+  $("bm-waist").value=last&&last.waist!=null?last.waist:"";
+  const list=$("bm-list");
+  if(!m.length){list.innerHTML=`<div class="emptymsg">No entries yet. Weight can rise a couple of kg in the first fortnight from glycogen and water — waist and photos are the honest signals.</div>`;return}
+  const base=m[0];
+  const fmt=(v,b)=>v==null?"—":v+(b!=null&&v!=null?` <span style="color:var(--ink-faint)">(${v-b>=0?"+":""}${Math.round((v-b)*10)/10})</span>`:"");
+  list.innerHTML=m.map((e,i)=>
+    `<div class="histrow" style="display:flex;justify-content:space-between;align-items:center">
+      <div><div class="hname">${e.date}${i===0?' <span style="color:var(--ink-faint);font-weight:400">baseline</span>':""}</div>
+      <div class="hsets">${fmt(e.kg,i?base.kg:null)} kg · ${fmt(e.waist,i?base.waist:null)} cm waist</div></div>
+      <button onclick="delMetric(${i})" style="color:var(--ink-faint);font-size:1.1rem;padding:6px">×</button></div>`).reverse().join("");
+}
+
 /* ================= REST ================= */
 let restEnd=0,restTick=null;
 function startRest(sec,nextLabel){
@@ -583,7 +655,10 @@ function endRest(){clearInterval(restTick);$("restveil").classList.remove("activ
 function showDone(w,d){
   S=null;
   $("done-sub").textContent="Day "+d+" · Week "+w+" · "+DAYS[d].title;
-  $("done-tonnage").textContent=sessionTonnage(w,d).toLocaleString();
+  const L0=db.logs[logKey(w,d)];
+  let ts=[];for(const ex of Object.values(L0.ex||{}))for(const s of ex)if(s&&s.t)ts.push(s.t);
+  const dur=ts.length>1?Math.round((Math.max(...ts)-Math.min(...ts))/60000):0;
+  $("done-tonnage").textContent=sessionTonnage(w,d).toLocaleString()+(dur?" · "+dur+" min":"");
   $("done-sets").textContent=loggedSets(w,d);
   const L=db.logs[logKey(w,d)];
   $("done-list").innerHTML=DAYS[d].ex.map((e,i)=>{
@@ -608,18 +683,41 @@ function renderHistory(){
   const hl=$("hist-lifts");hl.innerHTML="";
   let any=false;
   for(const d of ["A","B","C"])DAYS[d].ex.forEach((e,i)=>{
+    // top-set kg per week: previous block then current
+    const series=[];
+    if(db.prev)for(let w=1;w<=6;w++){const L=db.prev[logKey(w,d)];const s=L&&L.ex[i]?L.ex[i].filter(x=>x&&x.kg!=null):[];if(s.length)series.push(Math.max(...s.map(x=>x.kg)))}
+    for(let w=1;w<=6;w++){const L=db.logs[logKey(w,d)];const s=L&&L.ex[i]?L.ex[i].filter(x=>x&&x.kg!=null):[];if(s.length)series.push(Math.max(...s.map(x=>x.kg)))}
     for(let w=6;w>=1;w--){
       const L=db.logs[logKey(w,d)];
       if(L&&L.ex[i]&&L.ex[i].some(s=>s&&s.kg!=null)){
         const sets=L.ex[i].filter(s=>s&&s.kg!=null);
-        hl.innerHTML+=`<div class="histrow"><div class="hname">${exName(d,i)}</div>
-          <div class="hsets">Wk ${w}: ${sets.map(s=>s.kg+"×"+s.reps).join(" · ")}</div></div>`;
+        const cid="spark-"+d+"-"+i;
+        hl.innerHTML+=`<div class="histrow" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <div style="min-width:0"><div class="hname">${exName(d,i)}</div>
+          <div class="hsets">Wk ${w}: ${sets.map(s=>s.kg+"×"+s.reps).join(" · ")}</div></div>
+          <canvas id="${cid}" width="88" height="30" style="flex-shrink:0"></canvas></div>`;
+        requestAnimationFrame(()=>drawSpark(cid,series));
         any=true;break;
       }
     }
   });
   if(!any)hl.innerHTML=`<div class="emptymsg">Nothing logged this block yet.<br>Pick a day on the Plan tab and get under something heavy.</div>`;
   $("rollover-btn").style.opacity=weekComplete(6)?1:.5;
+}
+
+function drawSpark(id,series){
+  const c=document.getElementById(id);if(!c||series.length<2)return;
+  const ctx=c.getContext("2d"),W=c.width,H=c.height,pad=3;
+  const min=Math.min(...series),max=Math.max(...series),range=max-min||1;
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle=series[series.length-1]>=series[0]?"#3FA45C":"#E8B93B";
+  ctx.lineWidth=2;ctx.lineJoin="round";ctx.beginPath();
+  series.forEach((v,i)=>{
+    const x=pad+(W-2*pad)*i/(series.length-1);
+    const y=H-pad-(H-2*pad)*(v-min)/range;
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  });
+  ctx.stroke();
 }
 
 /* ================= DATA ================= */
@@ -640,7 +738,7 @@ function restoreJSON(input){
       const d=JSON.parse(r.result);
       if(typeof d!=="object"||!("logs"in d))throw 0;
       if(!confirm("Replace everything on this device with the backup? Current data will be overwritten."))return;
-      db={block:d.block||1,logs:d.logs||{},selWeek:d.selWeek||1,swaps:d.swaps||{},prev:d.prev||null};
+      db={block:d.block||1,logs:d.logs||{},selWeek:d.selWeek||1,swaps:d.swaps||{},prev:d.prev||null,metrics:d.metrics||[]};
       save();renderHistory();toast("Backup restored");
     }catch(e){toast("That file isn't a valid backup")}
     input.value="";
