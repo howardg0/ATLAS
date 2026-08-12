@@ -144,6 +144,50 @@ input,select{font-family:inherit}
 .emptymsg{color:var(--ink-faint);font-size:.85rem;text-align:center;padding:40px 20px;line-height:1.6}
 .sectlabel{font-size:.7rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin:18px 2px 10px}
 
+/* ---------- lift library ---------- */
+.searchbar{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  color:var(--ink);padding:12px 14px;font-size:.95rem;outline:none;margin-bottom:12px;-webkit-appearance:none}
+.searchbar::placeholder{color:var(--ink-faint)}
+.searchbar:focus{border-color:var(--ink-faint)}
+.libchips{display:flex;gap:8px;overflow-x:auto;margin:0 -16px 4px;padding:2px 16px 8px;scrollbar-width:none}
+.libchips::-webkit-scrollbar{display:none}
+.libchip{flex-shrink:0;font-size:.75rem;font-weight:700;padding:7px 13px;border-radius:999px;
+  background:var(--surface);border:1px solid var(--line);color:var(--ink-dim)}
+.libchip.sel{border-color:var(--plate-red);color:var(--ink);background:var(--surface2)}
+.librow{width:100%;text-align:left;display:flex;align-items:center;gap:10px;background:var(--surface);
+  border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin-bottom:8px}
+.librow:active{background:var(--surface2)}
+.librow .linfo{flex:1;min-width:0}
+.librow .lname{font-weight:700;font-size:.92rem}
+.librow .lmeta{font-size:.74rem;color:var(--ink-dim);margin-top:2px}
+.librow .chev{color:var(--ink-faint);font-size:.9rem}
+.daybadge{flex-shrink:0;font-size:.68rem;font-weight:800;color:var(--plate-green);background:var(--surface2);
+  border-radius:8px;padding:5px 9px;letter-spacing:.12em}
+
+/* ---------- lift detail / anatomy ---------- */
+.anatcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 8px 12px;margin-bottom:12px}
+.anat{width:100%;height:auto;display:block}
+.anat .neutral{fill:#1F242E;stroke:#313846;stroke-width:1.1}
+.anat .mus path{fill:#2A303C;stroke:#414A5C;stroke-width:1.1;transition:fill .25s,stroke .25s}
+.anat .mus.pri path{fill:var(--plate-red);stroke:#F0736C;filter:url(#mglow)}
+.anat .mus.sec path{fill:rgba(224,65,62,.24);stroke:rgba(224,65,62,.62)}
+.anat .mus path.cut{fill:none;stroke:rgba(11,13,18,.55);filter:none}
+.anat text{fill:var(--ink-faint);font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase}
+.legend{display:flex;gap:18px;justify-content:center;margin-top:10px;font-size:.72rem;color:var(--ink-dim);font-weight:600}
+.ldot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.ldot.pri{background:var(--plate-red)}
+.ldot.sec{background:rgba(224,65,62,.24);border:1px solid rgba(224,65,62,.62)}
+.mchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.mchip{font-size:.72rem;font-weight:700;padding:5px 11px;border-radius:999px;background:var(--surface2);color:var(--ink-dim)}
+.mchip.pri{color:var(--ink);background:rgba(224,65,62,.22);border:1px solid rgba(224,65,62,.45)}
+.aboutp{font-size:.86rem;line-height:1.55;color:var(--ink-dim);margin:2px 2px 14px}
+.formcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 16px;margin-bottom:12px;font-size:.86rem;color:var(--ink-dim);line-height:1.55}
+.formcard li{margin:0 0 9px 18px}
+.formcard li:last-child{margin-bottom:0}
+.formcard li::marker{color:var(--plate-red)}
+
 .nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--line);
   display:flex;justify-content:space-around;padding:8px 0 max(10px,env(safe-area-inset-bottom));z-index:40}
 .nav button{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:.65rem;font-weight:700;
@@ -197,33 +241,225 @@ const SUBS={
 "Cable Curl":["EZ-Bar Curl","DB Curl"],
 "Standing Calf Raise":["Seated Calf Raise","Leg-Press Calf Raise"]};
 
-const CUES={
-"Back Squat":["Bar on rear delts, whole foot planted, brace before you descend","Sit down between your knees, not back onto a chair","Depth to just below parallel; drive the floor away"],
-"Flat Dumbbell Bench Press":["Shoulder blades pinned back and down on the bench","Lower to just outside the chest, slight elbow tuck","Press up and slightly in — don't clang the bells"],
-"Chest-Supported Row":["Chest glued to the pad the whole set","Pull elbows back and down, squeeze the shoulder blades","Control the negative — no dropping the stack"],
-"Seated Leg Curl":["Hips pinned into the seat, don't let them lift","Curl all the way, pause a beat at full flexion","Slow 2–3 second negative"],
-"Seated DB Shoulder Press":["Back against the pad, ribs down, don't arch","Lower to ear level, press to lockout","Keep forearms vertical throughout"],
-"Cable Triceps Pushdown":["Elbows pinned to your sides","Full lockout at the bottom, squeeze","Only the forearms move"],
-"Incline DB Curl":["Set the bench ~60°, let arms hang fully","Curl without swinging the shoulders forward","Full stretch at the bottom every rep"],
-"Seated Calf Raise":["Full stretch at the bottom — pause there","Drive up onto the balls of the feet, pause at top","No bouncing out of the bottom"],
-"Cable Crunch":["Hips stay still — flex the spine, don't pull with arms","Crunch ribs towards pelvis","Exhale hard at the bottom"],
-"Romanian Deadlift":["Soft knees, push hips straight back","Bar stays against the legs the whole way","Stop where hamstring stretch peaks — don't chase the floor"],
-"Lat Pulldown":["Lean back slightly, chest up","Pull the bar to the upper chest, elbows down and back","Full stretch at the top of every rep"],
-"Incline Dumbbell Press":["Bench 30°, shoulder blades set","Lower to upper-chest line","Press up and slightly back over the face"],
-"Leg Press":["Feet mid-platform, hip width","Deep as you can without the lower back rolling off the pad","Don't lock the knees hard at the top"],
-"Cable Lateral Raise":["Cable behind the body, slight lean away","Lead with the elbow, raise to shoulder height","Slow negative — the cable pulls you back"],
-"Overhead Cable Triceps Extension":["Face away, elbows by the ears","Full stretch behind the head","Extend to lockout without flaring"],
-"Hammer Curl":["Neutral grip, elbows pinned","No swing — strict up, controlled down","Squeeze at the top"],
-"Hanging Knee Raise":["Dead hang, shoulders packed","Curl the pelvis up, not just the knees","No swinging between reps"],
-"Hack Squat":["Whole foot on the platform","Deep, controlled descent","Drive through mid-foot, don't lock hard at the top"],
-"Seated Cable Row":["Neutral grip, chest tall","Pull to the navel, elbows tight","Let the weight stretch you forward under control"],
-"Machine Chest Press":["Adjust seat so handles sit at mid-chest","Full range — deep stretch, full press","Constant tension, no resting at lockout"],
-"45-Degree Back Extension":["Hinge at the hips, flat back","Squeeze glutes hard at the top","Slow down, don't hyperextend"],
-"DB Lateral Raise":["Slight forward lean, soft elbows","Raise to shoulder height, pinky slightly up","Lighter than you think — no swinging"],
-"Reverse Pec Deck":["Arms just below shoulder height","Pull apart with the rear delts, not the arms","Pause a beat at full spread"],
-"Cable Curl":["Elbows fixed at your sides","Constant tension top to bottom","Squeeze hard at the top"],
-"Standing Calf Raise":["Full stretch at the bottom, pause","Rise as high as possible, pause","Straight knees throughout"],
-"Bulgarian Split Squat":["Rear foot laces-down on the bench","Torso slightly forward, drop straight down","Drive through the front heel"]};
+/* ================= LIFT ENCYCLOPEDIA ================= */
+const MUSCLE_NAMES={quads:"Quads",glutes:"Glutes",hamstrings:"Hamstrings",adductors:"Adductors",calves:"Calves",
+chest:"Chest",lats:"Lats",upper_back:"Upper Back",lower_back:"Lower Back",traps:"Traps",
+delts_front:"Front Delts",delts_side:"Side Delts",delts_rear:"Rear Delts",
+biceps:"Biceps",triceps:"Triceps",forearms:"Forearms",abs:"Abs",obliques:"Obliques",hip_flexors:"Hip Flexors"};
+const MUSCLE_MAP={
+traps:["m-fr-traps","m-bk-traps"],delts_front:["m-fr-delts"],delts_side:["m-fr-delts","m-bk-delts"],
+delts_rear:["m-bk-delts"],chest:["m-fr-chest"],biceps:["m-fr-biceps"],triceps:["m-bk-triceps"],
+forearms:["m-fr-forearms","m-bk-forearms"],lats:["m-bk-lats"],upper_back:["m-bk-upperback"],
+lower_back:["m-bk-lowerback"],abs:["m-fr-abs"],obliques:["m-fr-obliques"],hip_flexors:["m-fr-hipflex"],
+glutes:["m-bk-glutes"],quads:["m-fr-quads"],hamstrings:["m-bk-hams"],adductors:["m-fr-adductors"],calves:["m-bk-calves"]};
+const GROUPS=["Quads","Hams & Glutes","Chest","Back","Shoulders","Biceps","Triceps","Calves","Core"];
+
+/* g: group · pat: movement pattern · eq: equipment · pri/sec: muscles · about: what & why · form: cues */
+const EXDB={
+/* ---- Quads ---- */
+"Back Squat":{g:"Quads",pat:"Squat",eq:"Barbell",pri:["quads","glutes"],sec:["adductors","lower_back","abs"],
+ about:"The benchmark lower-body lift — a deep knee bend with the bar on your back that loads the quads and glutes through the longest useful range of motion.",
+ form:["Bar on rear delts, whole foot planted, brace before you descend","Sit down between your knees, not back onto a chair","Depth to just below parallel; drive the floor away","Big breath and re-brace at the top of every rep"]},
+"Front Squat":{g:"Quads",pat:"Squat",eq:"Barbell",pri:["quads"],sec:["glutes","abs","upper_back"],
+ about:"Racking the bar on the front delts keeps the torso upright, shifting nearly all the work onto the quads and easing the lower back.",
+ form:["Bar sits on the front delts, elbows driven high, relaxed fingertips under it","Stay tall — if the elbows drop, the bar rolls forward","Sit straight down between the knees, full depth, drive up through mid-foot"]},
+"Goblet Squat":{g:"Quads",pat:"Squat",eq:"Dumbbell",pri:["quads"],sec:["glutes","abs"],
+ about:"A dumbbell held at the chest acts as a counterweight, making deep, upright squatting feel natural. The best variant for grooving technique.",
+ form:["Hold one end of a dumbbell in both hands against the chest","Elbows drop inside the knees at the bottom","Stand tall between reps, whole foot planted"]},
+"Hack Squat":{g:"Quads",pat:"Squat",eq:"Machine",pri:["quads"],sec:["glutes","adductors"],
+ about:"A machine squat that locks the torso against a pad so you can push the quads to failure without balance or back fatigue ending the set first.",
+ form:["Whole foot on the platform","Deep, controlled descent","Drive through mid-foot, don't lock hard at the top"]},
+"Leg Press":{g:"Quads",pat:"Squat",eq:"Machine",pri:["quads"],sec:["glutes","adductors"],
+ about:"The heaviest safe quad exercise in the gym — the back is fully supported, so the legs are the only limit.",
+ form:["Feet mid-platform, hip width","Deep as you can without the lower back rolling off the pad","Don't lock the knees hard at the top"]},
+"Belt Squat":{g:"Quads",pat:"Squat",eq:"Machine",pri:["quads"],sec:["glutes","adductors"],
+ about:"The load hangs from a belt at the hips, so the legs squat heavy while the spine carries nothing. Ideal when the lower back needs a rest.",
+ form:["Stand tall — the load is on the hips only","Squat deep; no bar means no balance penalty","Drive through mid-foot, control the descent"]},
+"Bulgarian Split Squat":{g:"Quads",pat:"Squat",eq:"Dumbbell",pri:["quads","glutes"],sec:["adductors","abs"],
+ about:"A rear-foot-elevated single-leg squat. Brutal, humbling, and one of the best leg builders there is — each side works alone so nothing hides.",
+ form:["Rear foot laces-down on the bench","Torso slightly forward, drop straight down","Drive through the front heel"]},
+/* ---- Hams & Glutes ---- */
+"Romanian Deadlift":{g:"Hams & Glutes",pat:"Hinge",eq:"Barbell",pri:["hamstrings","glutes"],sec:["lower_back","forearms","traps"],
+ about:"The definitive hip hinge. Lowering the bar with near-straight knees stretches the hamstrings under load — exactly the stimulus that makes them grow.",
+ form:["Soft knees, push hips straight back","Bar stays against the legs the whole way","Stop where hamstring stretch peaks — don't chase the floor","Squeeze the glutes through to stand, re-set the flat back each rep"]},
+"Conventional Deadlift":{g:"Hams & Glutes",pat:"Hinge",eq:"Barbell",pri:["hamstrings","glutes","lower_back"],sec:["quads","traps","forearms","lats"],
+ about:"Picking heavy weight up off the floor — the biggest total-body pull there is, with hips, hamstrings and the whole back working at once.",
+ form:["Bar over mid-foot, shins close, flat back set before you pull","Push the floor away and stand up — bar drags up the legs","Lock out by squeezing the glutes, not leaning back","Re-set every rep; no bouncing off the floor"]},
+"Good Morning":{g:"Hams & Glutes",pat:"Hinge",eq:"Barbell",pri:["hamstrings","glutes"],sec:["lower_back"],
+ about:"A barbell hinge with the bar on the back — the long lever makes light weight feel heavy through the entire posterior chain.",
+ form:["Soft knees, push the hips straight back","Stop when the hamstrings pull tight — torso near parallel","Back flat and the bar light; this one punishes ego"]},
+"Seated Leg Curl":{g:"Hams & Glutes",pat:"Isolation",eq:"Machine",pri:["hamstrings"],sec:["calves"],
+ about:"Curling from a seated position works the hamstrings at long muscle length — research keeps finding that grows them faster than lying curls.",
+ form:["Hips pinned into the seat, don't let them lift","Curl all the way, pause a beat at full flexion","Slow 2–3 second negative"]},
+"Lying Leg Curl":{g:"Hams & Glutes",pat:"Isolation",eq:"Machine",pri:["hamstrings"],sec:["calves"],
+ about:"The classic face-down hamstring curl. A slightly shorter muscle length than seated, but still an excellent knee-flexion builder.",
+ form:["Hips pressed into the bench the whole set","Curl to full flexion, pause a beat","Take 2–3 seconds on the way down"]},
+"Nordic Curl (assisted)":{g:"Hams & Glutes",pat:"Isolation",eq:"Bodyweight",pri:["hamstrings"],sec:["glutes","calves"],
+ about:"Ankles anchored, you lower your torso forward using nothing but hamstring strength. Assistance from a band or your hands makes it scalable.",
+ form:["Anchor the ankles, body rigid from knees to head","Lower as slowly as possible — the negative is the exercise","Push back up with hands or a band; earn the full rep over months"]},
+"45-Degree Back Extension":{g:"Hams & Glutes",pat:"Hinge",eq:"Bodyweight",pri:["glutes","hamstrings"],sec:["lower_back"],
+ about:"Hinging over the 45° pad hits the glutes and hamstrings hard while the lower back only stabilises — hold a plate to the chest to progress.",
+ form:["Hinge at the hips, flat back","Squeeze glutes hard at the top","Slow down, don't hyperextend"]},
+"Reverse Hyper":{g:"Hams & Glutes",pat:"Hinge",eq:"Machine",pri:["glutes","hamstrings"],sec:["lower_back"],
+ about:"Torso pinned, legs swinging up behind you — loads the glutes and hams while gently decompressing the spine instead of squashing it.",
+ form:["Grip the handles hard, torso glued to the pad","Swing the legs to just above parallel, squeeze the glutes","Control the pendulum — no violent kipping"]},
+/* ---- Chest ---- */
+"Flat Dumbbell Bench Press":{g:"Chest",pat:"Horizontal Push",eq:"Dumbbell",pri:["chest"],sec:["delts_front","triceps"],
+ about:"Dumbbells let each side move freely through a deeper range than a bar, making this the best all-round chest builder for most lifters.",
+ form:["Shoulder blades pinned back and down on the bench","Lower to just outside the chest, slight elbow tuck","Press up and slightly in — don't clang the bells"]},
+"Barbell Bench Press":{g:"Chest",pat:"Horizontal Push",eq:"Barbell",pri:["chest"],sec:["delts_front","triceps"],
+ about:"The classic press and the heaviest chest movement — feet planted, shoulder blades pinned, bar touching the lower chest.",
+ form:["Shoulder blades back and down, slight arch, feet planted","Bar to the lower chest, forearms vertical at the bottom","Press up and slightly back towards the face","Never go near failure without a spotter or safeties"]},
+"Machine Chest Press":{g:"Chest",pat:"Horizontal Push",eq:"Machine",pri:["chest"],sec:["delts_front","triceps"],
+ about:"A fixed pressing path with zero balance demand — perfect for taking the chest to true failure safely, especially late in a session.",
+ form:["Adjust seat so handles sit at mid-chest","Full range — deep stretch, full press","Constant tension, no resting at lockout"]},
+"Smith Machine Bench":{g:"Chest",pat:"Horizontal Push",eq:"Smith",pri:["chest"],sec:["delts_front","triceps"],
+ about:"Barbell bench on rails. The fixed path removes stabiliser demand so the pecs do more of the work — and failing is safe with the hooks.",
+ form:["Set the bench so the bar touches the lower chest","Shoulder blades pinned throughout","Twist-rack the bar the instant a rep stalls — that's the point of the Smith"]},
+"Incline Dumbbell Press":{g:"Chest",pat:"Horizontal Push",eq:"Dumbbell",pri:["chest","delts_front"],sec:["triceps"],
+ about:"Pressing on a ~30° incline shifts the work up into the upper-chest fibres — the region most lifters are missing.",
+ form:["Bench 30°, shoulder blades set","Lower to upper-chest line","Press up and slightly back over the face"]},
+"Incline Barbell Press":{g:"Chest",pat:"Horizontal Push",eq:"Barbell",pri:["chest","delts_front"],sec:["triceps"],
+ about:"The barbell version of the incline press — heavier loading for the upper chest at the cost of a little range of motion.",
+ form:["Bench at 30–45°, shoulder blades set","Lower to just below the collarbones","Press to lockout without flaring the elbows wide"]},
+"Incline Machine Press":{g:"Chest",pat:"Horizontal Push",eq:"Machine",pri:["chest","delts_front"],sec:["triceps"],
+ about:"Upper-chest pressing with the machine catching the weight — take every set close to failure without a spotter.",
+ form:["Seat height so handles start at upper-chest level","Deep stretch at the bottom, full press without shrugging","Constant tension — don't rest at lockout"]},
+/* ---- Back ---- */
+"Chest-Supported Row":{g:"Back",pat:"Horizontal Pull",eq:"Machine",pri:["lats","upper_back"],sec:["delts_rear","biceps","forearms"],
+ about:"Rowing with the chest on a pad removes all momentum and lower-back strain — the purest way to load the mid-back and lats.",
+ form:["Chest glued to the pad the whole set","Pull elbows back and down, squeeze the shoulder blades","Control the negative — no dropping the stack"]},
+"Seated Cable Row":{g:"Back",pat:"Horizontal Pull",eq:"Cable",pri:["lats","upper_back"],sec:["delts_rear","biceps","lower_back"],
+ about:"The staple horizontal pull — constant cable tension, a big stretch forward, and a hard squeeze at the navel.",
+ form:["Neutral grip, chest tall","Pull to the navel, elbows tight","Let the weight stretch you forward under control"]},
+"T-Bar Row":{g:"Back",pat:"Horizontal Pull",eq:"Barbell",pri:["lats","upper_back"],sec:["delts_rear","biceps","lower_back"],
+ about:"A bar wedged in a corner, loaded close to your centre of mass — heavy mid-back work with less lower-back stress than a bent-over row.",
+ form:["Hinge to ~45°, chest up, back flat","Pull the handle into the sternum, elbows tight","Lower under control until the arms are long"]},
+"Machine Row":{g:"Back",pat:"Horizontal Pull",eq:"Machine",pri:["lats","upper_back"],sec:["delts_rear","biceps"],
+ about:"A fixed rowing path with chest support — set the seat right and it's all back, with no cheating available.",
+ form:["Chest against the pad, feet planted","Drive the elbows back, squeeze the shoulder blades together","Slow negative, full stretch between reps"]},
+"Single-Arm DB Row":{g:"Back",pat:"Horizontal Pull",eq:"Dumbbell",pri:["lats","upper_back"],sec:["delts_rear","biceps","obliques"],
+ about:"One hand braced on a bench, the other rowing a dumbbell — a huge range of motion, and each side of the back works alone.",
+ form:["Flat back, hand and knee braced on the bench","Pull the bell to the hip, not the armpit","Full stretch at the bottom — let the shoulder blade slide forward"]},
+"Barbell Row":{g:"Back",pat:"Horizontal Pull",eq:"Barbell",pri:["lats","upper_back"],sec:["lower_back","delts_rear","biceps","forearms"],
+ about:"The heavy free-weight row. Hinged over with a bar, it builds the entire back — and demands a rock-solid lower-back position.",
+ form:["Hinge to 30–45°, flat back, bar hanging under the shoulders","Pull to the lower ribs, elbows at ~45°","No heaving — if the torso swings, the weight is too heavy"]},
+"Lat Pulldown":{g:"Back",pat:"Vertical Pull",eq:"Cable",pri:["lats"],sec:["biceps","upper_back","delts_rear"],
+ about:"The scalable vertical pull — a full stretch at the top and elbows driven down and back build the lats that give a back its width.",
+ form:["Lean back slightly, chest up","Pull the bar to the upper chest, elbows down and back","Full stretch at the top of every rep"]},
+"Machine Pulldown":{g:"Back",pat:"Vertical Pull",eq:"Machine",pri:["lats"],sec:["biceps","upper_back"],
+ about:"A pulldown with a fixed arc — less setup fiddle, the same lat-building stretch and squeeze.",
+ form:["Thighs locked under the pads","Pull the elbows down and back, chest tall","Let the weight stretch you fully at the top"]},
+"Pull-Up":{g:"Back",pat:"Vertical Pull",eq:"Bodyweight",pri:["lats"],sec:["biceps","upper_back","abs","forearms"],
+ about:"The king of vertical pulls — dragging your whole bodyweight up builds lats, arms and grip at once.",
+ form:["Dead hang start, shoulders packed down","Pull the chest to the bar, elbows to the ribs","Full hang between reps — half reps build half a back"]},
+"Assisted Pull-Up":{g:"Back",pat:"Vertical Pull",eq:"Machine",pri:["lats"],sec:["biceps","upper_back"],
+ about:"The pull-up with a counterweight platform — full-range vertical pulling scaled to any strength level. Reduce the assistance over time.",
+ form:["Same as a pull-up: dead hang, chest to bar","Set assistance so you fail inside the target rep range","Control the way down — no dropping"]},
+/* ---- Shoulders ---- */
+"Seated DB Shoulder Press":{g:"Shoulders",pat:"Vertical Push",eq:"Dumbbell",pri:["delts_front","delts_side"],sec:["triceps","traps"],
+ about:"The bread-and-butter overhead press — dumbbells demand control and work the delts through a full range.",
+ form:["Back against the pad, ribs down, don't arch","Lower to ear level, press to lockout","Keep forearms vertical throughout"]},
+"Machine Shoulder Press":{g:"Shoulders",pat:"Vertical Push",eq:"Machine",pri:["delts_front","delts_side"],sec:["triceps"],
+ about:"Overhead pressing on rails — no balancing act, so the delts can take every set to the edge safely.",
+ form:["Seat height so handles start at ear level","Press without shrugging the shoulders up","Lower slow, full stretch, no bounce"]},
+"Smith Overhead Press":{g:"Shoulders",pat:"Vertical Push",eq:"Smith",pri:["delts_front","delts_side"],sec:["triceps","traps"],
+ about:"A fixed-path overhead press — the rails handle the balance, you handle the effort.",
+ form:["Bar path just in front of the face","Ribs down, glutes tight — don't lean back into an incline press","Rack the moment a rep stalls"]},
+"Cable Lateral Raise":{g:"Shoulders",pat:"Isolation",eq:"Cable",pri:["delts_side"],sec:["traps"],
+ about:"Constant cable tension from the very bottom makes this the highest-value side-delt exercise — the muscle never gets to rest.",
+ form:["Cable behind the body, slight lean away","Lead with the elbow, raise to shoulder height","Slow negative — the cable pulls you back"]},
+"DB Lateral Raise":{g:"Shoulders",pat:"Isolation",eq:"Dumbbell",pri:["delts_side"],sec:["traps"],
+ about:"The classic width-builder — light dumbbells raised strictly to shoulder height, for high reps, forever.",
+ form:["Slight forward lean, soft elbows","Raise to shoulder height, pinky slightly up","Lighter than you think — no swinging"]},
+"Machine Lateral Raise":{g:"Shoulders",pat:"Isolation",eq:"Machine",pri:["delts_side"],sec:["traps"],
+ about:"Pads on the upper arms remove grip and swing entirely — pure side delts, easy to push to failure.",
+ form:["Line the shoulder up with the machine's pivot","Lead with the elbows to shoulder height","Slow negative — resist the machine on the way down"]},
+"Reverse Pec Deck":{g:"Shoulders",pat:"Isolation",eq:"Machine",pri:["delts_rear"],sec:["upper_back","traps"],
+ about:"Sitting face-in on the pec deck turns it into the simplest, most effective rear-delt isolation in the gym.",
+ form:["Arms just below shoulder height","Pull apart with the rear delts, not the arms","Pause a beat at full spread"]},
+"Face Pull":{g:"Shoulders",pat:"Isolation",eq:"Cable",pri:["delts_rear"],sec:["upper_back","traps"],
+ about:"Pulling a rope to the face with elbows high trains the rear delts and the small rotator muscles that keep pressing shoulders healthy.",
+ form:["Rope at upper-chest height, thumbs towards you","Pull towards the eyes, elbows high and wide","Finish each rep with a 'double-biceps' squeeze"]},
+"Bent-Over Reverse Fly":{g:"Shoulders",pat:"Isolation",eq:"Dumbbell",pri:["delts_rear"],sec:["upper_back"],
+ about:"Hinged over with light dumbbells sweeping wide — a rear-delt burner that needs nothing but a bench and bells.",
+ form:["Hinge until the torso is near parallel","Sweep the arms wide, soft elbows locked in place","Light weight, no swinging — the rear delts are small"]},
+/* ---- Biceps ---- */
+"Incline DB Curl":{g:"Biceps",pat:"Isolation",eq:"Dumbbell",pri:["biceps"],sec:["forearms"],
+ about:"Curling on an incline bench puts the long head of the biceps on stretch — and the loaded stretch is where growth lives.",
+ form:["Set the bench ~60°, let arms hang fully","Curl without swinging the shoulders forward","Full stretch at the bottom every rep"]},
+"EZ-Bar Curl":{g:"Biceps",pat:"Isolation",eq:"EZ-Bar",pri:["biceps"],sec:["forearms"],
+ about:"The heavy-duty curl — the angled grips spare the wrists while both arms move the most total weight.",
+ form:["Elbows pinned to the sides","Curl without leaning back","Lower for a slow two-count every rep"]},
+"Preacher Curl":{g:"Biceps",pat:"Isolation",eq:"EZ-Bar",pri:["biceps"],sec:["forearms"],
+ about:"The pad kills all momentum and loads the biceps hardest in the stretched bottom half — brutal and honest.",
+ form:["Armpits snug over the pad","Lower almost to straight arms — that stretch is the point","No bouncing out of the bottom"]},
+"DB Curl":{g:"Biceps",pat:"Isolation",eq:"Dumbbell",pri:["biceps"],sec:["forearms"],
+ about:"The standard curl — supinating each dumbbell as it rises squeezes every fibre of the biceps.",
+ form:["Start palms neutral, twist to palms-up as you curl","Elbows stay at the sides","Full straight-arm hang at the bottom"]},
+"Cable Curl":{g:"Biceps",pat:"Isolation",eq:"Cable",pri:["biceps"],sec:["forearms"],
+ about:"The cable keeps the biceps loaded even at the bottom, where dumbbells go slack — perfect for high-rep pump work.",
+ form:["Elbows fixed at your sides","Constant tension top to bottom","Squeeze hard at the top"]},
+"Hammer Curl":{g:"Biceps",pat:"Isolation",eq:"Dumbbell",pri:["biceps","forearms"],sec:[],
+ about:"Neutral-grip curling shifts the work to the brachialis and forearms — thicker arms and a stronger grip.",
+ form:["Neutral grip, elbows pinned","No swing — strict up, controlled down","Squeeze at the top"]},
+"Cable Hammer Curl":{g:"Biceps",pat:"Isolation",eq:"Cable",pri:["biceps","forearms"],sec:[],
+ about:"Hammer curls on a rope — constant tension for the brachialis and forearms from bottom to top.",
+ form:["Rope ends held neutral, elbows pinned","Curl high, squeeze, lower slow","Step back from the stack so there's tension at the bottom"]},
+"Reverse Curl":{g:"Biceps",pat:"Isolation",eq:"EZ-Bar",pri:["forearms"],sec:["biceps"],
+ about:"Curling with palms down hammers the forearm extensors and brachialis — the finishing touch for complete arms.",
+ form:["Overhand grip, thumbs over the bar","Wrists straight — don't let them flop back","Lighter than a normal curl; strict form"]},
+/* ---- Triceps ---- */
+"Cable Triceps Pushdown":{g:"Triceps",pat:"Isolation",eq:"Cable",pri:["triceps"],sec:[],
+ about:"The staple triceps move — elbows pinned, cable pressed to lockout. Simple, repeatable, easy to progress.",
+ form:["Elbows pinned to your sides","Full lockout at the bottom, squeeze","Only the forearms move"]},
+"Rope Pushdown":{g:"Triceps",pat:"Isolation",eq:"Cable",pri:["triceps"],sec:[],
+ about:"The rope lets the hands split apart at the bottom for a harder lockout squeeze than any straight bar.",
+ form:["Elbows pinned, pull the rope ends apart at the bottom","Full lockout, one-second squeeze","Only the forearms move"]},
+"Machine Dip":{g:"Triceps",pat:"Vertical Push",eq:"Machine",pri:["triceps"],sec:["chest","delts_front"],
+ about:"Dipping on a machine loads the triceps heavy with the chest assisting — no shoulder strain, no bodyweight limit.",
+ form:["Sit tall, shoulders down away from the ears","Elbows track back, not flared wide","Press to full lockout"]},
+"Bench Dip":{g:"Triceps",pat:"Vertical Push",eq:"Bodyweight",pri:["triceps"],sec:["chest","delts_front"],
+ about:"Hands on a bench behind you, heels on the floor — a do-anywhere triceps builder. Add plates on the lap to progress.",
+ form:["Shoulders down, chest up — don't sink into the neck","Descend until the upper arms are parallel","Lock out fully and squeeze"]},
+"Overhead Cable Triceps Extension":{g:"Triceps",pat:"Isolation",eq:"Cable",pri:["triceps"],sec:[],
+ about:"Working overhead puts the long head — half the triceps' mass — on full stretch, which pushdowns never do.",
+ form:["Face away, elbows by the ears","Full stretch behind the head","Extend to lockout without flaring"]},
+"Overhead DB Extension":{g:"Triceps",pat:"Isolation",eq:"Dumbbell",pri:["triceps"],sec:[],
+ about:"One dumbbell held in both hands, lowered behind the head — the classic long-head stretch with no cable needed.",
+ form:["Seated, one bell in both hands overhead","Lower behind the head to a deep stretch","Elbows point forward, not out wide"]},
+"Skull Crusher":{g:"Triceps",pat:"Isolation",eq:"EZ-Bar",pri:["triceps"],sec:[],
+ about:"Lowering an EZ-bar to the forehead — or just behind it — loads the triceps deep in the stretch. The heavy-duty extension.",
+ form:["Lower to the forehead or just behind the head","Elbows stay in — don't let them flare","Keep a rep in the tank; failing mid-rep here is grim"]},
+/* ---- Calves ---- */
+"Seated Calf Raise":{g:"Calves",pat:"Isolation",eq:"Machine",pri:["calves"],sec:[],
+ about:"Bent-knee raises target the soleus — the deep calf muscle that does the daily work and responds to high reps.",
+ form:["Full stretch at the bottom — pause there","Drive up onto the balls of the feet, pause at top","No bouncing out of the bottom"]},
+"Standing Calf Raise":{g:"Calves",pat:"Isolation",eq:"Machine",pri:["calves"],sec:[],
+ about:"Straight-knee raises hit the gastrocnemius — the diamond-shaped muscle that gives the calf its shape.",
+ form:["Full stretch at the bottom, pause","Rise as high as possible, pause","Straight knees throughout"]},
+"Leg-Press Calf Raise":{g:"Calves",pat:"Isolation",eq:"Machine",pri:["calves"],sec:[],
+ about:"Calf raises on the leg-press platform — a huge stretch, heavy loading, and the easiest setup in the gym.",
+ form:["Balls of the feet on the platform's bottom edge","Full stretch, pause, full rise, pause","Don't let the knees bounce"]},
+/* ---- Core ---- */
+"Cable Crunch":{g:"Core",pat:"Core",eq:"Cable",pri:["abs"],sec:["obliques"],
+ about:"Kneeling crunches against a cable stack — the abs are a muscle like any other, so load them and progress them like one.",
+ form:["Hips stay still — flex the spine, don't pull with arms","Crunch ribs towards pelvis","Exhale hard at the bottom"]},
+"Machine Crunch":{g:"Core",pat:"Core",eq:"Machine",pri:["abs"],sec:["obliques"],
+ about:"A weighted crunch with a selectorised stack — the easiest way to progressively overload the abs.",
+ form:["Ribs towards pelvis; the spine flexes, the hips stay put","Exhale hard as you crunch","Slow return, keep tension at the top"]},
+"Decline Sit-Up":{g:"Core",pat:"Core",eq:"Bodyweight",pri:["abs"],sec:["hip_flexors","obliques"],
+ about:"Sit-ups on a decline bench — gravity ramps the difficulty, and a plate held to the chest scales it forever.",
+ form:["Curl the spine up one segment at a time","Down slow — the negative counts","Hold a plate on the chest to progress"]},
+"Ab Wheel":{g:"Core",pat:"Core",eq:"Bodyweight",pri:["abs"],sec:["obliques","lats"],
+ about:"Rolling out from the knees forces the abs to resist extension through a huge range — one of the hardest and best core moves.",
+ form:["Start on the knees, hips slightly tucked","Roll only as far as the lower back stays flat","Pull back with the abs, not the arms"]},
+"Hanging Knee Raise":{g:"Core",pat:"Core",eq:"Bodyweight",pri:["abs","hip_flexors"],sec:["obliques","forearms"],
+ about:"Hanging from the bar and curling the pelvis up trains the lower abs and your grip at the same time.",
+ form:["Dead hang, shoulders packed","Curl the pelvis up, not just the knees","No swinging between reps"]},
+"Captain's Chair Raise":{g:"Core",pat:"Core",eq:"Machine",pri:["abs","hip_flexors"],sec:["obliques"],
+ about:"Knee raises with the forearms on pads — the same lower-ab curl without grip being the limit.",
+ form:["Press the lower back towards the pad","Curl the pelvis, don't just lift the knees","No swinging between reps"]}};
 
 const DAYS={
 A:{title:"Squat & Horizontal Push",ex:[
@@ -259,7 +495,7 @@ C:{title:"Unilateral & Pump",ex:[
   </div>
   <div class="exhead">
     <div class="exnum" id="ss-exnum"></div>
-    <div class="exrow"><h2 id="ss-exname"></h2><button class="swapbtn" onclick="openSwap()">⇄ Swap</button></div>
+    <div class="exrow"><h2 id="ss-exname"></h2><div style="display:flex;gap:6px;flex-shrink:0"><button class="swapbtn" onclick="openLiftFromSession()">ⓘ Guide</button><button class="swapbtn" onclick="openSwap()">⇄ Swap</button></div></div>
     <div class="extags" id="ss-tags"></div>
   </div>
   <div class="coach" id="ss-coach"><span class="cico" id="ss-coachico"></span><span id="ss-coachtxt"></span></div>
@@ -310,20 +546,116 @@ C:{title:"Unilateral & Pump",ex:[
   <button class="bigbtn ghost" onclick="wipeData()" style="color:var(--plate-red)">Erase all data</button>
 </div>
 
-<div class="screen" id="scr-body">
-  <div class="topbar"><div><h1>Body</h1><div class="sub">Weekly, same conditions: morning, before food</div></div></div>
-  <div class="setcard">
-    <div class="inrow">
-      <div class="infield"><div class="flabel">Weight kg</div>
-        <div class="stepper"><button onclick="bumpM('bm-kg',-0.5)">−</button><input id="bm-kg" type="number" inputmode="decimal" step="0.1"><button onclick="bumpM('bm-kg',0.5)">+</button></div></div>
-      <div class="infield"><div class="flabel">Waist cm</div>
-        <div class="stepper"><button onclick="bumpM('bm-waist',-0.5)">−</button><input id="bm-waist" type="number" inputmode="decimal" step="0.5"><button onclick="bumpM('bm-waist',0.5)">+</button></div></div>
-    </div>
-    <div class="platebar" id="bm-hint">And take the three photos — front, side, back, same spot, same light.</div>
+<div class="screen" id="scr-lib">
+  <div class="topbar"><div><h1>Lift Library</h1><div class="sub" id="lib-sub">Every lift in the plan and its swaps — tap one to learn it</div></div></div>
+  <input class="searchbar" id="libsearch" type="search" placeholder="Search lifts, muscles, equipment…" oninput="LIB.q=this.value;renderLib()">
+  <div class="libchips" id="libchips"></div>
+  <div id="liblist"></div>
+</div>
+
+<div class="screen" id="scr-lift">
+  <div class="topbar">
+    <button class="backbtn" onclick="backFromLift()">←</button>
+    <div><h1 id="lift-name"></h1><div class="sub" id="lift-sub"></div></div>
   </div>
-  <button class="bigbtn primary" onclick="logMetric()">Save this week</button>
-  <div class="sectlabel">Trend</div>
-  <div id="bm-list"><div class="emptymsg">No entries yet. Weight can rise a couple of kg in the first fortnight from glycogen and water — waist and photos are the honest signals.</div></div>
+  <div class="extags" id="lift-tags" style="margin-bottom:12px"></div>
+  <div class="anatcard">
+    <svg id="anat" class="anat" viewBox="0 0 440 452" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Targeted muscles, front and back view">
+      <defs><filter id="mglow" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#E0413E" flood-opacity=".45"/></filter></defs>
+      <!-- ============ FRONT FIGURE ============ -->
+      <g transform="translate(0,4)">
+        <ellipse class="neutral" cx="105" cy="26" rx="15" ry="17"/>
+        <path class="neutral" d="M97,41 L96,56 L114,56 L113,41 Q105,45 97,41 Z"/>
+        <g class="mus" id="m-fr-traps">
+          <path d="M107,54 Q119,55 130,62 Q118,67 108,68 Q106,60 107,54 Z"/>
+          <path d="M107,54 Q119,55 130,62 Q118,67 108,68 Q106,60 107,54 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <g class="mus" id="m-fr-delts">
+          <path d="M121,66 Q126,56 137,60 Q148,66 147,80 Q144,90 134,88 Q123,82 121,66 Z"/>
+          <path d="M121,66 Q126,56 137,60 Q148,66 147,80 Q144,90 134,88 Q123,82 121,66 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <g class="mus" id="m-fr-chest">
+          <path d="M106,64 Q122,64 131,72 Q135,82 130,95 Q120,105 108,101 Q105,98 106,64 Z"/>
+          <path d="M106,64 Q122,64 131,72 Q135,82 130,95 Q120,105 108,101 Q105,98 106,64 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <g class="mus" id="m-fr-biceps">
+          <path d="M129,92 Q140,88 146,98 Q152,114 150,128 Q142,136 134,126 Q127,106 129,92 Z"/>
+          <path d="M129,92 Q140,88 146,98 Q152,114 150,128 Q142,136 134,126 Q127,106 129,92 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <g class="mus" id="m-fr-forearms">
+          <path d="M148,134 Q156,130 160,140 Q165,158 164,177 Q159,183 152,179 Q146,158 146,141 Z"/>
+          <path d="M148,134 Q156,130 160,140 Q165,158 164,177 Q159,183 152,179 Q146,158 146,141 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <ellipse class="neutral" cx="163" cy="192" rx="7" ry="9"/>
+        <ellipse class="neutral" cx="47" cy="192" rx="7" ry="9"/>
+        <g class="mus" id="m-fr-abs">
+          <path d="M94,107 Q105,101 116,107 L115,171 Q105,181 95,171 Z"/>
+          <path class="cut" d="M94,123 L116,123 M94,139 L116,139 M95,155 L115,155 M105,103 L105,177"/></g>
+        <g class="mus" id="m-fr-obliques">
+          <path d="M118,109 Q127,113 128,121 Q128,148 122,166 Q118,169 117,163 Q118,134 118,109 Z"/>
+          <path d="M118,109 Q127,113 128,121 Q128,148 122,166 Q118,169 117,163 Q118,134 118,109 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <g class="mus" id="m-fr-hipflex">
+          <path d="M94,177 Q105,187 116,177 Q114,196 108,204 Q105,208 102,204 Q96,196 94,177 Z"/></g>
+        <g class="mus" id="m-fr-quads">
+          <path d="M113,190 Q128,190 133,210 Q137,245 130,278 Q125,296 117,298 Q109,290 108,260 Q108,218 113,190 Z"/>
+          <path d="M113,190 Q128,190 133,210 Q137,245 130,278 Q125,296 117,298 Q109,290 108,260 Q108,218 113,190 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <g class="mus" id="m-fr-adductors">
+          <path d="M112,192 Q109,212 108,232 Q105,238 103,230 Q104,208 108,194 Q110,190 112,192 Z"/>
+          <path d="M112,192 Q109,212 108,232 Q105,238 103,230 Q104,208 108,194 Q110,190 112,192 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <circle class="neutral" cx="121" cy="306" r="6"/><circle class="neutral" cx="89" cy="306" r="6"/>
+        <path class="neutral" d="M115,316 Q125,314 126,332 Q127,360 120,386 Q114,390 111,382 Q109,346 115,316 Z"/>
+        <path class="neutral" d="M115,316 Q125,314 126,332 Q127,360 120,386 Q114,390 111,382 Q109,346 115,316 Z" transform="translate(210,0) scale(-1,1)"/>
+        <ellipse class="neutral" cx="118" cy="398" rx="9" ry="6"/><ellipse class="neutral" cx="92" cy="398" rx="9" ry="6"/>
+        <text x="105" y="440" text-anchor="middle">Front</text>
+      </g>
+      <!-- ============ BACK FIGURE ============ -->
+      <g transform="translate(230,4)">
+        <ellipse class="neutral" cx="105" cy="26" rx="15" ry="17"/>
+        <path class="neutral" d="M97,41 L96,52 L114,52 L113,41 Q105,45 97,41 Z"/>
+        <g class="mus" id="m-bk-traps">
+          <path d="M105,50 L131,64 Q116,72 110,88 Q106,104 105,114 Q104,104 100,88 Q94,72 79,64 Z"/></g>
+        <g class="mus" id="m-bk-delts">
+          <path d="M121,66 Q126,56 137,60 Q148,66 147,80 Q144,90 134,88 Q123,82 121,66 Z"/>
+          <path d="M121,66 Q126,56 137,60 Q148,66 147,80 Q144,90 134,88 Q123,82 121,66 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <g class="mus" id="m-bk-upperback">
+          <path d="M112,74 Q123,70 129,80 Q127,92 119,98 Q112,94 111,84 Z"/>
+          <path d="M112,74 Q123,70 129,80 Q127,92 119,98 Q112,94 111,84 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <g class="mus" id="m-bk-lats">
+          <path d="M111,94 Q127,93 133,102 Q130,126 121,146 Q112,162 108,168 Q105,136 107,106 Z"/>
+          <path d="M111,94 Q127,93 133,102 Q130,126 121,146 Q112,162 108,168 Q105,136 107,106 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <g class="mus" id="m-bk-lowerback">
+          <path d="M97,148 L113,148 L111,190 Q105,197 99,190 Z"/>
+          <path class="cut" d="M105,150 L105,193"/></g>
+        <g class="mus" id="m-bk-triceps">
+          <path d="M129,92 Q141,88 147,98 Q152,116 149,130 Q140,136 133,124 Q127,106 129,92 Z"/>
+          <path d="M129,92 Q141,88 147,98 Q152,116 149,130 Q140,136 133,124 Q127,106 129,92 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <g class="mus" id="m-bk-forearms">
+          <path d="M148,134 Q156,130 160,140 Q165,158 164,177 Q159,183 152,179 Q146,158 146,141 Z"/>
+          <path d="M148,134 Q156,130 160,140 Q165,158 164,177 Q159,183 152,179 Q146,158 146,141 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <ellipse class="neutral" cx="163" cy="192" rx="7" ry="9"/>
+        <ellipse class="neutral" cx="47" cy="192" rx="7" ry="9"/>
+        <g class="mus" id="m-bk-glutes">
+          <path d="M106,190 Q124,188 129,203 Q132,222 122,232 Q109,236 105,223 Q103,203 106,190 Z"/>
+          <path d="M106,190 Q124,188 129,203 Q132,222 122,232 Q109,236 105,223 Q103,203 106,190 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <g class="mus" id="m-bk-hams">
+          <path d="M109,238 Q126,236 130,254 Q133,283 126,304 Q119,312 113,304 Q106,274 109,238 Z"/>
+          <path d="M109,238 Q126,236 130,254 Q133,283 126,304 Q119,312 113,304 Q106,274 109,238 Z" transform="translate(210,0) scale(-1,1)"/></g>
+        <circle class="neutral" cx="120" cy="311" r="5"/><circle class="neutral" cx="90" cy="311" r="5"/>
+        <g class="mus" id="m-bk-calves">
+          <path d="M112,318 Q124,316 126,338 Q127,362 120,380 Q113,386 110,376 Q106,344 112,318 Z"/>
+          <path class="cut" d="M119,320 L118,356"/>
+          <path d="M112,318 Q124,316 126,338 Q127,362 120,380 Q113,386 110,376 Q106,344 112,318 Z" transform="translate(210,0) scale(-1,1)"/>
+          <path class="cut" d="M119,320 L118,356" transform="translate(210,0) scale(-1,1)"/></g>
+        <ellipse class="neutral" cx="118" cy="392" rx="9" ry="6"/><ellipse class="neutral" cx="92" cy="392" rx="9" ry="6"/>
+        <text x="105" y="440" text-anchor="middle">Back</text>
+      </g>
+    </svg>
+    <div class="legend"><span><span class="ldot pri"></span>Primary</span><span><span class="ldot sec"></span>Secondary</span></div>
+  </div>
+  <div class="mchips" id="lift-muscles"></div>
+  <p class="aboutp" id="lift-about"></p>
+  <div class="statgrid" id="lift-stats" style="display:none">
+    <div class="stat"><div class="v" id="lift-best"></div><div class="k">Your best set</div></div>
+    <div class="stat"><div class="v" id="lift-setcount"></div><div class="k">Sets logged</div></div>
+  </div>
+  <div class="sectlabel">Form guide</div>
+  <div class="formcard"><ul id="lift-form"></ul></div>
+  <a class="bigbtn ghost" id="lift-vid" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;color:var(--plate-blue)">▶ Watch video guides</a>
 </div>
 
 <div class="restveil" id="restveil">
@@ -344,7 +676,7 @@ C:{title:"Unilateral & Pump",ex:[
 
 <div class="nav">
   <button id="nav-home" class="active" onclick="show('home')"><span class="ico">▦</span>Plan</button>
-  <button id="nav-body" onclick="show('body')"><span class="ico">◉</span>Body</button>
+  <button id="nav-lib" onclick="show('lib')"><span class="ico">❖</span>Lifts</button>
   <button id="nav-history" onclick="show('history')"><span class="ico">↗</span>History</button>
 </div>
 <div class="toast" id="toast"></div>
@@ -386,10 +718,10 @@ function show(name){
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
   $("scr-"+name).classList.add("active");
   $("nav-home").classList.toggle("active",name==="home");
-  $("nav-body").classList.toggle("active",name==="body");
+  $("nav-lib").classList.toggle("active",name==="lib"||name==="lift");
   $("nav-history").classList.toggle("active",name==="history");
   if(name==="home")renderHome();
-  if(name==="body")renderBody();
+  if(name==="lib")renderLib();
   if(name==="history")renderHistory();
   window.scrollTo(0,0);
 }
@@ -492,7 +824,7 @@ function renderSet(){
   const adv=coachAdvice(w,d,exIdx);
   const co=$("ss-coach");co.className="coach "+adv.cls;
   $("ss-coachico").textContent=adv.ico;$("ss-coachtxt").innerHTML=adv.txt;
-  $("ss-cuelist").innerHTML=(CUES[name]||["No cues stored for this variant — watch the video below before your first set."]).map(c=>"<li>"+c+"</li>").join("");
+  $("ss-cuelist").innerHTML=((EXDB[name]&&EXDB[name].form)||["No cues stored for this variant — watch the video below before your first set."]).map(c=>"<li>"+c+"</li>").join("");
   $("ss-vid").href=ytLink(name);
   $("ss-cues").open=false;
   const pips=$("ss-pips");pips.innerHTML="";
@@ -604,35 +936,83 @@ function doSwap(name){
 }
 function closeSwap(){$("swapsheet").classList.remove("active")}
 
-/* ================= BODY METRICS ================= */
-function bumpM(id,step){
-  const el=$(id);let v=parseFloat(el.value)||0;
-  el.value=Math.max(0,Math.round((v+step)*10)/10);
+/* ================= LIFT LIBRARY ================= */
+const LIB={q:"",grp:"All",current:null,src:"lib"};
+function planDays(name){
+  const days=[];
+  for(const d of ["A","B","C"])DAYS[d].ex.forEach((e,i)=>{if(exName(d,i)===name&&!days.includes(d))days.push(d)});
+  return days;
 }
-function logMetric(){
-  const kg=parseFloat($("bm-kg").value),waist=parseFloat($("bm-waist").value);
-  if(isNaN(kg)&&isNaN(waist)){toast("Enter at least one number");return}
-  if(!db.metrics)db.metrics=[];
-  db.metrics.push({date:new Date().toISOString().slice(0,10),kg:isNaN(kg)?null:kg,waist:isNaN(waist)?null:waist});
-  save();renderBody();toast("Saved — now the photos");
+function renderLib(){
+  $("libchips").innerHTML=["All",...GROUPS].map(g=>
+    `<button class="libchip ${g===LIB.grp?"sel":""}" onclick="LIB.grp='${g.replace(/&/g,"&amp;")}';renderLib()">${g}</button>`).join("");
+  const q=LIB.q.trim().toLowerCase();
+  let html="";
+  for(const g of GROUPS){
+    if(LIB.grp!=="All"&&LIB.grp!==g)continue;
+    const items=Object.entries(EXDB).filter(([,e])=>e.g===g).filter(([n,e])=>{
+      if(!q)return true;
+      const hay=(n+" "+e.eq+" "+e.pat+" "+g+" "+[...e.pri,...e.sec].map(m=>MUSCLE_NAMES[m]).join(" ")).toLowerCase();
+      return hay.includes(q);
+    });
+    if(!items.length)continue;
+    html+=`<div class="sectlabel">${g}</div>`;
+    for(const [n,e] of items){
+      const days=planDays(n);
+      html+=`<button class="librow" onclick="openLift('${n.replace(/'/g,"\\'")}','lib')">
+        <div class="linfo"><div class="lname">${n}</div>
+        <div class="lmeta">${e.pri.map(m=>MUSCLE_NAMES[m]).slice(0,2).join(", ")} · ${e.eq}</div></div>
+        ${days.length?`<span class="daybadge">${days.join("·")}</span>`:""}<span class="chev">›</span></button>`;
+    }
+  }
+  $("liblist").innerHTML=html||`<div class="emptymsg">No lifts match "${LIB.q}".<br>Try a muscle — "hamstrings", "rear delts", "abs"…</div>`;
+  $("lib-sub").textContent=Object.keys(EXDB).length+" lifts · every movement in the plan and its swaps";
 }
-function delMetric(i){
-  if(confirm("Delete this entry?")){db.metrics.splice(i,1);save();renderBody()}
+function openLift(name,src){
+  const e=EXDB[name];
+  if(!e){toast("No guide for this lift yet");return}
+  LIB.current=name;LIB.src=src||"lib";
+  $("lift-name").textContent=name;
+  $("lift-sub").textContent=e.g+" · "+e.pat;
+  const days=planDays(name);
+  $("lift-tags").innerHTML=`<span class="tag comp">${e.pat}</span><span class="tag">${e.eq}</span>`
+    +(days.length?`<span class="tag" style="color:var(--plate-green)">In plan · Day ${days.join(", ")}</span>`
+                 :`<span class="tag">Swap option</span>`);
+  /* muscle diagram */
+  document.querySelectorAll("#anat .mus").forEach(m=>m.classList.remove("pri","sec"));
+  const mark=(keys,cls)=>keys.forEach(k=>(MUSCLE_MAP[k]||[]).forEach(id=>{
+    const el=$(id);if(el&&!(cls==="sec"&&el.classList.contains("pri")))el.classList.add(cls)}));
+  mark(e.pri,"pri");mark(e.sec,"sec");
+  $("lift-muscles").innerHTML=
+    e.pri.map(m=>`<span class="mchip pri">${MUSCLE_NAMES[m]}</span>`).join("")
+    +e.sec.map(m=>`<span class="mchip">${MUSCLE_NAMES[m]}</span>`).join("");
+  $("lift-about").textContent=e.about;
+  $("lift-form").innerHTML=e.form.map(c=>"<li>"+c+"</li>").join("");
+  $("lift-vid").href=ytLink(name);
+  const st=liftStats(name);
+  $("lift-stats").style.display=st?"grid":"none";
+  if(st){$("lift-best").textContent=st.best.kg+" kg × "+st.best.reps;$("lift-setcount").textContent=st.count}
+  show("lift");
 }
-function renderBody(){
-  const m=db.metrics||[];
-  const last=m[m.length-1];
-  $("bm-kg").value=last&&last.kg!=null?last.kg:"";
-  $("bm-waist").value=last&&last.waist!=null?last.waist:"";
-  const list=$("bm-list");
-  if(!m.length){list.innerHTML=`<div class="emptymsg">No entries yet. Weight can rise a couple of kg in the first fortnight from glycogen and water — waist and photos are the honest signals.</div>`;return}
-  const base=m[0];
-  const fmt=(v,b)=>v==null?"—":v+(b!=null&&v!=null?` <span style="color:var(--ink-faint)">(${v-b>=0?"+":""}${Math.round((v-b)*10)/10})</span>`:"");
-  list.innerHTML=m.map((e,i)=>
-    `<div class="histrow" style="display:flex;justify-content:space-between;align-items:center">
-      <div><div class="hname">${e.date}${i===0?' <span style="color:var(--ink-faint);font-weight:400">baseline</span>':""}</div>
-      <div class="hsets">${fmt(e.kg,i?base.kg:null)} kg · ${fmt(e.waist,i?base.waist:null)} cm waist</div></div>
-      <button onclick="delMetric(${i})" style="color:var(--ink-faint);font-size:1.1rem;padding:6px">×</button></div>`).reverse().join("");
+function backFromLift(){show(LIB.src==="session"?"session":"lib")}
+function openLiftFromSession(){if(S)openLift(exName(S.d,S.exIdx),"session")}
+function liftStats(name){
+  let best=null,count=0;
+  const scan=logs=>{
+    if(!logs)return;
+    for(const [k,L] of Object.entries(logs)){
+      const [,d]=k.split("-");
+      for(const [i,sets] of Object.entries(L.ex||{})){
+        if(exName(d,i)!==name)continue;
+        for(const s of sets)if(s&&s.kg!=null){
+          count++;
+          if(!best||s.kg>best.kg||(s.kg===best.kg&&s.reps>best.reps))best={kg:s.kg,reps:s.reps};
+        }
+      }
+    }
+  };
+  scan(db.prev);scan(db.logs);
+  return count?{best,count}:null;
 }
 
 /* ================= REST ================= */
@@ -766,7 +1146,7 @@ function rollover(){
 }
 function wipeData(){
   if(confirm("Erase every logged set, all blocks, all swaps? This can't be undone. (Take a JSON backup first if unsure.)"))
-    {db={block:1,logs:{},selWeek:1,swaps:{},prev:null};save();renderHistory();toast("All data erased")}
+    {db={block:1,logs:{},selWeek:1,swaps:{},prev:null,metrics:[]};save();renderHistory();toast("All data erased")}
 }
 
 renderHome();

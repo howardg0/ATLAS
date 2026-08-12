@@ -1,4 +1,4 @@
-const CACHE = "block-log-v2.1";
+const CACHE = "block-log-v3.0";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
