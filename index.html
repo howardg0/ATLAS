@@ -2,14 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#14161B">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>Block Log — 6-Week Hypertrophy</title>
 <script>
 if ("serviceWorker" in navigator && location.protocol === "https:")
-  addEventListener("load", () => navigator.serviceWorker.register("sw.js"));
+  addEventListener("load", () => {
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register("sw.js");
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (hadController) document.getElementById("updatepill").classList.add("show");
+    });
+  });
 </script>
 <style>
 :root{
@@ -22,7 +29,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 html{font-size:16px}
 body{background:var(--bg);color:var(--ink);
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  min-height:100vh;padding-bottom:84px;font-variant-numeric:tabular-nums}
+  min-height:100vh;padding-bottom:84px;padding-top:env(safe-area-inset-top);font-variant-numeric:tabular-nums}
 button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
 input,select{font-family:inherit}
 .screen{display:none;padding:18px 16px 24px;max-width:520px;margin:0 auto}
@@ -118,7 +125,13 @@ input,select{font-family:inherit}
   flex-direction:column;align-items:center;justify-content:center;z-index:50;padding:24px}
 .restveil.active{display:flex}
 .restveil .rlabel{font-size:.75rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--plate-yellow)}
-.restveil .rtime{font-size:5rem;font-weight:900;margin:8px 0 4px}
+.ringwrap{position:relative;width:200px;height:200px;margin:14px 0 8px}
+.restring{width:100%;height:100%;transform:rotate(-90deg)}
+.restring circle{fill:none;stroke-width:6}
+.restring .rbg{stroke:var(--surface2)}
+.restring .rfg{stroke:var(--plate-yellow);stroke-linecap:round;stroke-dasharray:339.3;transition:stroke-dashoffset .25s linear}
+.ringwrap .rtime{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:2.9rem;font-weight:900}
 .restveil .rnext{font-size:.9rem;color:var(--ink-dim);text-align:center;max-width:300px}
 .restveil .rbtns{display:flex;gap:10px;margin-top:28px}
 .restveil .rbtns button{padding:12px 22px;border-radius:12px;background:var(--surface);border:1px solid var(--line);font-weight:700;font-size:.9rem}
@@ -222,10 +235,68 @@ input,select{font-family:inherit}
 .nav button.active{color:var(--ink)}
 .nav .ico{font-size:1.25rem;line-height:1}
 
-.toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);
-  padding:10px 20px;border-radius:999px;font-weight:700;font-size:.85rem;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
-.toast.show{opacity:1}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--ink);color:var(--bg);
+  padding:10px 20px;border-radius:999px;font-weight:700;font-size:.85rem;opacity:0;
+  transition:opacity .25s,transform .25s;pointer-events:none;z-index:60;max-width:88vw;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%);pointer-events:auto}
+.toast button{font-weight:800;text-decoration:underline;margin-left:10px;color:inherit;font-size:.85rem}
+
+/* ---------- home dashboard ---------- */
+.hero{width:100%;display:flex;align-items:center;gap:14px;text-align:left;
+  background:linear-gradient(135deg,var(--surface2),var(--surface));border:1px solid var(--line);
+  border-radius:16px;padding:16px;margin-bottom:16px}
+.hero .hinfo{flex:1;min-width:0}
+.hero .hkick{font-size:.65rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim)}
+.hero.dA .hkick{color:var(--plate-red)}
+.hero.dB .hkick{color:var(--plate-blue)}
+.hero.dC .hkick{color:var(--plate-yellow)}
+.hero .hname{font-size:1.05rem;font-weight:800;margin-top:3px}
+.hero .hmeta{font-size:.76rem;color:var(--ink-dim);margin-top:3px}
+.hero .hring{flex-shrink:0}
+
+/* ---------- session player ---------- */
+.sessprog{height:4px;background:var(--surface2);border-radius:2px;margin:-8px 0 14px;overflow:hidden}
+.sessprog .fill{height:100%;background:var(--plate-green);border-radius:2px;width:0;transition:width .35s ease}
+.upnext{display:flex;gap:8px;overflow-x:auto;margin:0 -16px;padding:2px 16px 8px;scrollbar-width:none}
+.upnext::-webkit-scrollbar{display:none}
+.upchip{flex-shrink:0;font-size:.75rem;font-weight:700;padding:8px 12px;border-radius:10px;
+  background:var(--surface);border:1px solid var(--line);color:var(--ink-dim);white-space:nowrap}
+.upchip.cur{border-color:var(--ink);color:var(--ink)}
+.upchip.done{opacity:.45;color:var(--plate-green)}
+.noteline{width:100%;text-align:left;font-size:.8rem;color:var(--ink-dim);background:var(--surface);
+  border:1px dashed var(--line);border-radius:12px;padding:10px 13px;margin-bottom:12px}
+
+/* ---------- charts / history ---------- */
+.chartcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px}
+.nudge{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--plate-yellow);
+  border-radius:12px;padding:11px 13px;font-size:.8rem;color:var(--ink-dim);margin-bottom:10px;line-height:1.45}
+.setchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.setchip{font-size:.78rem;font-weight:700;background:var(--surface2);border:1px solid var(--line);
+  border-radius:8px;padding:6px 10px;color:var(--ink-dim)}
+
+/* ---------- notes ---------- */
+.notesbox{width:100%;min-height:74px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);color:var(--ink);padding:12px 14px;font-size:.88rem;font-family:inherit;
+  line-height:1.5;outline:none;resize:vertical;margin-bottom:12px}
+.notesbox:focus{border-color:var(--ink-faint)}
+
+/* ---------- update pill ---------- */
+.updatepill{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+  background:var(--ink);color:var(--bg);font-weight:800;font-size:.8rem;padding:10px 18px;
+  border-radius:999px;z-index:70;display:none;box-shadow:0 4px 18px rgba(0,0,0,.4)}
+.updatepill.show{display:block;animation:rise .25s ease}
+
+/* ---------- motion ---------- */
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes sheetup{from{transform:translateY(46px);opacity:.5}to{transform:none;opacity:1}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.screen.active{animation:rise .18s ease}
+.sheet.active .panel{animation:sheetup .22s cubic-bezier(.2,.8,.3,1)}
+.restveil.active{animation:fadein .2s ease}
+.pip{transition:background .25s}
+.bigbtn,.daycard,.librow,.weekcell,.subopt,.hero,.setchip,.upchip,.swapbtn,.libchip{transition:transform .12s ease}
+.bigbtn:active,.daycard:active,.weekcell:active,.hero:active,.librow:active,.subopt:active{transform:scale(.98)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
@@ -510,6 +581,7 @@ C:{title:"Unilateral & Pump",ex:[
     <h1>Full-Body<br>Hypertrophy</h1>
     <p>3 days a week · every muscle 3× · double progression</p>
   </div>
+  <div id="hero"></div>
   <div class="weekrow" id="weekrow"></div>
   <div class="weekmeta" id="weekmeta"></div>
   <div id="daylist"></div>
@@ -517,7 +589,7 @@ C:{title:"Unilateral & Pump",ex:[
 
 <div class="screen" id="scr-preview">
   <div class="topbar">
-    <button class="backbtn" onclick="show('home')">←</button>
+    <button class="backbtn" onclick="history.back()">←</button>
     <div><h1 id="pv-title"></h1><div class="sub" id="pv-sub"></div></div>
   </div>
   <div class="pvstats" id="pv-stats"></div>
@@ -530,12 +602,14 @@ C:{title:"Unilateral & Pump",ex:[
     <button class="backbtn" onclick="exitSession()">←</button>
     <div><h1 id="ss-title"></h1><div class="sub" id="ss-sub"></div></div>
   </div>
+  <div class="sessprog"><div class="fill" id="ss-prog"></div></div>
   <div class="exhead">
     <div class="exnum" id="ss-exnum"></div>
     <div class="exrow"><h2 id="ss-exname"></h2><div style="display:flex;gap:6px;flex-shrink:0"><button class="swapbtn" onclick="openLiftFromSession()">ⓘ Guide</button><button class="swapbtn" onclick="openSwap()">⇄ Swap</button></div></div>
     <div class="extags" id="ss-tags"></div>
   </div>
   <div class="coach" id="ss-coach"><span class="cico" id="ss-coachico"></span><span id="ss-coachtxt"></span></div>
+  <button class="noteline" id="ss-note" onclick="openLiftFromSession()" style="display:none"></button>
   <details class="cues" id="ss-warmup" style="display:none">
     <summary>Warm-up ramp <span>▾</span></summary>
     <div class="cbody" id="ss-warmupbody"></div>
@@ -557,6 +631,9 @@ C:{title:"Unilateral & Pump",ex:[
   </div>
   <button class="bigbtn primary" onclick="logSet()">Log set</button>
   <button class="bigbtn ghost" onclick="skipExercise()">Skip exercise →</button>
+  <div class="sectlabel">Session map</div>
+  <div class="upnext" id="ss-upnext"></div>
+  <button class="bigbtn ghost" style="margin-top:10px;color:var(--plate-yellow)" onclick="endEarly()">End session early</button>
 </div>
 
 <div class="screen" id="scr-done">
@@ -571,9 +648,10 @@ C:{title:"Unilateral & Pump",ex:[
 
 <div class="screen" id="scr-history">
   <div class="topbar"><div><h1 id="hist-title">History</h1><div class="sub">Weekly tonnage & recent lifts</div></div></div>
-  <div class="statgrid" id="hist-weeks"></div>
+  <div class="chartcard" id="hist-weeks"></div>
   <div id="hist-lifts"></div>
   <div class="sectlabel">Data</div>
+  <div id="backup-nudge"></div>
   <button class="bigbtn ghost" onclick="backupJSON()">Backup everything (JSON)</button>
   <button class="bigbtn ghost" onclick="document.getElementById('restore-file').click()">Restore from backup</button>
   <input type="file" id="restore-file" accept=".json,application/json" style="display:none" onchange="restoreJSON(this)">
@@ -692,14 +770,22 @@ C:{title:"Unilateral & Pump",ex:[
   </div>
   <div class="sectlabel">Form guide</div>
   <div class="formcard"><ul id="lift-form"></ul></div>
+  <div class="sectlabel">My notes</div>
+  <textarea class="notesbox" id="lift-notes" placeholder="Seat height, grip width, machine pin — the stuff you always forget…" oninput="saveNote(this.value)"></textarea>
   <a class="bigbtn ghost" id="lift-vid" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;color:var(--plate-blue)">▶ Watch video guides</a>
 </div>
 
 <div class="restveil" id="restveil">
   <div class="rlabel">Rest</div>
-  <div class="rtime" id="rest-time">2:30</div>
+  <div class="ringwrap">
+    <svg class="restring" viewBox="0 0 120 120">
+      <circle class="rbg" cx="60" cy="60" r="54"/>
+      <circle class="rfg" id="rest-ring" cx="60" cy="60" r="54"/>
+    </svg>
+    <div class="rtime" id="rest-time">2:30</div>
+  </div>
   <div class="rnext" id="rest-next"></div>
-  <div class="rbtns"><button onclick="addRest(30)">+30s</button><button class="skip" onclick="endRest()">I'm ready</button></div>
+  <div class="rbtns"><button onclick="addRest(-15)">−15s</button><button onclick="addRest(30)">+30s</button><button class="skip" onclick="endRest()">I'm ready</button></div>
 </div>
 
 <div class="sheet" id="swapsheet" onclick="if(event.target===this)closeSwap()">
@@ -710,6 +796,25 @@ C:{title:"Unilateral & Pump",ex:[
     <button class="bigbtn ghost" onclick="closeSwap()">Cancel</button>
   </div>
 </div>
+
+<div class="sheet" id="editsheet" onclick="if(event.target===this)closeEdit()">
+  <div class="panel">
+    <h3>Edit set</h3>
+    <div class="shint" id="ed-sub"></div>
+    <div class="inrow">
+      <div class="infield"><div class="flabel">Weight kg</div>
+        <div class="stepper"><button onclick="bumpEl('in-ed-kg',-2.5)">−</button><input id="in-ed-kg" type="number" inputmode="decimal" step="0.5"><button onclick="bumpEl('in-ed-kg',2.5)">+</button></div></div>
+      <div class="infield"><div class="flabel">Reps</div>
+        <div class="stepper"><button onclick="bumpEl('in-ed-reps',-1)">−</button><input id="in-ed-reps" type="number" inputmode="numeric" step="1"><button onclick="bumpEl('in-ed-reps',1)">+</button></div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="bigbtn ghost" style="margin:0;flex:1;color:var(--plate-red)" onclick="deleteEditSet()">Delete</button>
+      <button class="bigbtn primary" style="flex:2" onclick="saveEditSet()">Save</button>
+    </div>
+  </div>
+</div>
+
+<button class="updatepill" id="updatepill" onclick="location.reload()">↻ Update ready — tap to refresh</button>
 
 <div class="nav">
   <button id="nav-home" class="active" onclick="show('home')"><span class="ico">▦</span>Plan</button>
@@ -732,14 +837,40 @@ function load(){
     const v1=JSON.parse(localStorage.getItem("block1-log-v1"));
     if(v1)return{block:1,logs:v1.logs||{},selWeek:v1.selWeek||1,swaps:{},prev:null,metrics:[]};
   }catch(e){}
-  return{block:1,logs:{},selWeek:1,swaps:{},prev:null,metrics:[]};
+  return{block:1,logs:{},selWeek:1,swaps:{},prev:null,metrics:[],notes:{},lastBackup:null};
 }
-function save(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast("Storage unavailable — back up now")}}
+/* localStorage is the working copy; IndexedDB is a durable mirror that survives
+   most storage evictions, so years of logs don't hinge on one fragile store */
+const IDB={
+  open(){return new Promise((res,rej)=>{
+    const r=indexedDB.open("blocklog",1);
+    r.onupgradeneeded=()=>r.result.createObjectStore("kv");
+    r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})},
+  async set(k,v){try{const d=await this.open();d.transaction("kv","readwrite").objectStore("kv").put(v,k)}catch(e){}},
+  async get(k){try{const d=await this.open();return new Promise(res=>{
+    const q=d.transaction("kv").objectStore("kv").get(k);
+    q.onsuccess=()=>res(q.result);q.onerror=()=>res(null)})}catch(e){return null}}
+};
+function save(){
+  try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast("Storage unavailable — back up now")}
+  IDB.set("db",JSON.parse(JSON.stringify(db)));
+}
 function logKey(w,d){return w+"-"+d}
 
 /* ================= HELPERS ================= */
 const $=id=>document.getElementById(id);
-function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),2000)}
+function toast(m,actionLabel,actionFn){
+  const t=$("toast");
+  t.innerHTML=m+(actionLabel?` <button id="toast-act">${actionLabel}</button>`:"");
+  if(actionLabel)$("toast-act").onclick=()=>{t.classList.remove("show");actionFn()};
+  t.classList.add("show");clearTimeout(t._h);
+  t._h=setTimeout(()=>t.classList.remove("show"),actionLabel?4500:2000);
+}
+function bumpEl(id,step){
+  const el=$(id);let v=parseFloat(el.value)||0;
+  v=Math.max(0,Math.round((v+step)*2)/2);
+  el.value=Math.abs(step)>=1&&Number.isInteger(step)?Math.round(v):v;
+}
 function setsFor(w,isComp){return isComp?PRIMARY_SETS[w]:ACC_SETS[w]}
 function totalSets(w,d){return DAYS[d].ex.reduce((a,e)=>a+setsFor(w,e[2]),0)}
 function loggedSets(w,d,logs){logs=logs||db.logs;const L=logs[logKey(w,d)];if(!L)return 0;let n=0;for(const ex of Object.values(L.ex||{}))n+=ex.filter(s=>s&&s.kg!=null).length;return n}
@@ -750,8 +881,10 @@ function repTop(range){return parseInt(range.split("–")[1])}
 function increment(name){return BIG_INC.has(name)?5:2.5}
 function weekComplete(w){return ["A","B","C"].every(d=>loggedSets(w,d)>=totalSets(w,d))}
 
-/* ================= NAV ================= */
-function show(name){
+/* ================= NAV =================
+   Screens are wired into the History API so the Android back
+   gesture walks session → preview → home instead of exiting. */
+function show(name,push=true){
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
   $("scr-"+name).classList.add("active");
   $("nav-home").classList.toggle("active",name==="home"||name==="preview");
@@ -762,11 +895,65 @@ function show(name){
   if(name==="lib")renderLib();
   if(name==="history")renderHistory();
   window.scrollTo(0,0);
+  if(push&&!(history.state&&history.state.scr===name))history.pushState({scr:name},"");
 }
+addEventListener("popstate",e=>{
+  /* back closes any overlay first, consuming the gesture */
+  const veil=$("restveil").classList.contains("active");
+  const sw=$("swapsheet").classList.contains("active");
+  const ed=$("editsheet").classList.contains("active");
+  if(veil||sw||ed){
+    if(veil)endRest();if(sw)closeSwap();if(ed)closeEdit();
+    history.pushState({scr:document.querySelector(".screen.active").id.slice(4)},"");
+    return;
+  }
+  let scr=(e.state&&e.state.scr)||"home";
+  if(scr==="session"&&!S)scr=PV?"preview":"home";
+  if(scr==="preview"&&!PV)scr="home";
+  show(scr,false);
+});
+
+/* ---------- screen wake lock during sessions ---------- */
+let wakeLock=null;
+async function lockScreen(){try{wakeLock=await navigator.wakeLock.request("screen")}catch(e){}}
+function unlockScreen(){if(wakeLock){wakeLock.release().catch(()=>{});wakeLock=null}}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&S)lockScreen()});
 
 /* ================= HOME ================= */
+function ringSVG(n,of){
+  const C=2*Math.PI*20,pct=Math.min(1,n/of);
+  return `<svg viewBox="0 0 48 48" width="54" height="54">
+    <circle cx="24" cy="24" r="20" fill="none" stroke="var(--surface2)" stroke-width="5"/>
+    <circle cx="24" cy="24" r="20" fill="none" stroke="var(--plate-green)" stroke-width="5" stroke-linecap="round"
+      stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-pct)).toFixed(1)}" transform="rotate(-90 24 24)"/>
+    <text x="24" y="28" text-anchor="middle" font-size="11" font-weight="700" fill="var(--ink)">${n}/${of}</text></svg>`;
+}
+function renderHero(){
+  const w=db.selWeek;
+  let sessDone=0;
+  for(let ww=1;ww<=6;ww++)for(const dd of ["A","B","C"])if(loggedSets(ww,dd)>=totalSets(ww,dd))sessDone++;
+  let nd=null;
+  for(const d of ["A","B","C"])if(loggedSets(w,d)<totalSets(w,d)){nd=d;break}
+  if(nd){
+    const started=loggedSets(w,nd)>0;
+    $("hero").innerHTML=`<button class="hero d${nd}" onclick="showPreview(${w},'${nd}')">
+      <div class="hinfo"><div class="hkick">${started?"Continue":"Next up"} · Week ${w}</div>
+      <div class="hname">Day ${nd} · ${DAYS[nd].title}</div>
+      <div class="hmeta">${started
+        ?loggedSets(w,nd)+"/"+totalSets(w,nd)+" sets logged — pick it back up"
+        :DAYS[nd].ex.length+" lifts · "+totalSets(w,nd)+" sets · ~"+(nd==="A"?"75":"70")+" min"}</div></div>
+      <div class="hring">${ringSVG(sessDone,18)}</div></button>`;
+  }else{
+    $("hero").innerHTML=`<div class="hero">
+      <div class="hinfo"><div class="hkick" style="color:var(--plate-green)">Week ${w} complete</div>
+      <div class="hname">All three sessions done ✓</div>
+      <div class="hmeta">${w<6?"Select week "+(w+1)+" below to keep rolling":"Block finished — start the next one from History"}</div></div>
+      <div class="hring">${ringSVG(sessDone,18)}</div></div>`;
+  }
+}
 function renderHome(){
   $("home-eyebrow").textContent="Block "+db.block+" · 6 Weeks";
+  renderHero();
   const wr=$("weekrow");wr.innerHTML="";
   for(let w=1;w<=6;w++){
     const c=document.createElement("button");c.className="weekcell";
@@ -852,9 +1039,10 @@ function startSession(w,d){
   }
   if(!found){showDone(w,d);return}
   S={w,d,exIdx,setIdx};save();
+  lockScreen();
   renderSet();show("session");
 }
-function exitSession(){S=null;show("home")}
+function exitSession(){S=null;unlockScreen();history.back()}
 
 /* Most recent earlier data for this exercise slot: current block first, then previous block (wk 5 preferred). */
 function prevSession(w,d,exIdx){
@@ -886,7 +1074,8 @@ function coachAdvice(w,d,exIdx){
   if(allTop){
     const inc=increment(name);
     const newKg=hist.sets[0].kg+inc;
-    return{cls:"",ico:"▲",txt:`<b>Add weight: ${newKg} kg.</b> You hit the top of the range on every set (${ref}). Drop back to ${range.split("–")[0]} reps and build up again.`};
+    return{cls:"",ico:"▲",rec:newKg,recReps:parseInt(range.split("–")[0]),
+      txt:`<b>Add weight: ${newKg} kg.</b> You hit the top of the range on every set (${ref}). Drop back to ${range.split("–")[0]} reps and build up again.`};
   }
   return{cls:"hold",ico:"▶",txt:`<b>Same weight, chase reps.</b> ${ref} you got ${hist.sets.map(s=>s.reps).join(", ")} — target is ${top} on every set before adding load.`};
 }
@@ -918,11 +1107,28 @@ function renderSet(){
   if(hist){const ref=hist.block<db.block?"B"+hist.block+" wk"+hist.w:"Wk "+hist.w;
     lastTxt=`${ref}: <b>${hist.sets.map(x=>x.kg+"×"+x.reps).join(", ")}</b>`}
   $("ss-last").innerHTML=lastTxt;
+  /* seed priority: earlier set today > coach's add-weight recommendation > last session */
   const seed=prevSet||(hist?hist.sets[Math.min(setIdx,hist.sets.length-1)]:null);
-  $("in-kg").value=seed?seed.kg:"";
-  $("in-reps").value=seed?seed.reps:"";
+  $("in-kg").value=prevSet?prevSet.kg:(adv.rec!=null?adv.rec:(seed?seed.kg:""));
+  $("in-reps").value=prevSet?prevSet.reps:(adv.rec!=null?adv.recReps:(seed?seed.reps:""));
+  const note=db.notes&&db.notes[name];
+  $("ss-note").style.display=note?"block":"none";
+  if(note)$("ss-note").textContent="📝 "+note;
+  $("ss-prog").style.width=Math.round(100*loggedSets(w,d)/totalSets(w,d))+"%";
+  $("ss-upnext").innerHTML=DAYS[d].ex.map((e2,j)=>{
+    const need2=setsFor(w,e2[2]);
+    const have2=((db.logs[logKey(w,d)].ex[j])||[]).filter(s=>s&&s.kg!=null).length;
+    const st=have2>=need2?"done":j===exIdx?"cur":"";
+    return `<button class="upchip ${st}" ${st==="done"?"disabled":""} onclick="jumpTo(${j})">${st==="done"?"✓ ":(j+1)+". "}${exName(d,j)}</button>`;
+  }).join("");
   renderPlates();
   renderWarmup();
+}
+function jumpTo(i){S.exIdx=i;S.setIdx=firstOpenSet();renderSet()}
+function endEarly(){
+  const {w,d}=S;
+  const left=totalSets(w,d)-loggedSets(w,d);
+  if(confirm("Finish now? "+left+" set"+(left===1?"":"s")+" will stay unlogged."))showDone(w,d);
 }
 
 /* ---------- warm-up ramp (first exercise, first set only) ---------- */
@@ -970,10 +1176,26 @@ function logSet(){
   if(isNaN(kg)||isNaN(reps)||reps<=0){toast("Enter weight and reps");return}
   const {w,d,exIdx,setIdx}=S;
   const k=logKey(w,d);
+  const name=exName(d,exIdx);
+  const prevBest=liftStats(name,k);   /* best before today's session */
   if(!db.logs[k].ex[exIdx])db.logs[k].ex[exIdx]=[];
   db.logs[k].ex[exIdx][setIdx]={kg,reps,t:Date.now()};
   save();
+  if(navigator.vibrate)navigator.vibrate(12);
+  const pos={w,d,exIdx,setIdx};
+  const isPR=prevBest&&(kg>prevBest.best.kg||(kg===prevBest.best.kg&&reps>prevBest.best.reps));
+  toast(isPR?"🏆 New PR — "+kg+" kg × "+reps:"Logged "+kg+" kg × "+reps,"Undo",()=>undoSet(pos));
+  if(isPR&&navigator.vibrate)navigator.vibrate([40,60,40]);
   advance(true);
+}
+function undoSet(pos){
+  endRest();
+  const arr=db.logs[logKey(pos.w,pos.d)].ex[pos.exIdx];
+  if(arr){arr[pos.setIdx]=null;while(arr.length&&!arr[arr.length-1])arr.pop()}
+  save();
+  S={w:pos.w,d:pos.d,exIdx:pos.exIdx,setIdx:pos.setIdx};
+  renderSet();
+  if(document.querySelector(".screen.active").id!=="scr-session")show("session");
 }
 function skipExercise(){
   const {w,d,exIdx}=S;
@@ -1073,15 +1295,27 @@ function openLift(name,src){
   const st=liftStats(name);
   $("lift-stats").style.display=st?"grid":"none";
   if(st){$("lift-best").textContent=st.best.kg+" kg × "+st.best.reps;$("lift-setcount").textContent=st.count}
+  $("lift-notes").value=(db.notes&&db.notes[name])||"";
   show("lift");
 }
-function backFromLift(){show(LIB.src==="session"?"session":LIB.src==="preview"?"preview":"lib")}
+function backFromLift(){history.back()}
 function openLiftFromSession(){if(S)openLift(exName(S.d,S.exIdx),"session")}
-function liftStats(name){
+function saveNote(val){
+  clearTimeout(window._noteT);
+  window._noteT=setTimeout(()=>{
+    if(!db.notes)db.notes={};
+    const v=val.trim();
+    if(v)db.notes[LIB.current]=v;else delete db.notes[LIB.current];
+    save();
+  },400);
+}
+/* excludeKey: leave out one session (today's) so PRs compare against real history */
+function liftStats(name,excludeKey){
   let best=null,count=0;
-  const scan=logs=>{
+  const scan=(logs,skip)=>{
     if(!logs)return;
     for(const [k,L] of Object.entries(logs)){
+      if(skip&&k===skip)continue;
       const [,d]=k.split("-");
       for(const [i,sets] of Object.entries(L.ex||{})){
         if(exName(d,i)!==name)continue;
@@ -1092,55 +1326,122 @@ function liftStats(name){
       }
     }
   };
-  scan(db.prev);scan(db.logs);
+  scan(db.prev);scan(db.logs,excludeKey);
   return count?{best,count}:null;
 }
 
 /* ================= REST ================= */
-let restEnd=0,restTick=null;
+let restEnd=0,restTick=null,restDur=1,restLabel="";
+const RING_C=339.3;
 function startRest(sec,nextLabel){
-  restEnd=Date.now()+sec*1000;
+  restEnd=Date.now()+sec*1000;restDur=sec;restLabel=nextLabel;
   $("rest-next").textContent=nextLabel;
   $("restveil").classList.add("active");
+  if(window.Notification&&Notification.permission==="default")try{Notification.requestPermission()}catch(e){}
   tickRest();restTick=setInterval(tickRest,250);
 }
 function tickRest(){
   const left=Math.max(0,Math.ceil((restEnd-Date.now())/1000));
   $("rest-time").textContent=Math.floor(left/60)+":"+String(left%60).padStart(2,"0");
-  if(left<=0){endRest();if(navigator.vibrate)navigator.vibrate([200,100,200])}
+  $("rest-ring").style.strokeDashoffset=(RING_C*(1-Math.min(1,left/restDur))).toFixed(1);
+  if(left<=0){
+    endRest();
+    if(navigator.vibrate)navigator.vibrate([200,100,200]);
+    if(document.hidden)notifyRestDone();
+  }
 }
-function addRest(s){restEnd+=s*1000;tickRest()}
+function notifyRestDone(){
+  try{
+    if(window.Notification&&Notification.permission==="granted"&&navigator.serviceWorker)
+      navigator.serviceWorker.getRegistration().then(r=>r&&r.showNotification("Rest over",
+        {body:restLabel||"Back to work",icon:"icon-192.png",tag:"rest",vibrate:[200,100,200]}));
+  }catch(e){}
+}
+function addRest(s){restEnd+=s*1000;restDur=Math.max(5,restDur+s);tickRest()}
 function endRest(){clearInterval(restTick);$("restveil").classList.remove("active")}
 
 /* ================= DONE ================= */
 function showDone(w,d){
-  S=null;
+  S=null;unlockScreen();
   $("done-sub").textContent="Day "+d+" · Week "+w+" · "+DAYS[d].title;
-  const L0=db.logs[logKey(w,d)];
-  let ts=[];for(const ex of Object.values(L0.ex||{}))for(const s of ex)if(s&&s.t)ts.push(s.t);
+  const L=db.logs[logKey(w,d)];
+  let ts=[];for(const ex of Object.values(L.ex||{}))for(const s of ex)if(s&&s.t)ts.push(s.t);
   const dur=ts.length>1?Math.round((Math.max(...ts)-Math.min(...ts))/60000):0;
   $("done-tonnage").textContent=sessionTonnage(w,d).toLocaleString()+(dur?" · "+dur+" min":"");
   $("done-sets").textContent=loggedSets(w,d);
-  const L=db.logs[logKey(w,d)];
-  $("done-list").innerHTML=DAYS[d].ex.map((e,i)=>{
-    const sets=(L.ex[i]||[]).filter(s=>s&&s.kg!=null);
-    if(!sets.length)return "";
-    return `<div class="histrow"><div class="hname">${exName(d,i)}</div>
-      <div class="hsets">${sets.map(s=>s.kg+" kg × "+s.reps).join(" · ")}</div></div>`;
+  let html=DAYS[d].ex.map((e,i)=>{
+    const arr=L.ex[i]||[];
+    const chips=arr.map((s,si)=>s&&s.kg!=null
+      ?`<button class="setchip" onclick="openEdit(${w},'${d}',${i},${si})">${s.kg} kg × ${s.reps}</button>`:"").join("");
+    if(!chips)return "";
+    return `<div class="histrow"><div class="hname">${exName(d,i)}</div><div class="setchips">${chips}</div></div>`;
   }).join("");
+  const skipped=DAYS[d].ex.map((e,i)=>({n:exName(d,i),has:(L.ex[i]||[]).some(s=>s&&s.kg!=null)}))
+    .filter(x=>!x.has).map(x=>x.n);
+  if(skipped.length)html+=`<div class="hsets" style="padding:10px 4px;color:var(--ink-faint)">Not done: ${skipped.join(", ")}</div>`;
+  html+=`<div class="hsets" style="padding:2px 4px;color:var(--ink-faint)">Tap any set to edit or delete it.</div>`;
+  $("done-list").innerHTML=html;
   show("done");
 }
 
+/* ---------- edit a logged set ---------- */
+let ED=null;
+function openEdit(w,d,ex,si){
+  ED={w,d,ex,si};
+  const s=db.logs[logKey(w,d)].ex[ex][si];
+  $("ed-sub").textContent=exName(d,ex)+" · set "+(si+1);
+  $("in-ed-kg").value=s.kg;$("in-ed-reps").value=s.reps;
+  $("editsheet").classList.add("active");
+}
+function closeEdit(){$("editsheet").classList.remove("active")}
+function saveEditSet(){
+  const kg=parseFloat($("in-ed-kg").value),reps=parseInt($("in-ed-reps").value);
+  if(isNaN(kg)||isNaN(reps)||reps<=0){toast("Enter weight and reps");return}
+  const s=db.logs[logKey(ED.w,ED.d)].ex[ED.ex][ED.si];
+  s.kg=kg;s.reps=reps;save();
+  closeEdit();showDone(ED.w,ED.d);toast("Set updated");
+}
+function deleteEditSet(){
+  const arr=db.logs[logKey(ED.w,ED.d)].ex[ED.ex];
+  arr[ED.si]=null;while(arr.length&&!arr[arr.length-1])arr.pop();
+  save();
+  closeEdit();showDone(ED.w,ED.d);toast("Set deleted");
+}
+
 /* ================= HISTORY ================= */
+function sparkSVG(series){
+  if(series.length<2)return "";
+  const W=96,H=32,p=4,min=Math.min(...series),max=Math.max(...series),r=max-min||1;
+  const pts=series.map((v,i)=>[
+    +(p+(W-2*p)*i/(series.length-1)).toFixed(1),
+    +(H-p-(H-2*p)*(v-min)/r).toFixed(1)]);
+  const col=series[series.length-1]>=series[0]?"var(--plate-green)":"var(--plate-yellow)";
+  const last=pts[pts.length-1];
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="flex-shrink:0">
+    <polyline points="${pts.map(pt=>pt.join(",")).join(" ")}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="2.5" fill="${col}"/></svg>`;
+}
+function renderTonChart(){
+  const vals=[];
+  for(let w=1;w<=6;w++)vals.push(["A","B","C"].reduce((a,d)=>a+sessionTonnage(w,d),0));
+  const max=Math.max(...vals,1);
+  const W=320,bw=36,gap=(W-6*bw-16)/5;
+  let s="";
+  vals.forEach((v,i)=>{
+    const h=v?Math.max(6,Math.round(100*v/max)):4;
+    const x=8+i*(bw+gap),y=118-h;
+    const cur=(i+1)===db.selWeek;
+    s+=`<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="5" fill="${v?(cur?"var(--plate-red)":"var(--surface2)"):"#1B1F27"}"/>`;
+    if(v)s+=`<text x="${x+bw/2}" y="${y-6}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--ink-dim)">${v>=10000?(v/1000).toFixed(1)+"k":v.toLocaleString()}</text>`;
+    s+=`<text x="${x+bw/2}" y="132" text-anchor="middle" font-size="9" font-weight="700" fill="var(--ink-faint)">W${i+1}</text>`;
+    s+=`<text x="${x+bw/2}" y="143" text-anchor="middle" font-size="8" fill="var(--ink-faint)">${PHASE[i+1]}</text>`;
+  });
+  $("hist-weeks").innerHTML=`<div class="sectlabel" style="margin:0 0 8px">Weekly tonnage · kg</div>
+    <svg viewBox="0 0 ${W} 148" style="width:100%;display:block">${s}</svg>`;
+}
 function renderHistory(){
   $("hist-title").textContent="History · Block "+db.block;
-  const hw=$("hist-weeks");hw.innerHTML="";
-  for(let w=1;w<=6;w++){
-    const t=["A","B","C"].reduce((a,d)=>a+sessionTonnage(w,d),0);
-    const div=document.createElement("div");div.className="stat";
-    div.innerHTML=`<div class="v">${t?t.toLocaleString():"—"}</div><div class="k">Week ${w} · ${PHASE[w]}</div>`;
-    hw.appendChild(div);
-  }
+  renderTonChart();
   const hl=$("hist-lifts");hl.innerHTML="";
   let any=false;
   for(const d of ["A","B","C"])DAYS[d].ex.forEach((e,i)=>{
@@ -1152,33 +1453,20 @@ function renderHistory(){
       const L=db.logs[logKey(w,d)];
       if(L&&L.ex[i]&&L.ex[i].some(s=>s&&s.kg!=null)){
         const sets=L.ex[i].filter(s=>s&&s.kg!=null);
-        const cid="spark-"+d+"-"+i;
         hl.innerHTML+=`<div class="histrow" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
           <div style="min-width:0"><div class="hname">${exName(d,i)}</div>
           <div class="hsets">Wk ${w}: ${sets.map(s=>s.kg+"×"+s.reps).join(" · ")}</div></div>
-          <canvas id="${cid}" width="88" height="30" style="flex-shrink:0"></canvas></div>`;
-        requestAnimationFrame(()=>drawSpark(cid,series));
+          ${sparkSVG(series)}</div>`;
         any=true;break;
       }
     }
   });
   if(!any)hl.innerHTML=`<div class="emptymsg">Nothing logged this block yet.<br>Pick a day on the Plan tab and get under something heavy.</div>`;
+  const hasData=Object.keys(db.logs).length>0||db.prev;
+  const days=db.lastBackup?Math.floor((Date.now()-db.lastBackup)/86400000):null;
+  $("backup-nudge").innerHTML=hasData&&(days===null||days>14)
+    ?`<div class="nudge">⚠ ${days===null?"No backup yet":"Last backup "+days+" days ago"} — your history lives only on this phone. Download one below.</div>`:"";
   $("rollover-btn").style.opacity=weekComplete(6)?1:.5;
-}
-
-function drawSpark(id,series){
-  const c=document.getElementById(id);if(!c||series.length<2)return;
-  const ctx=c.getContext("2d"),W=c.width,H=c.height,pad=3;
-  const min=Math.min(...series),max=Math.max(...series),range=max-min||1;
-  ctx.clearRect(0,0,W,H);
-  ctx.strokeStyle=series[series.length-1]>=series[0]?"#3FA45C":"#E8B93B";
-  ctx.lineWidth=2;ctx.lineJoin="round";ctx.beginPath();
-  series.forEach((v,i)=>{
-    const x=pad+(W-2*pad)*i/(series.length-1);
-    const y=H-pad-(H-2*pad)*(v-min)/range;
-    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
-  });
-  ctx.stroke();
 }
 
 /* ================= DATA ================= */
@@ -1188,7 +1476,9 @@ function download(filename,text,mime){
   a.download=filename;a.click();
 }
 function backupJSON(){
+  db.lastBackup=Date.now();save();
   download("block-log-backup-"+new Date().toISOString().slice(0,10)+".json",JSON.stringify(db),"application/json");
+  renderHistory();
   toast("Backup downloaded — keep it somewhere safe");
 }
 function restoreJSON(input){
@@ -1199,7 +1489,8 @@ function restoreJSON(input){
       const d=JSON.parse(r.result);
       if(typeof d!=="object"||!("logs"in d))throw 0;
       if(!confirm("Replace everything on this device with the backup? Current data will be overwritten."))return;
-      db={block:d.block||1,logs:d.logs||{},selWeek:d.selWeek||1,swaps:d.swaps||{},prev:d.prev||null,metrics:d.metrics||[]};
+      db={block:d.block||1,logs:d.logs||{},selWeek:d.selWeek||1,swaps:d.swaps||{},prev:d.prev||null,
+          metrics:d.metrics||[],notes:d.notes||{},lastBackup:d.lastBackup||null};
       save();renderHistory();toast("Backup restored");
     }catch(e){toast("That file isn't a valid backup")}
     input.value="";
@@ -1227,10 +1518,26 @@ function rollover(){
 }
 function wipeData(){
   if(confirm("Erase every logged set, all blocks, all swaps? This can't be undone. (Take a JSON backup first if unsure.)"))
-    {db={block:1,logs:{},selWeek:1,swaps:{},prev:null,metrics:[]};save();renderHistory();toast("All data erased")}
+    {db={block:1,logs:{},selWeek:1,swaps:{},prev:null,metrics:[],notes:{},lastBackup:null};save();renderHistory();toast("All data erased")}
 }
 
-renderHome();
+/* ================= INIT ================= */
+async function init(){
+  if(!db.notes)db.notes={};
+  if(!db.metrics)db.metrics=[];
+  /* localStorage gone (eviction / new browser profile)? Recover from the IndexedDB mirror. */
+  if(!localStorage.getItem(KEY)){
+    const m=await IDB.get("db");
+    if(m&&m.logs&&Object.keys(m.logs).length){
+      db=m;if(!db.notes)db.notes={};if(!db.metrics)db.metrics=[];
+      save();toast("Log restored from device mirror");
+    }
+  }
+  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+  history.replaceState({scr:"home"},"");
+  renderHome();
+}
+init();
 </script>
 </body>
 </html>
