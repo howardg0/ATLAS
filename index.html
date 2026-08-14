@@ -144,6 +144,33 @@ input,select{font-family:inherit}
 .emptymsg{color:var(--ink-faint);font-size:.85rem;text-align:center;padding:40px 20px;line-height:1.6}
 .sectlabel{font-size:.7rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin:18px 2px 10px}
 
+/* ---------- session preview ---------- */
+.pvstats{display:flex;gap:8px;margin-bottom:16px}
+.pvstat{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 6px;text-align:center}
+.pvstat .v{font-size:1.05rem;font-weight:800}
+.pvstat .k{font-size:.62rem;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+.rstep{width:100%;display:flex;gap:12px;text-align:left}
+.rrail{width:34px;display:flex;flex-direction:column;align-items:center;flex-shrink:0;align-self:stretch}
+.rnode{width:34px;height:34px;border-radius:50%;background:var(--surface2);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.8rem;color:var(--ink-dim);flex-shrink:0}
+.rline{flex:1;width:2px;background:var(--line);margin-top:4px;min-height:10px}
+.rstep.last .rline{background:none}
+.rstep.done .rnode{background:rgba(63,164,92,.12);border-color:var(--plate-green);color:var(--plate-green)}
+.rstep.next .rnode{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.rbody{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px}
+.rstep:active .rbody{background:var(--surface2)}
+.rstep.next .rbody{border-color:var(--ink-faint)}
+.rinfo{flex:1;min-width:0}
+.rname{font-weight:700;font-size:.92rem}
+.rstep.done .rname{color:var(--ink-dim)}
+.rmeta{font-size:.74rem;color:var(--ink-dim);margin-top:3px;display:flex;align-items:center;gap:6px}
+.rdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.rstate{flex-shrink:0;font-size:.78rem;font-weight:700;color:var(--ink-faint)}
+.rstate.done{color:var(--plate-green);font-size:.95rem}
+.rstate.part{color:var(--plate-yellow)}
+.nextlabel{font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--plate-yellow);margin-bottom:2px}
+
 /* ---------- lift library ---------- */
 .searchbar{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:12px;
   color:var(--ink);padding:12px 14px;font-size:.95rem;outline:none;margin-bottom:12px;-webkit-appearance:none}
@@ -488,6 +515,16 @@ C:{title:"Unilateral & Pump",ex:[
   <div id="daylist"></div>
 </div>
 
+<div class="screen" id="scr-preview">
+  <div class="topbar">
+    <button class="backbtn" onclick="show('home')">←</button>
+    <div><h1 id="pv-title"></h1><div class="sub" id="pv-sub"></div></div>
+  </div>
+  <div class="pvstats" id="pv-stats"></div>
+  <div id="pv-route"></div>
+  <button class="bigbtn primary" id="pv-start" onclick="startSession(PV.w,PV.d)"></button>
+</div>
+
 <div class="screen" id="scr-session">
   <div class="topbar">
     <button class="backbtn" onclick="exitSession()">←</button>
@@ -717,10 +754,11 @@ function weekComplete(w){return ["A","B","C"].every(d=>loggedSets(w,d)>=totalSet
 function show(name){
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
   $("scr-"+name).classList.add("active");
-  $("nav-home").classList.toggle("active",name==="home");
+  $("nav-home").classList.toggle("active",name==="home"||name==="preview");
   $("nav-lib").classList.toggle("active",name==="lib"||name==="lift");
   $("nav-history").classList.toggle("active",name==="history");
   if(name==="home")renderHome();
+  if(name==="preview"&&PV)renderPreview();
   if(name==="lib")renderLib();
   if(name==="history")renderHistory();
   window.scrollTo(0,0);
@@ -752,9 +790,52 @@ function renderHome(){
       <div class="dayinfo"><div class="dtitle">${DAYS[d].title}</div>
       <div class="dsub">${DAYS[d].ex.length} exercises · ~${d==="A"?"75":"70"} min</div></div>
       <div class="daystate ${cls}">${state}</div>`;
-    card.onclick=()=>startSession(w,d);
+    card.onclick=()=>done>=total?showDone(w,d):showPreview(w,d);
     dl.appendChild(card);
   }
+}
+
+/* ================= SESSION PREVIEW ================= */
+let PV=null;
+function showPreview(w,d){PV={w,d};show("preview")}
+function renderPreview(){
+  const {w,d}=PV;
+  $("pv-title").textContent="Day "+d+" · Week "+w;
+  $("pv-sub").textContent=DAYS[d].title+" · "+PHASE[w];
+  const total=totalSets(w,d),done=loggedSets(w,d);
+  $("pv-stats").innerHTML=
+    `<div class="pvstat"><div class="v">${DAYS[d].ex.length}</div><div class="k">Lifts</div></div>
+     <div class="pvstat"><div class="v">${total}</div><div class="k">Sets</div></div>
+     <div class="pvstat"><div class="v">~${d==="A"?"75":"70"}</div><div class="k">Min</div></div>
+     <div class="pvstat"><div class="v">${RIR[w]}</div><div class="k">RIR</div></div>`;
+  const L=(db.logs[logKey(w,d)]||{}).ex||{};
+  let nextFound=false,html="";
+  DAYS[d].ex.forEach((e,i)=>{
+    const [,range,isComp]=e;
+    const name=exName(d,i);
+    const need=setsFor(w,isComp);
+    const have=(L[i]||[]).filter(s=>s&&s.kg!=null).length;
+    const isDone=have>=need;
+    const isNext=!isDone&&!nextFound;
+    if(isNext)nextFound=true;
+    const hist=prevSession(w,d,i);
+    const todaySets=(L[i]||[]).filter(s=>s&&s.kg!=null);
+    const lastTxt=todaySets.length?Math.max(...todaySets.map(s=>s.kg))+" kg today"
+      :hist?"last "+hist.sets[0].kg+" kg":"find weight";
+    const state=isDone?`<span class="rstate done">✓</span>`
+      :have>0?`<span class="rstate part">${have}/${need}</span>`
+      :`<span class="rstate">›</span>`;
+    html+=`<button class="rstep${isDone?" done":""}${isNext?" next":""}${i===DAYS[d].ex.length-1?" last":""}"
+      onclick="openLift('${name.replace(/'/g,"\\'")}','preview')">
+      <div class="rrail"><div class="rnode">${isDone?"✓":i+1}</div><div class="rline"></div></div>
+      <div class="rbody"><div class="rinfo">
+        ${isNext&&done>0?'<div class="nextlabel">Up next</div>':""}
+        <div class="rname">${name}</div>
+        <div class="rmeta"><span class="rdot" style="background:var(--plate-${isComp?"red":"blue"})"></span>${need} × ${range} · ${lastTxt}</div>
+      </div>${state}</div></button>`;
+  });
+  $("pv-route").innerHTML=html;
+  $("pv-start").textContent=done>0?`Continue — ${done}/${total} sets done →`:"Start session →";
 }
 
 /* ================= SESSION ================= */
@@ -994,7 +1075,7 @@ function openLift(name,src){
   if(st){$("lift-best").textContent=st.best.kg+" kg × "+st.best.reps;$("lift-setcount").textContent=st.count}
   show("lift");
 }
-function backFromLift(){show(LIB.src==="session"?"session":"lib")}
+function backFromLift(){show(LIB.src==="session"?"session":LIB.src==="preview"?"preview":"lib")}
 function openLiftFromSession(){if(S)openLift(exName(S.d,S.exIdx),"session")}
 function liftStats(name){
   let best=null,count=0;
