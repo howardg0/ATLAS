@@ -231,7 +231,7 @@ input,select{font-family:inherit}
 .nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--line);
   display:flex;justify-content:space-around;padding:8px 0 max(10px,env(safe-area-inset-bottom));z-index:40}
 .nav button{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:.65rem;font-weight:700;
-  color:var(--ink-faint);padding:4px 18px;letter-spacing:.04em}
+  color:var(--ink-faint);padding:4px 12px;letter-spacing:.04em;flex:1}
 .nav button.active{color:var(--ink)}
 .nav .ico{font-size:1.25rem;line-height:1}
 
@@ -279,6 +279,86 @@ input,select{font-family:inherit}
   border-radius:var(--radius);color:var(--ink);padding:12px 14px;font-size:.88rem;font-family:inherit;
   line-height:1.5;outline:none;resize:vertical;margin-bottom:12px}
 .notesbox:focus{border-color:var(--ink-faint)}
+
+/* ---------- home brand + settings ---------- */
+.brandrow{display:flex;align-items:flex-start;gap:10px}
+.brand{flex:1;min-width:0}
+.brand.compact{margin:2px 0 14px}
+.brand.compact h1{font-size:1.25rem;line-height:1.15}
+.brand.compact p{display:none}
+.gearbtn{width:40px;height:40px;border-radius:12px;background:var(--surface);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:var(--ink-dim);flex-shrink:0;margin-top:8px}
+.weekcell .wbar{height:3px;border-radius:2px;margin:6px 8px 0}
+
+/* ---------- segmented control ---------- */
+.segrow{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);
+  border-radius:12px;padding:4px;margin-bottom:14px}
+.seg{flex:1;padding:9px 4px;border-radius:9px;font-size:.76rem;font-weight:700;color:var(--ink-dim);text-align:center}
+.seg.sel{background:var(--surface2);color:var(--ink)}
+
+/* ---------- muscle volume ---------- */
+.musrow{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.muslabel{width:88px;flex-shrink:0;font-size:.76rem;font-weight:700;color:var(--ink-dim)}
+.mustrack{flex:1;height:22px;background:var(--surface2);border-radius:6px;position:relative;overflow:hidden}
+.musghost{position:absolute;left:0;top:0;bottom:0;background:#39415270;border-radius:6px}
+.musfill{height:100%;border-radius:6px;transition:width .4s ease;position:relative}
+.musfill.low{background:var(--plate-yellow)}
+.musfill.ok{background:var(--plate-green)}
+.musfill.high{background:var(--plate-red)}
+.musfill.none{background:var(--line)}
+.musval{width:52px;flex-shrink:0;text-align:right;font-size:.78rem;font-weight:800}
+.musval span{color:var(--ink-faint);font-weight:600}
+.muslabel{width:84px}
+.musmark{position:absolute;top:0;bottom:0;width:1px;background:rgba(232,234,240,.28)}
+
+/* ---------- records ---------- */
+.recrow{display:flex;align-items:center;gap:12px;text-align:left;width:100%;background:var(--surface);border:1px solid var(--line);
+  border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.recrow .rinfo2{flex:1;min-width:0}
+.recrow .rn{font-weight:700;font-size:.88rem}
+.recrow .rd{font-size:.72rem;color:var(--ink-faint);margin-top:2px}
+.recrow .rv{text-align:right;flex-shrink:0}
+.recrow .rv b{display:block;font-size:.95rem;font-weight:800}
+.recrow .rv span{font-size:.7rem;color:var(--ink-faint);white-space:nowrap}
+
+/* ---------- programme editor ---------- */
+.progday{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px;margin-bottom:12px}
+.progday .pdhead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.progday .pdletter{width:32px;height:32px;border-radius:9px;background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;font-weight:900;flex-shrink:0}
+.progday input.pdtitle{flex:1;min-width:0;background:none;border:none;border-bottom:1px dashed var(--line);
+  color:var(--ink);font-weight:700;font-size:.92rem;padding:4px 2px;outline:none}
+.progday input.pdtitle:focus{border-bottom-color:var(--ink-faint)}
+.progex{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+.progex .pename{flex:1;min-width:0;font-size:.85rem;font-weight:600}
+.progex .pemeta{font-size:.7rem;color:var(--ink-faint);margin-top:2px}
+.progex input.perange{width:62px;flex-shrink:0;background:var(--surface2);border:1px solid var(--line);
+  border-radius:8px;color:var(--ink);text-align:center;font-size:.78rem;font-weight:700;padding:6px 2px;outline:none}
+.miniBtn{width:30px;height:30px;border-radius:8px;background:var(--surface2);border:1px solid var(--line);
+  color:var(--ink-dim);font-size:.85rem;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.miniBtn:active{background:var(--line)}
+.miniBtn.danger{color:var(--plate-red)}
+.pill{font-size:.62rem;font-weight:800;letter-spacing:.06em;padding:3px 7px;border-radius:6px;
+  background:var(--surface2);color:var(--ink-dim);flex-shrink:0}
+.pill.comp{color:var(--plate-red)}
+
+/* ---------- body trend ---------- */
+.trendrow{display:flex;align-items:center;gap:12px;padding:10px 0}
+.trendrow+.trendrow{border-top:1px solid var(--line)}
+.tinfo{flex:1;min-width:0}
+.tlabel{font-size:.68rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
+.tval{font-size:1.35rem;font-weight:900;margin-top:2px}
+.tval span{font-size:.85rem;font-weight:700;color:var(--ink-dim)}
+.tdelta{font-size:.74rem;font-weight:700;margin-top:2px}
+
+/* ---------- body photos ---------- */
+.thumbrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.thumb{position:relative;width:72px;height:96px;border-radius:10px;overflow:hidden;
+  background:var(--surface2);border:1px solid var(--line)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb button{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;
+  background:rgba(12,13,17,.8);color:var(--ink);font-size:.75rem;line-height:1}
 
 /* ---------- update pill ---------- */
 .updatepill{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
@@ -559,7 +639,7 @@ const EXDB={
  about:"Knee raises with the forearms on pads — the same lower-ab curl without grip being the limit.",
  form:["Press the lower back towards the pad","Curl the pelvis, don't just lift the knees","No swinging between reps"]}};
 
-const DAYS={
+const DEFAULT_DAYS={
 A:{title:"Squat & Horizontal Push",ex:[
  ["Back Squat","6–8",1],["Flat Dumbbell Bench Press","6–8",1],["Chest-Supported Row","8–10",1],
  ["Seated Leg Curl","10–12",0],["Seated DB Shoulder Press","10–12",0],["Cable Triceps Pushdown","12–15",0],
@@ -572,14 +652,26 @@ C:{title:"Unilateral & Pump",ex:[
  ["Hack Squat","10–12",1],["Seated Cable Row","8–10",1],["Machine Chest Press","10–12",1],
  ["45-Degree Back Extension","12–15",0],["DB Lateral Raise","15–20",0],["Reverse Pec Deck","15–20",0],
  ["Cable Curl","12–15",0],["Standing Calf Raise","10–15",0]]}};
+/* The live programme is db.programme (editable); DAYS points at it after init. */
+let DAYS=DEFAULT_DAYS;
+const dayIds=()=>Object.keys(DAYS);
+/* rough pacing: compounds are slower than accessories */
+function estMinutes(w,d){
+  let m=6;
+  for(const e of DAYS[d].ex)m+=setsFor(w,e[2])*(e[2]?3.4:2.3);
+  return Math.round(m/5)*5;
+}
 </script>
 
 <!-- ================= SCREENS ================= -->
 <div class="screen active" id="scr-home">
-  <div class="brand">
-    <div class="eyebrow" id="home-eyebrow">Block 1 · 6 Weeks</div>
-    <h1>Full-Body<br>Hypertrophy</h1>
-    <p>3 days a week · every muscle 3× · double progression</p>
+  <div class="brandrow">
+    <div class="brand" id="brand">
+      <div class="eyebrow" id="home-eyebrow">Block 1 · 6 Weeks</div>
+      <h1 id="brand-title">Full-Body<br>Hypertrophy</h1>
+      <p id="brand-sub">3 days a week · every muscle 3× · double progression</p>
+    </div>
+    <button class="gearbtn" onclick="show('settings')" aria-label="Settings">⚙</button>
   </div>
   <div id="hero"></div>
   <div class="weekrow" id="weekrow"></div>
@@ -646,19 +738,66 @@ C:{title:"Unilateral & Pump",ex:[
   <button class="bigbtn primary" style="margin-top:14px" onclick="show('home')">Back to plan</button>
 </div>
 
-<div class="screen" id="scr-history">
-  <div class="topbar"><div><h1 id="hist-title">History</h1><div class="sub">Weekly tonnage & recent lifts</div></div></div>
-  <div class="chartcard" id="hist-weeks"></div>
-  <div id="hist-lifts"></div>
-  <div class="sectlabel">Data</div>
+<div class="screen" id="scr-stats">
+  <div class="topbar"><div><h1 id="hist-title">Stats</h1><div class="sub" id="stats-sub">Volume, balance and every record you've set</div></div></div>
   <div id="backup-nudge"></div>
-  <button class="bigbtn ghost" onclick="backupJSON()">Backup everything (JSON)</button>
+  <div class="segrow" id="stats-tabs"></div>
+  <div id="stats-body"></div>
+</div>
+
+<div class="screen" id="scr-body">
+  <div class="topbar"><div><h1>Body</h1><div class="sub">Weekly, same conditions: morning, before food</div></div></div>
+  <div class="setcard">
+    <div class="inrow">
+      <div class="infield"><div class="flabel">Weight kg</div>
+        <div class="stepper"><button onclick="bumpEl('bm-kg',-0.5)">−</button><input id="bm-kg" type="number" inputmode="decimal" step="0.1"><button onclick="bumpEl('bm-kg',0.5)">+</button></div></div>
+      <div class="infield"><div class="flabel">Waist cm</div>
+        <div class="stepper"><button onclick="bumpEl('bm-waist',-0.5)">−</button><input id="bm-waist" type="number" inputmode="decimal" step="0.5"><button onclick="bumpEl('bm-waist',0.5)">+</button></div></div>
+    </div>
+    <div class="platebar" id="bm-hint">Same day each week, before food. Photos are the honest signal.</div>
+  </div>
+  <button class="bigbtn ghost" onclick="document.getElementById('photo-file').click()">📷 Add progress photos</button>
+  <input type="file" id="photo-file" accept="image/*" multiple style="display:none" onchange="addPhotos(this)">
+  <div class="thumbrow" id="bm-pending"></div>
+  <button class="bigbtn primary" style="margin-top:8px" onclick="logMetric()">Save this week</button>
+  <div class="sectlabel">Trend</div>
+  <div id="bm-chart"></div>
+  <div id="bm-list"></div>
+</div>
+
+<div class="screen" id="scr-settings">
+  <div class="topbar"><button class="backbtn" onclick="history.back()">←</button>
+    <div><h1>Settings</h1><div class="sub" id="set-sub"></div></div></div>
+  <div class="sectlabel">Programme</div>
+  <button class="bigbtn ghost" onclick="show('prog')">Edit programme — days & exercises</button>
+  <div class="sectlabel">Data</div>
+  <button class="bigbtn ghost" onclick="backupJSON(false)">Back up training log</button>
+  <button class="bigbtn ghost" onclick="backupJSON(true)">Back up everything, photos included</button>
   <button class="bigbtn ghost" onclick="document.getElementById('restore-file').click()">Restore from backup</button>
   <input type="file" id="restore-file" accept=".json,application/json" style="display:none" onchange="restoreJSON(this)">
-  <button class="bigbtn ghost" onclick="exportCSV()">Export log (CSV)</button>
+  <button class="bigbtn ghost" onclick="exportCSV()">Export every set (CSV)</button>
   <div class="sectlabel">Block</div>
-  <button class="bigbtn ghost" id="rollover-btn" onclick="rollover()">Start next block</button>
+  <button class="bigbtn ghost" id="rollover-btn" onclick="rollover()">Finish block & start the next</button>
+  <div class="sectlabel" style="color:var(--plate-red)">Danger</div>
   <button class="bigbtn ghost" onclick="wipeData()" style="color:var(--plate-red)">Erase all data</button>
+  <div class="hsets" style="text-align:center;padding:18px 0 4px;color:var(--ink-faint)" id="set-ver"></div>
+</div>
+
+<div class="screen" id="scr-prog">
+  <div class="topbar"><button class="backbtn" onclick="history.back()">←</button>
+    <div><h1>Programme</h1><div class="sub">Your training template — edits apply from now on</div></div></div>
+  <div id="prog-body"></div>
+  <button class="bigbtn ghost" style="color:var(--plate-red)" onclick="resetProgramme()">Reset to the default programme</button>
+</div>
+
+<div class="sheet" id="picksheet" onclick="if(event.target===this)closePick()">
+  <div class="panel">
+    <h3 id="pick-title">Add exercise</h3>
+    <div class="shint">Pick from the lift library — its muscle map and form guide come with it.</div>
+    <input class="searchbar" id="picksearch" type="search" placeholder="Search lifts…" oninput="renderPick()">
+    <div id="picklist" style="max-height:46vh;overflow-y:auto"></div>
+    <button class="bigbtn ghost" onclick="closePick()">Cancel</button>
+  </div>
 </div>
 
 <div class="screen" id="scr-lib">
@@ -819,14 +958,19 @@ C:{title:"Unilateral & Pump",ex:[
 <div class="nav">
   <button id="nav-home" class="active" onclick="show('home')"><span class="ico">▦</span>Plan</button>
   <button id="nav-lib" onclick="show('lib')"><span class="ico">❖</span>Lifts</button>
-  <button id="nav-history" onclick="show('history')"><span class="ico">↗</span>History</button>
+  <button id="nav-stats" onclick="show('stats')"><span class="ico">↗</span>Stats</button>
+  <button id="nav-body" onclick="show('body')"><span class="ico">◉</span>Body</button>
 </div>
 <div class="toast" id="toast"></div>
 
 <script>
 /* ================= STATE ================= */
 const KEY="block-log-v2";
-let db=load();
+const APP_VERSION="4.1";
+let restEnd=0,restTick=null,restDur=1,restLabel="";
+let S=null;
+const clone=o=>JSON.parse(JSON.stringify(o));
+let db=migrate(load());
 function load(){
   try{
     const d=JSON.parse(localStorage.getItem(KEY));
@@ -835,10 +979,37 @@ function load(){
   // migrate from v1 if present
   try{
     const v1=JSON.parse(localStorage.getItem("block1-log-v1"));
-    if(v1)return{block:1,logs:v1.logs||{},selWeek:v1.selWeek||1,swaps:{},prev:null,metrics:[]};
+    if(v1)return{block:1,logs:v1.logs||{},selWeek:v1.selWeek||1};
   }catch(e){}
-  return{block:1,logs:{},selWeek:1,swaps:{},prev:null,metrics:[],notes:{},lastBackup:null};
+  return{};
 }
+/* Brings any older save up to the current shape. Runs on load and on restore. */
+function migrate(d){
+  d=d||{};
+  d.block=d.block||1;
+  d.logs=d.logs||{};
+  d.selWeek=d.selWeek||1;
+  d.swaps=d.swaps||{};
+  d.notes=d.notes||{};
+  d.metrics=d.metrics||[];
+  d.archive=d.archive||[];
+  d.lastBackup=d.lastBackup||null;
+  d.session=d.session||null;
+  d.rest=d.rest||null;
+  if(!d.programme)d.programme=clone(DEFAULT_DAYS);
+  /* single-slot `prev` used to be the only archive — fold it in so it stops
+     being overwritten (and lost) on the next block rollover */
+  if(d.prev){
+    d.archive.unshift({block:Math.max(1,d.block-1),logs:d.prev,
+      programme:clone(DEFAULT_DAYS),swaps:clone(d.swaps),endedAt:null});
+    delete d.prev;
+  }
+  return d;
+}
+/* every archived block carries the programme and swaps it was run under, so
+   history resolves names against the programme in force at the time */
+function blockCtx(){return{programme:db.programme,swaps:db.swaps,block:db.block}}
+function allBlocks(){return db.archive.concat([{block:db.block,logs:db.logs,programme:db.programme,swaps:db.swaps}])}
 /* localStorage is the working copy; IndexedDB is a durable mirror that survives
    most storage evictions, so years of logs don't hinge on one fragile store */
 const IDB={
@@ -849,11 +1020,19 @@ const IDB={
   async set(k,v){try{const d=await this.open();d.transaction("kv","readwrite").objectStore("kv").put(v,k)}catch(e){}},
   async get(k){try{const d=await this.open();return new Promise(res=>{
     const q=d.transaction("kv").objectStore("kv").get(k);
-    q.onsuccess=()=>res(q.result);q.onerror=()=>res(null)})}catch(e){return null}}
+    q.onsuccess=()=>res(q.result);q.onerror=()=>res(null)})}catch(e){return null}},
+  async del(k){try{const d=await this.open();d.transaction("kv","readwrite").objectStore("kv").delete(k)}catch(e){}},
+  async keys(){try{const d=await this.open();return new Promise(res=>{
+    const q=d.transaction("kv").objectStore("kv").getAllKeys();
+    q.onsuccess=()=>res(q.result||[]);q.onerror=()=>res([])})}catch(e){return []}}
 };
 function save(){
+  /* snapshot the live session and rest clock so a kill mid-workout is recoverable */
+  db.session=S?{w:S.w,d:S.d,exIdx:S.exIdx,setIdx:S.setIdx,t:Date.now()}:null;
+  db.rest=(restEnd>Date.now())
+    ?{end:restEnd,label:restLabel,dur:restDur}:null;
   try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast("Storage unavailable — back up now")}
-  IDB.set("db",JSON.parse(JSON.stringify(db)));
+  IDB.set("db",clone(db));
 }
 function logKey(w,d){return w+"-"+d}
 
@@ -868,18 +1047,32 @@ function toast(m,actionLabel,actionFn){
 }
 function bumpEl(id,step){
   const el=$(id);let v=parseFloat(el.value)||0;
-  v=Math.max(0,Math.round((v+step)*2)/2);
-  el.value=Math.abs(step)>=1&&Number.isInteger(step)?Math.round(v):v;
+  v=Math.max(0,Math.round((v+step)*10)/10);
+  if(Math.abs(step)===1)v=Math.round(v);
+  el.value=v;
 }
 function setsFor(w,isComp){return isComp?PRIMARY_SETS[w]:ACC_SETS[w]}
 function totalSets(w,d){return DAYS[d].ex.reduce((a,e)=>a+setsFor(w,e[2]),0)}
 function loggedSets(w,d,logs){logs=logs||db.logs;const L=logs[logKey(w,d)];if(!L)return 0;let n=0;for(const ex of Object.values(L.ex||{}))n+=ex.filter(s=>s&&s.kg!=null).length;return n}
 function sessionTonnage(w,d,logs){logs=logs||db.logs;const L=logs[logKey(w,d)];if(!L)return 0;let t=0;for(const ex of Object.values(L.ex||{}))for(const s of ex)if(s&&s.kg!=null)t+=s.kg*s.reps;return Math.round(t)}
 function ytLink(name){return "https://www.youtube.com/results?search_query="+encodeURIComponent(name+" proper form")}
-function exName(d,i){return (db.swaps&&db.swaps[d+"-"+i])||DAYS[d].ex[i][0]}
+function exName(d,i){return (db.swaps&&db.swaps[d+"-"+i])||(DAYS[d].ex[i]||["—"])[0]}
+/* Resolve a slot's name inside an arbitrary block context (current or archived) */
+function exNameIn(ctx,d,i){
+  const sw=ctx.swaps&&ctx.swaps[d+"-"+i];
+  if(sw)return sw;
+  const day=ctx.programme&&ctx.programme[d];
+  return (day&&day.ex[i]&&day.ex[i][0])||"—";
+}
+/* A set records the lift it was performed on. Older sets predate that, so fall
+   back to resolving the slot — but a stamped name always wins, which is what
+   stops a later swap from retroactively relabelling your history. */
+function setName(s,ctx,d,i){return (s&&s.name)||exNameIn(ctx,d,i)}
+/* Epley estimated 1RM — lets 80x8 and 85x6 be compared honestly */
+function e1rm(kg,reps){return Math.round(kg*(1+reps/30)*10)/10}
 function repTop(range){return parseInt(range.split("–")[1])}
 function increment(name){return BIG_INC.has(name)?5:2.5}
-function weekComplete(w){return ["A","B","C"].every(d=>loggedSets(w,d)>=totalSets(w,d))}
+function weekComplete(w){return dayIds().every(d=>loggedSets(w,d)>=totalSets(w,d))}
 
 /* ================= NAV =================
    Screens are wired into the History API so the Android back
@@ -887,13 +1080,17 @@ function weekComplete(w){return ["A","B","C"].every(d=>loggedSets(w,d)>=totalSet
 function show(name,push=true){
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
   $("scr-"+name).classList.add("active");
-  $("nav-home").classList.toggle("active",name==="home"||name==="preview");
+  $("nav-home").classList.toggle("active",name==="home"||name==="preview"||name==="settings"||name==="prog");
   $("nav-lib").classList.toggle("active",name==="lib"||name==="lift");
-  $("nav-history").classList.toggle("active",name==="history");
+  $("nav-stats").classList.toggle("active",name==="stats");
+  $("nav-body").classList.toggle("active",name==="body");
   if(name==="home")renderHome();
   if(name==="preview"&&PV)renderPreview();
   if(name==="lib")renderLib();
-  if(name==="history")renderHistory();
+  if(name==="stats")renderStats();
+  if(name==="body")renderBody();
+  if(name==="settings")renderSettings();
+  if(name==="prog")renderProg();
   window.scrollTo(0,0);
   if(push&&!(history.state&&history.state.scr===name))history.pushState({scr:name},"");
 }
@@ -902,8 +1099,9 @@ addEventListener("popstate",e=>{
   const veil=$("restveil").classList.contains("active");
   const sw=$("swapsheet").classList.contains("active");
   const ed=$("editsheet").classList.contains("active");
-  if(veil||sw||ed){
-    if(veil)endRest();if(sw)closeSwap();if(ed)closeEdit();
+  const pk=$("picksheet").classList.contains("active");
+  if(veil||sw||ed||pk){
+    if(veil)endRest();if(sw)closeSwap();if(ed)closeEdit();if(pk)closePick();
     history.pushState({scr:document.querySelector(".screen.active").id.slice(4)},"");
     return;
   }
@@ -931,9 +1129,20 @@ function ringSVG(n,of){
 function renderHero(){
   const w=db.selWeek;
   let sessDone=0;
-  for(let ww=1;ww<=6;ww++)for(const dd of ["A","B","C"])if(loggedSets(ww,dd)>=totalSets(ww,dd))sessDone++;
+  const totalSess=dayIds().length*6;
+  for(let ww=1;ww<=6;ww++)for(const dd of dayIds())if(loggedSets(ww,dd)>=totalSets(ww,dd))sessDone++;
+  const q=db.session;
+  if(q&&Date.now()-q.t<6*3600e3&&DAYS[q.d]&&loggedSets(q.w,q.d)<totalSets(q.w,q.d)){
+    const mins=Math.round((Date.now()-q.t)/60000);
+    $("hero").innerHTML=`<button class="hero d${q.d}" onclick="resumeSession()">
+      <div class="hinfo"><div class="hkick" style="color:var(--plate-yellow)">Session in progress</div>
+      <div class="hname">Day ${q.d} · ${DAYS[q.d].title}</div>
+      <div class="hmeta">Left off at ${exName(q.d,Math.min(q.exIdx,DAYS[q.d].ex.length-1))} · ${mins<60?mins+" min":Math.round(mins/60)+" h"} ago</div></div>
+      <div class="hring">${ringSVG(sessDone,totalSess)}</div></button>`;
+    return;
+  }
   let nd=null;
-  for(const d of ["A","B","C"])if(loggedSets(w,d)<totalSets(w,d)){nd=d;break}
+  for(const d of dayIds())if(loggedSets(w,d)<totalSets(w,d)){nd=d;break}
   if(nd){
     const started=loggedSets(w,nd)>0;
     $("hero").innerHTML=`<button class="hero d${nd}" onclick="showPreview(${w},'${nd}')">
@@ -941,32 +1150,39 @@ function renderHero(){
       <div class="hname">Day ${nd} · ${DAYS[nd].title}</div>
       <div class="hmeta">${started
         ?loggedSets(w,nd)+"/"+totalSets(w,nd)+" sets logged — pick it back up"
-        :DAYS[nd].ex.length+" lifts · "+totalSets(w,nd)+" sets · ~"+(nd==="A"?"75":"70")+" min"}</div></div>
-      <div class="hring">${ringSVG(sessDone,18)}</div></button>`;
+        :DAYS[nd].ex.length+" lifts · "+totalSets(w,nd)+" sets · ~"+estMinutes(w,nd)+" min"}</div></div>
+      <div class="hring">${ringSVG(sessDone,totalSess)}</div></button>`;
   }else{
     $("hero").innerHTML=`<div class="hero">
       <div class="hinfo"><div class="hkick" style="color:var(--plate-green)">Week ${w} complete</div>
-      <div class="hname">All three sessions done ✓</div>
-      <div class="hmeta">${w<6?"Select week "+(w+1)+" below to keep rolling":"Block finished — start the next one from History"}</div></div>
-      <div class="hring">${ringSVG(sessDone,18)}</div></div>`;
+      <div class="hname">Every session done ✓</div>
+      <div class="hmeta">${w<6?"Select week "+(w+1)+" below to keep rolling":"Block finished — roll over in Settings"}</div></div>
+      <div class="hring">${ringSVG(sessDone,totalSess)}</div></div>`;
   }
 }
+const PHASE_COLOR={"Re-groove":"var(--plate-blue)","Build":"var(--plate-red)",
+  "Peak":"var(--plate-yellow)","Deload":"var(--plate-green)"};
 function renderHome(){
   $("home-eyebrow").textContent="Block "+db.block+" · 6 Weeks";
+  /* the full title earns its space once, then gets out of the way */
+  const training=Object.keys(db.logs).length>0||db.archive.length>0;
+  $("brand").classList.toggle("compact",training);
+  if(training)$("brand-title").innerHTML="Full-Body Hypertrophy";
   renderHero();
   const wr=$("weekrow");wr.innerHTML="";
   for(let w=1;w<=6;w++){
     const c=document.createElement("button");c.className="weekcell";
     if(weekComplete(w))c.classList.add("done");
     if(w===db.selWeek)c.classList.add("sel");
-    c.innerHTML=`<div class="wnum">${w}</div><div class="wlabel">${PHASE[w]}</div>`;
+    c.title="Week "+w+" · "+PHASE[w];
+    c.innerHTML=`<div class="wnum">${w}</div><div class="wbar" style="background:${PHASE_COLOR[PHASE[w]]}"></div>`;
     c.onclick=()=>{db.selWeek=w;save();renderHome()};
     wr.appendChild(c);
   }
   const w=db.selWeek;
   $("weekmeta").innerHTML=`Week ${w} · <b>${PHASE[w]}</b> · target <b>${RIR[w]} RIR</b> · compounds ${PRIMARY_SETS[w]} sets, accessories ${ACC_SETS[w]}`;
   const dl=$("daylist");dl.innerHTML="";
-  for(const d of ["A","B","C"]){
+  for(const d of dayIds()){
     const total=totalSets(w,d),done=loggedSets(w,d);
     const card=document.createElement("button");card.className="daycard d"+d;
     let state="",cls="";
@@ -975,7 +1191,7 @@ function renderHome(){
     else state=total+" sets";
     card.innerHTML=`<div class="dayletter">${d}</div>
       <div class="dayinfo"><div class="dtitle">${DAYS[d].title}</div>
-      <div class="dsub">${DAYS[d].ex.length} exercises · ~${d==="A"?"75":"70"} min</div></div>
+      <div class="dsub">${DAYS[d].ex.length} exercises · ~${estMinutes(w,d)} min</div></div>
       <div class="daystate ${cls}">${state}</div>`;
     card.onclick=()=>done>=total?showDone(w,d):showPreview(w,d);
     dl.appendChild(card);
@@ -993,7 +1209,7 @@ function renderPreview(){
   $("pv-stats").innerHTML=
     `<div class="pvstat"><div class="v">${DAYS[d].ex.length}</div><div class="k">Lifts</div></div>
      <div class="pvstat"><div class="v">${total}</div><div class="k">Sets</div></div>
-     <div class="pvstat"><div class="v">~${d==="A"?"75":"70"}</div><div class="k">Min</div></div>
+     <div class="pvstat"><div class="v">~${estMinutes(w,d)}</div><div class="k">Min</div></div>
      <div class="pvstat"><div class="v">${RIR[w]}</div><div class="k">RIR</div></div>`;
   const L=(db.logs[logKey(w,d)]||{}).ex||{};
   let nextFound=false,html="";
@@ -1026,7 +1242,6 @@ function renderPreview(){
 }
 
 /* ================= SESSION ================= */
-let S=null;
 function startSession(w,d){
   const k=logKey(w,d);
   if(!db.logs[k])db.logs[k]={date:new Date().toISOString().slice(0,10),ex:{}};
@@ -1042,20 +1257,42 @@ function startSession(w,d){
   lockScreen();
   renderSet();show("session");
 }
-function exitSession(){S=null;unlockScreen();history.back()}
+function exitSession(){S=null;unlockScreen();save();history.back()}
+function resumeSession(){
+  const q=db.session;
+  if(!q||!DAYS[q.d]){toast("That session is no longer in the plan");db.session=null;save();renderHome();return}
+  const k=logKey(q.w,q.d);
+  if(!db.logs[k])db.logs[k]={date:new Date().toISOString().slice(0,10),ex:{}};
+  S={w:q.w,d:q.d,exIdx:Math.min(q.exIdx,DAYS[q.d].ex.length-1),setIdx:0};
+  S.setIdx=Math.min(q.setIdx,firstOpenSet());
+  lockScreen();renderSet();show("session");
+  /* pick the rest clock back up if it was still running */
+  if(db.rest&&db.rest.end>Date.now())
+    startRest(Math.round((db.rest.end-Date.now())/1000),db.rest.label);
+}
 
-/* Most recent earlier data for this exercise slot: current block first, then previous block (wk 5 preferred). */
+/* Most recent earlier data for the lift currently in this slot: current block
+   first, then archived blocks newest-first (peak week preferred).
+   Matches on the LIFT, not the slot — so swapping an exercise no longer makes
+   the coach compare your hack squats against your back squats. */
 function prevSession(w,d,exIdx){
+  const target=exName(d,exIdx);
+  const pick=(L,ctx)=>{
+    if(!L||!L.ex[exIdx])return null;
+    const sets=L.ex[exIdx].filter(s=>s&&s.kg!=null);
+    if(!sets.length)return null;
+    return setName(sets[0],ctx,d,exIdx)===target?sets:null;
+  };
+  const cur=blockCtx();
   for(let pw=w-1;pw>=1;pw--){
-    const L=db.logs[logKey(pw,d)];
-    if(L&&L.ex[exIdx]&&L.ex[exIdx].some(s=>s&&s.kg!=null))
-      return{w:pw,block:db.block,sets:L.ex[exIdx].filter(s=>s&&s.kg!=null)};
+    const sets=pick(db.logs[logKey(pw,d)],cur);
+    if(sets)return{w:pw,block:db.block,sets};
   }
-  if(db.prev){
+  for(let a=db.archive.length-1;a>=0;a--){
+    const B=db.archive[a];
     for(const pw of [5,6,4,3,2,1]){
-      const L=db.prev[logKey(pw,d)];
-      if(L&&L.ex[exIdx]&&L.ex[exIdx].some(s=>s&&s.kg!=null))
-        return{w:pw,block:db.block-1,sets:L.ex[exIdx].filter(s=>s&&s.kg!=null)};
+      const sets=pick(B.logs[logKey(pw,d)],B);
+      if(sets)return{w:pw,block:B.block,sets};
     }
   }
   return null;
@@ -1124,7 +1361,7 @@ function renderSet(){
   renderPlates();
   renderWarmup();
 }
-function jumpTo(i){S.exIdx=i;S.setIdx=firstOpenSet();renderSet()}
+function jumpTo(i){S.exIdx=i;S.setIdx=firstOpenSet();renderSet();save()}
 function endEarly(){
   const {w,d}=S;
   const left=totalSets(w,d)-loggedSets(w,d);
@@ -1179,7 +1416,7 @@ function logSet(){
   const name=exName(d,exIdx);
   const prevBest=liftStats(name,k);   /* best before today's session */
   if(!db.logs[k].ex[exIdx])db.logs[k].ex[exIdx]=[];
-  db.logs[k].ex[exIdx][setIdx]={kg,reps,t:Date.now()};
+  db.logs[k].ex[exIdx][setIdx]={kg,reps,t:Date.now(),name};
   save();
   if(navigator.vibrate)navigator.vibrate(12);
   const pos={w,d,exIdx,setIdx};
@@ -1194,12 +1431,12 @@ function undoSet(pos){
   if(arr){arr[pos.setIdx]=null;while(arr.length&&!arr[arr.length-1])arr.pop()}
   save();
   S={w:pos.w,d:pos.d,exIdx:pos.exIdx,setIdx:pos.setIdx};
-  renderSet();
+  renderSet();save();
   if(document.querySelector(".screen.active").id!=="scr-session")show("session");
 }
 function skipExercise(){
   const {w,d,exIdx}=S;
-  if(exIdx+1<DAYS[d].ex.length){S.exIdx++;S.setIdx=firstOpenSet();renderSet()}
+  if(exIdx+1<DAYS[d].ex.length){S.exIdx++;S.setIdx=firstOpenSet();renderSet();save()}
   else showDone(w,d);
 }
 function firstOpenSet(){
@@ -1215,7 +1452,7 @@ function advance(withRest){
   else if(exIdx+1<DAYS[d].ex.length){S.exIdx++;S.setIdx=firstOpenSet();nextLabel="Next: "+exName(d,S.exIdx)}
   else{showDone(w,d);return}
   if(withRest)startRest(isComp?REST.comp:REST.acc,nextLabel);
-  renderSet();
+  renderSet();save();
 }
 
 /* ================= SWAP ================= */
@@ -1243,7 +1480,7 @@ function closeSwap(){$("swapsheet").classList.remove("active")}
 const LIB={q:"",grp:"All",current:null,src:"lib"};
 function planDays(name){
   const days=[];
-  for(const d of ["A","B","C"])DAYS[d].ex.forEach((e,i)=>{if(exName(d,i)===name&&!days.includes(d))days.push(d)});
+  for(const d of dayIds())DAYS[d].ex.forEach((e,i)=>{if(exName(d,i)===name&&!days.includes(d))days.push(d)});
   return days;
 }
 function renderLib(){
@@ -1311,27 +1548,29 @@ function saveNote(val){
 }
 /* excludeKey: leave out one session (today's) so PRs compare against real history */
 function liftStats(name,excludeKey){
-  let best=null,count=0;
-  const scan=(logs,skip)=>{
-    if(!logs)return;
-    for(const [k,L] of Object.entries(logs)){
-      if(skip&&k===skip)continue;
+  let best=null,bestE=null,count=0,last=null;
+  for(const B of allBlocks()){
+    const isCur=B.logs===db.logs;
+    for(const [k,L] of Object.entries(B.logs||{})){
+      if(isCur&&excludeKey&&k===excludeKey)continue;
       const [,d]=k.split("-");
       for(const [i,sets] of Object.entries(L.ex||{})){
-        if(exName(d,i)!==name)continue;
-        for(const s of sets)if(s&&s.kg!=null){
+        for(const s of sets){
+          if(!s||s.kg==null)continue;
+          if(setName(s,B,d,i)!==name)continue;
           count++;
-          if(!best||s.kg>best.kg||(s.kg===best.kg&&s.reps>best.reps))best={kg:s.kg,reps:s.reps};
+          const rec={kg:s.kg,reps:s.reps,date:L.date,block:B.block,e:e1rm(s.kg,s.reps)};
+          if(!best||s.kg>best.kg||(s.kg===best.kg&&s.reps>best.reps))best=rec;
+          if(!bestE||rec.e>bestE.e)bestE=rec;
+          if(!last||(s.t||0)>(last.t||0))last=Object.assign({t:s.t||0},rec);
         }
       }
     }
-  };
-  scan(db.prev);scan(db.logs,excludeKey);
-  return count?{best,count}:null;
+  }
+  return count?{best,bestE,count,last}:null;
 }
 
 /* ================= REST ================= */
-let restEnd=0,restTick=null,restDur=1,restLabel="";
 const RING_C=339.3;
 function startRest(sec,nextLabel){
   restEnd=Date.now()+sec*1000;restDur=sec;restLabel=nextLabel;
@@ -1362,7 +1601,7 @@ function endRest(){clearInterval(restTick);$("restveil").classList.remove("activ
 
 /* ================= DONE ================= */
 function showDone(w,d){
-  S=null;unlockScreen();
+  S=null;unlockScreen();save();
   $("done-sub").textContent="Day "+d+" · Week "+w+" · "+DAYS[d].title;
   const L=db.logs[logKey(w,d)];
   let ts=[];for(const ex of Object.values(L.ex||{}))for(const s of ex)if(s&&s.t)ts.push(s.t);
@@ -1374,7 +1613,7 @@ function showDone(w,d){
     const chips=arr.map((s,si)=>s&&s.kg!=null
       ?`<button class="setchip" onclick="openEdit(${w},'${d}',${i},${si})">${s.kg} kg × ${s.reps}</button>`:"").join("");
     if(!chips)return "";
-    return `<div class="histrow"><div class="hname">${exName(d,i)}</div><div class="setchips">${chips}</div></div>`;
+    return `<div class="histrow"><div class="hname">${setName(arr.find(x=>x&&x.kg!=null),blockCtx(),d,i)}</div><div class="setchips">${chips}</div></div>`;
   }).join("");
   const skipped=DAYS[d].ex.map((e,i)=>({n:exName(d,i),has:(L.ex[i]||[]).some(s=>s&&s.kg!=null)}))
     .filter(x=>!x.has).map(x=>x.n);
@@ -1408,22 +1647,23 @@ function deleteEditSet(){
   closeEdit();showDone(ED.w,ED.d);toast("Set deleted");
 }
 
-/* ================= HISTORY ================= */
-function sparkSVG(series){
+/* ================= STATS ================= */
+let ST={tab:"volume"};
+function sparkSVG(series,w2,h2,color){
   if(series.length<2)return "";
-  const W=96,H=32,p=4,min=Math.min(...series),max=Math.max(...series),r=max-min||1;
+  const W=w2||96,H=h2||32,p=4,min=Math.min(...series),max=Math.max(...series),r=max-min||1;
   const pts=series.map((v,i)=>[
     +(p+(W-2*p)*i/(series.length-1)).toFixed(1),
     +(H-p-(H-2*p)*(v-min)/r).toFixed(1)]);
-  const col=series[series.length-1]>=series[0]?"var(--plate-green)":"var(--plate-yellow)";
+  const col=color||(series[series.length-1]>=series[0]?"var(--plate-green)":"var(--plate-yellow)");
   const last=pts[pts.length-1];
   return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="flex-shrink:0">
     <polyline points="${pts.map(pt=>pt.join(",")).join(" ")}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/>
     <circle cx="${last[0]}" cy="${last[1]}" r="2.5" fill="${col}"/></svg>`;
 }
-function renderTonChart(){
+function tonChartHTML(){
   const vals=[];
-  for(let w=1;w<=6;w++)vals.push(["A","B","C"].reduce((a,d)=>a+sessionTonnage(w,d),0));
+  for(let w=1;w<=6;w++)vals.push(dayIds().reduce((a,d)=>a+sessionTonnage(w,d),0));
   const max=Math.max(...vals,1);
   const W=320,bw=36,gap=(W-6*bw-16)/5;
   let s="";
@@ -1436,89 +1676,467 @@ function renderTonChart(){
     s+=`<text x="${x+bw/2}" y="132" text-anchor="middle" font-size="9" font-weight="700" fill="var(--ink-faint)">W${i+1}</text>`;
     s+=`<text x="${x+bw/2}" y="143" text-anchor="middle" font-size="8" fill="var(--ink-faint)">${PHASE[i+1]}</text>`;
   });
-  $("hist-weeks").innerHTML=`<div class="sectlabel" style="margin:0 0 8px">Weekly tonnage · kg</div>
-    <svg viewBox="0 0 ${W} 148" style="width:100%;display:block">${s}</svg>`;
+  return `<div class="chartcard"><div class="sectlabel" style="margin:0 0 8px">Weekly tonnage · kg · block ${db.block}</div>
+    <svg viewBox="0 0 ${W} 148" style="width:100%;display:block">${s}</svg></div>`;
 }
-function renderHistory(){
-  $("hist-title").textContent="History · Block "+db.block;
-  renderTonChart();
-  const hl=$("hist-lifts");hl.innerHTML="";
-  let any=false;
-  for(const d of ["A","B","C"])DAYS[d].ex.forEach((e,i)=>{
-    // top-set kg per week: previous block then current
-    const series=[];
-    if(db.prev)for(let w=1;w<=6;w++){const L=db.prev[logKey(w,d)];const s=L&&L.ex[i]?L.ex[i].filter(x=>x&&x.kg!=null):[];if(s.length)series.push(Math.max(...s.map(x=>x.kg)))}
-    for(let w=1;w<=6;w++){const L=db.logs[logKey(w,d)];const s=L&&L.ex[i]?L.ex[i].filter(x=>x&&x.kg!=null):[];if(s.length)series.push(Math.max(...s.map(x=>x.kg)))}
-    for(let w=6;w>=1;w--){
-      const L=db.logs[logKey(w,d)];
-      if(L&&L.ex[i]&&L.ex[i].some(s=>s&&s.kg!=null)){
-        const sets=L.ex[i].filter(s=>s&&s.kg!=null);
-        hl.innerHTML+=`<div class="histrow" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-          <div style="min-width:0"><div class="hname">${exName(d,i)}</div>
-          <div class="hsets">Wk ${w}: ${sets.map(s=>s.kg+"×"+s.reps).join(" · ")}</div></div>
-          ${sparkSVG(series)}</div>`;
-        any=true;break;
-      }
+
+/* ---------- weekly sets per muscle ----------
+   Standard hypertrophy accounting: a primary muscle scores a full set, a
+   secondary scores half. Uses the encyclopedia's muscle data, so a swap that
+   quietly starves your rear delts shows up here. */
+function muscleVolume(w){
+  const out={};
+  const bump=(name,sets,key)=>{
+    const e=EXDB[name];if(!e)return;
+    const put=(m,amt)=>{const g=MUSCLE_NAMES[m];if(!g)return;
+      (out[g]=out[g]||{logged:0,planned:0})[key]+=amt};
+    e.pri.forEach(m=>put(m,sets));
+    e.sec.forEach(m=>put(m,sets*0.5));
+  };
+  const ctx=blockCtx();
+  for(const d of dayIds()){
+    const L=db.logs[logKey(w,d)];
+    DAYS[d].ex.forEach((e,i)=>{
+      bump(exName(d,i),setsFor(w,e[2]),"planned");
+      const done=((L&&L.ex[i])||[]).filter(s=>s&&s.kg!=null);
+      if(!done.length)return;
+      const byName={};
+      done.forEach(s=>{const n=setName(s,ctx,d,i);byName[n]=(byName[n]||0)+1});
+      for(const[n,c]of Object.entries(byName))bump(n,c,"logged");
+    });
+  }
+  return out;
+}
+function volumeHTML(){
+  const w=db.selWeek;
+  const vol=muscleVolume(w);
+  const rows=Object.entries(vol).sort((a,b)=>b[1].planned-a[1].planned);
+  const max=Math.max(24,...rows.map(r=>Math.max(r[1].planned,r[1].logged)));
+  const bars=rows.map(([g,v])=>{
+    const n=Math.round(v.logged*10)/10,pl=Math.round(v.planned*10)/10;
+    /* colour by what the week PLANS to deliver, so an unstarted week still
+       tells you whether the programme covers this muscle at all */
+    const cls=pl===0?"none":pl<8?"low":pl<=22?"ok":"high";
+    return `<div class="musrow">
+      <div class="muslabel">${g}</div>
+      <div class="mustrack">
+        <div class="musghost" style="width:${Math.min(100,100*pl/max)}%"></div>
+        <div class="musfill ${cls}" style="width:${Math.min(100,100*n/max)}%"></div>
+        <div class="musmark" style="left:${100*10/max}%"></div>
+        <div class="musmark" style="left:${100*20/max}%"></div>
+      </div>
+      <div class="musval">${n}<span>/${pl}</span></div></div>`;
+  }).join("");
+  const thin=rows.filter(([,v])=>v.planned>0&&v.planned<8).map(([g])=>g);
+  const none=rows.filter(([,v])=>v.planned===0).map(([g])=>g);
+  let verdict="";
+  if(thin.length||none.length){
+    verdict=`<div class="nudge" style="margin:12px 0 0">`+
+      (none.length?`<b>Untrained this week:</b> ${none.join(", ")}. `:"")+
+      (thin.length?`<b>Under 8 sets:</b> ${thin.join(", ")}.`:"")+
+      `</div>`;
+  }else if(rows.length){
+    verdict=`<div class="nudge" style="margin:12px 0 0;border-left-color:var(--plate-green)">Every muscle group is planned for 8+ sets this week. Balanced.</div>`;
+  }
+  return tonChartHTML()+
+    `<div class="chartcard">
+      <div class="sectlabel" style="margin:0 0 4px">Sets per muscle · week ${w}</div>
+      <div class="hsets" style="margin-bottom:12px">Solid = logged, faint = planned. Primary muscle counts 1 set, secondary ½. Marks sit at 10 and 20 sets.</div>
+      ${bars||'<div class="emptymsg">No exercises in the programme yet.</div>'}
+      ${verdict}
+    </div>`;
+}
+
+/* ---------- all-time records ---------- */
+function allRecords(){
+  const map={};
+  for(const B of allBlocks())for(const[k,L]of Object.entries(B.logs||{})){
+    const[,d]=k.split("-");
+    for(const[i,sets]of Object.entries(L.ex||{}))for(const s of sets||[]){
+      if(!s||s.kg==null)continue;
+      const n=setName(s,B,d,i),e=e1rm(s.kg,s.reps);
+      const r=map[n]||(map[n]={name:n,sets:0,best:null,bestE:null});
+      r.sets++;
+      if(!r.best||s.kg>r.best.kg||(s.kg===r.best.kg&&s.reps>r.best.reps))r.best={kg:s.kg,reps:s.reps,date:L.date,block:B.block};
+      if(!r.bestE||e>r.bestE.e)r.bestE={e,kg:s.kg,reps:s.reps,date:L.date,block:B.block};
     }
-  });
-  if(!any)hl.innerHTML=`<div class="emptymsg">Nothing logged this block yet.<br>Pick a day on the Plan tab and get under something heavy.</div>`;
-  const hasData=Object.keys(db.logs).length>0||db.prev;
+  }
+  return Object.values(map).sort((a,b)=>b.bestE.e-a.bestE.e);
+}
+function recordsHTML(){
+  const recs=allRecords();
+  if(!recs.length)return `<div class="emptymsg">No records yet.<br>Log your first session and this fills up.</div>`;
+  return `<div class="hsets" style="padding:0 4px 10px;color:var(--ink-faint)">Heaviest set ever, and the estimated 1RM it implies. Tap a lift for its guide.</div>`+
+    recs.map(r=>`<button class="recrow" onclick="openLift('${r.name.replace(/'/g,"\\'")}','stats')">
+      <div class="rinfo2"><div class="rn">${r.name}</div>
+      <div class="rd">${r.best.date||"—"} · block ${r.best.block} · ${r.sets} sets logged</div></div>
+      <div class="rv"><b>${r.best.kg} kg × ${r.best.reps}</b><span>e1RM ${r.bestE.e} kg</span></div></button>`).join("");
+}
+
+/* ---------- per-lift progression (estimated 1RM) ---------- */
+function liftSeries(name){
+  const pts=[];
+  for(const B of allBlocks())for(let w=1;w<=6;w++)for(const d of dayIds()){
+    const L=(B.logs||{})[logKey(w,d)];if(!L)continue;
+    for(const[i,sets]of Object.entries(L.ex||{})){
+      const done=(sets||[]).filter(s=>s&&s.kg!=null);
+      if(!done.length||setName(done[0],B,d,i)!==name)continue;
+      pts.push(Math.max(...done.map(s=>e1rm(s.kg,s.reps))));
+    }
+  }
+  return pts;
+}
+function progressHTML(){
+  const recs=allRecords();
+  if(!recs.length)return `<div class="emptymsg">Nothing logged yet.<br>Pick a day on the Plan tab and get under something heavy.</div>`;
+  const rows=recs.map(r=>{
+    const series=liftSeries(r.name);
+    if(series.length<2)return "";
+    const delta=Math.round((series[series.length-1]-series[0])*10)/10;
+    const col=delta>=0?"var(--plate-green)":"var(--plate-yellow)";
+    return `<div class="histrow" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div style="min-width:0"><div class="hname">${r.name}</div>
+      <div class="hsets">e1RM ${series[series.length-1]} kg · <span style="color:${col}">${delta>=0?"+":""}${delta} kg</span> over ${series.length} sessions</div></div>
+      ${sparkSVG(series)}</div>`;
+  }).filter(Boolean).join("");
+  return `<div class="hsets" style="padding:0 4px 10px;color:var(--ink-faint)">Estimated 1RM per session — weight and reps combined, so rep-chasing weeks still show progress.</div>`+
+    (rows||`<div class="emptymsg">Need at least two sessions on a lift before a trend appears.</div>`);
+}
+
+function renderStats(){
+  const total=allBlocks().reduce((a,B)=>a+Object.keys(B.logs||{}).length,0);
+  $("stats-sub").textContent=db.archive.length
+    ? (db.archive.length+1)+" blocks · "+total+" sessions on record"
+    : "Volume, balance and every record you've set";
+  const tabs=[["volume","Volume"],["records","Records"],["progress","Progress"]];
+  $("stats-tabs").innerHTML=tabs.map(([k,l])=>
+    `<button class="seg ${ST.tab===k?"sel":""}" onclick="ST.tab='${k}';renderStats()">${l}</button>`).join("");
+  $("stats-body").innerHTML=
+    ST.tab==="volume"?volumeHTML():ST.tab==="records"?recordsHTML():progressHTML();
+  const hasData=Object.keys(db.logs).length>0||db.archive.length;
   const days=db.lastBackup?Math.floor((Date.now()-db.lastBackup)/86400000):null;
   $("backup-nudge").innerHTML=hasData&&(days===null||days>14)
-    ?`<div class="nudge">⚠ ${days===null?"No backup yet":"Last backup "+days+" days ago"} — your history lives only on this phone. Download one below.</div>`:"";
-  $("rollover-btn").style.opacity=weekComplete(6)?1:.5;
+    ?`<div class="nudge">⚠ ${days===null?"No backup yet":"Last backup "+days+" days ago"} — your history lives only on this phone. <b>Settings → Back up</b>.</div>`:"";
+}
+
+/* ================= BODY ================= */
+let PENDING=[];
+function compressImage(file,maxW){
+  return new Promise(res=>{
+    const url=URL.createObjectURL(file),img=new Image();
+    img.onload=()=>{
+      const sc=Math.min(1,maxW/img.width);
+      const c=document.createElement("canvas");
+      c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+      URL.revokeObjectURL(url);
+      try{res(c.toDataURL("image/jpeg",0.72))}catch(e){res(null)}
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);res(null)};
+    img.src=url;
+  });
+}
+async function addPhotos(input){
+  const files=[...input.files];input.value="";
+  if(!files.length)return;
+  toast("Processing "+files.length+" photo"+(files.length>1?"s":"")+"…");
+  for(const f of files){
+    const data=await compressImage(f,900);
+    if(!data)continue;
+    const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+    await IDB.set("photo:"+id,data);
+    PENDING.push({id,data});
+  }
+  renderPending();
+  toast(PENDING.length+" photo"+(PENDING.length>1?"s":"")+" ready — save the entry");
+}
+function renderPending(){
+  $("bm-pending").innerHTML=PENDING.map((p,i)=>
+    `<div class="thumb"><img src="${p.data}" alt=""><button onclick="dropPending(${i})" aria-label="Remove">✕</button></div>`).join("");
+}
+async function dropPending(i){
+  await IDB.del("photo:"+PENDING[i].id);
+  PENDING.splice(i,1);renderPending();
+}
+function logMetric(){
+  const kg=parseFloat($("bm-kg").value),waist=parseFloat($("bm-waist").value);
+  if(isNaN(kg)&&isNaN(waist)&&!PENDING.length){toast("Enter a number or add a photo");return}
+  db.metrics.push({date:new Date().toISOString().slice(0,10),
+    kg:isNaN(kg)?null:kg,waist:isNaN(waist)?null:waist,
+    photos:PENDING.map(p=>p.id)});
+  PENDING=[];save();renderBody();toast("Saved");
+}
+async function delMetric(i){
+  if(!confirm("Delete this entry and its photos?"))return;
+  for(const id of db.metrics[i].photos||[])await IDB.del("photo:"+id);
+  db.metrics.splice(i,1);save();renderBody();
+}
+/* down is progress for the waist, so the trend colour flips */
+function trendRow(label,vals,unit,downIsGood,since){
+  if(vals.length<2)return "";
+  const first=vals[0],last=vals[vals.length-1];
+  const dlt=Math.round((last-first)*10)/10;
+  const good=downIsGood?dlt<=0:dlt>=0;
+  const col=good?"var(--plate-green)":"var(--plate-yellow)";
+  return `<div class="trendrow">
+    <div class="tinfo">
+      <div class="tlabel">${label}</div>
+      <div class="tval">${last}<span> ${unit}</span></div>
+      <div class="tdelta" style="color:${col}">${dlt>=0?"+":""}${dlt} ${unit} since ${since||"the start"}</div>
+    </div>
+    ${sparkSVG(vals,104,40,col)}</div>`;
+}
+function renderBody(){
+  const m=db.metrics||[];
+  const last=m[m.length-1];
+  $("bm-kg").value=last&&last.kg!=null?last.kg:"";
+  $("bm-waist").value=last&&last.waist!=null?last.waist:"";
+  renderPending();
+  const kgE=m.filter(e=>e.kg!=null),wsE=m.filter(e=>e.waist!=null);
+  const chart=trendRow("Weight",kgE.map(e=>e.kg),"kg",false,kgE[0]&&kgE[0].date)
+             +trendRow("Waist",wsE.map(e=>e.waist),"cm",true,wsE[0]&&wsE[0].date);
+  $("bm-chart").innerHTML=chart?`<div class="chartcard">${chart}</div>`:"";
+  if(!m.length){
+    $("bm-list").innerHTML=`<div class="emptymsg">No entries yet. Weight can rise a couple of kg in the first fortnight from glycogen and water — waist and photos are the honest signals.</div>`;
+    return;
+  }
+  const base=m[0];
+  const fmt=(v,b)=>v==null?"—":v+(b!=null?` <span style="color:var(--ink-faint)">(${v-b>=0?"+":""}${Math.round((v-b)*10)/10})</span>`:"");
+  $("bm-list").innerHTML=m.map((e,i)=>
+    `<div class="histrow">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><div class="hname">${e.date}${i===0?' <span style="color:var(--ink-faint);font-weight:400">baseline</span>':""}</div>
+        <div class="hsets">${fmt(e.kg,i?base.kg:null)} kg · ${fmt(e.waist,i?base.waist:null)} cm waist</div></div>
+        <button onclick="delMetric(${i})" style="color:var(--ink-faint);font-size:1.1rem;padding:6px" aria-label="Delete entry">×</button>
+      </div>
+      ${(e.photos||[]).length?`<div class="thumbrow" id="ph-${i}" style="margin-top:10px"></div>`:""}
+    </div>`).reverse().join("");
+  m.forEach((e,i)=>{
+    if(!(e.photos||[]).length)return;
+    const box=$("ph-"+i);if(!box)return;
+    e.photos.forEach(async id=>{
+      const data=await IDB.get("photo:"+id);
+      if(data)box.insertAdjacentHTML("beforeend",`<div class="thumb"><img src="${data}" alt="Progress photo ${e.date}"></div>`);
+    });
+  });
+}
+
+/* ================= SETTINGS ================= */
+function renderSettings(){
+  $("set-sub").textContent="Block "+db.block+" · "+(db.archive.length+1)+" block"+(db.archive.length?"s":"")+" on record";
+  $("set-ver").textContent="Block Log "+APP_VERSION;
+  $("rollover-btn").style.opacity=weekComplete(6)?1:.55;
+}
+
+/* ================= PROGRAMME EDITOR ================= */
+const esc=v=>String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+/* Logs and swaps are keyed by slot index, so any structural edit has to move
+   them in lockstep or a day's history would silently shift one lift across. */
+function remapDay(d,transform){
+  const n=DAYS[d].ex.length;
+  for(let w=1;w<=6;w++){
+    const L=db.logs[logKey(w,d)];if(!L)continue;
+    const arr=[];for(let i=0;i<n;i++)arr.push(L.ex[i]||null);
+    const out=transform(arr);
+    const ex={};out.forEach((v,i)=>{if(v&&v.length)ex[i]=v});
+    L.ex=ex;
+  }
+  const sw=[];for(let i=0;i<n;i++)sw.push(db.swaps[d+"-"+i]||null);
+  const swOut=transform(sw);
+  for(let i=0;i<n;i++)delete db.swaps[d+"-"+i];
+  swOut.forEach((v,i)=>{if(v)db.swaps[d+"-"+i]=v});
+}
+function slotHasLogs(d,i){
+  for(let w=1;w<=6;w++){
+    const L=db.logs[logKey(w,d)];
+    if(L&&L.ex[i]&&L.ex[i].some(s=>s&&s.kg!=null))return true;
+  }
+  return false;
+}
+function progChanged(){DAYS=db.programme;save();renderProg()}
+function setDayTitle(d,v){DAYS[d].title=v.trim()||"Untitled day";progChanged()}
+function setRange(d,i,v){
+  v=v.trim().replace(/\s*-\s*/,"–");
+  if(!/^\d+(–\d+)?$/.test(v)){toast("Use a range like 8–12");renderProg();return}
+  DAYS[d].ex[i][1]=v;progChanged();
+}
+function toggleComp(d,i){DAYS[d].ex[i][2]=DAYS[d].ex[i][2]?0:1;progChanged()}
+function moveEx(d,i,dir){
+  const j=i+dir;
+  if(j<0||j>=DAYS[d].ex.length)return;
+  remapDay(d,a=>{const t=a[i];a[i]=a[j];a[j]=t;return a});
+  const e=DAYS[d].ex;const t=e[i];e[i]=e[j];e[j]=t;
+  progChanged();
+}
+function removeEx(d,i){
+  const name=exName(d,i);
+  if(slotHasLogs(d,i)&&!confirm("Remove "+name+"? Sets you already logged for it this block stay in your history and records, but it leaves the plan."))return;
+  remapDay(d,a=>{a.splice(i,1);return a});
+  DAYS[d].ex.splice(i,1);
+  progChanged();toast(name+" removed");
+}
+function addDay(){
+  const used=new Set(dayIds());
+  const letter="ABCDEFGH".split("").find(c=>!used.has(c));
+  if(!letter){toast("Eight days is plenty");return}
+  DAYS[letter]={title:"New day",ex:[]};
+  progChanged();toast("Day "+letter+" added");
+}
+function removeDay(d){
+  if(dayIds().length<2){toast("Keep at least one day");return}
+  if(!confirm("Delete day "+d+" and everything logged against it this block? Archived blocks keep their copy."))return;
+  for(let w=1;w<=6;w++)delete db.logs[logKey(w,d)];
+  for(let i=0;i<DAYS[d].ex.length;i++)delete db.swaps[d+"-"+i];
+  delete DAYS[d];
+  progChanged();
+}
+function resetProgramme(){
+  if(!confirm("Reset every day and exercise back to the default programme? Your logged history is untouched."))return;
+  db.programme=clone(DEFAULT_DAYS);db.swaps={};
+  progChanged();toast("Programme reset");
+}
+function renderProg(){
+  let html=`<div class="nudge" style="border-left-color:var(--plate-blue)">Edits apply to the current block onward. Archived blocks keep the programme they were run under, so old history stays readable.</div>`;
+  for(const d of dayIds()){
+    const day=DAYS[d];
+    html+=`<div class="progday">
+      <div class="pdhead"><div class="pdletter">${d}</div>
+        <input class="pdtitle" value="${esc(day.title)}" onchange="setDayTitle('${d}',this.value)" aria-label="Day title">
+        <button class="miniBtn danger" onclick="removeDay('${d}')" aria-label="Delete day">✕</button></div>`;
+    day.ex.forEach((e,i)=>{
+      html+=`<div class="progex" style="flex-wrap:wrap">
+        <div style="flex:1 1 100%;min-width:0;display:flex;align-items:center;gap:8px">
+          <div style="flex:1;min-width:0"><div class="pename">${esc(exName(d,i))}</div>
+          <div class="pemeta">${setsFor(db.selWeek,e[2])} sets in week ${db.selWeek}${slotHasLogs(d,i)?" · has history":""}</div></div>
+          <button class="miniBtn danger" onclick="removeEx('${d}',${i})" aria-label="Remove exercise">✕</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex:1 1 100%;margin-top:4px">
+          <input class="perange" value="${esc(e[1])}" onchange="setRange('${d}',${i},this.value)" aria-label="Rep range">
+          <button class="pill ${e[2]?"comp":""}" onclick="toggleComp('${d}',${i})">${e[2]?"COMPOUND":"ACCESSORY"}</button>
+          <div style="flex:1"></div>
+          <button class="miniBtn" onclick="moveEx('${d}',${i},-1)" aria-label="Move up">↑</button>
+          <button class="miniBtn" onclick="moveEx('${d}',${i},1)" aria-label="Move down">↓</button>
+        </div></div>`;
+    });
+    if(!day.ex.length)html+=`<div class="hsets" style="padding:10px 0;color:var(--ink-faint)">No exercises yet.</div>`;
+    html+=`<button class="bigbtn ghost" style="margin-top:10px" onclick="openPick('${d}')">+ Add exercise</button></div>`;
+  }
+  html+=`<button class="bigbtn ghost" onclick="addDay()">+ Add a training day</button>`;
+  $("prog-body").innerHTML=html;
+}
+/* ---------- exercise picker ---------- */
+let PICK=null;
+function openPick(d){PICK=d;$("picksearch").value="";renderPick();$("picksheet").classList.add("active")}
+function closePick(){$("picksheet").classList.remove("active")}
+function renderPick(){
+  const q=$("picksearch").value.trim().toLowerCase();
+  const items=Object.entries(EXDB).filter(([n,e])=>{
+    if(!q)return true;
+    return (n+" "+e.eq+" "+e.g+" "+[...e.pri,...e.sec].map(m=>MUSCLE_NAMES[m]).join(" ")).toLowerCase().includes(q);
+  }).slice(0,60);
+  $("picklist").innerHTML=items.map(([n,e])=>
+    `<button class="librow" onclick="pickAdd('${n.replace(/'/g,"\\'")}')">
+      <div class="linfo"><div class="lname">${n}</div>
+      <div class="lmeta">${e.pri.map(m=>MUSCLE_NAMES[m]).slice(0,2).join(", ")} · ${e.eq}</div></div>
+      <span class="chev">+</span></button>`).join("")
+    ||`<div class="emptymsg">Nothing matches "${esc($("picksearch").value)}".</div>`;
+}
+function pickAdd(name){
+  const e=EXDB[name];
+  const isComp=["Squat","Hinge","Horizontal Push","Vertical Push","Horizontal Pull","Vertical Pull"].includes(e.pat)?1:0;
+  DAYS[PICK].ex.push([name,isComp?"6–10":"10–15",isComp]);
+  closePick();progChanged();toast(name+" added to day "+PICK);
 }
 
 /* ================= DATA ================= */
+/* Blob + object URL: data: URIs get unreliable on Android as the file grows */
 function download(filename,text,mime){
+  const url=URL.createObjectURL(new Blob([text],{type:mime+";charset=utf-8"}));
   const a=document.createElement("a");
-  a.href="data:"+mime+";charset=utf-8,"+encodeURIComponent(text);
-  a.download=filename;a.click();
+  a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
 }
-function backupJSON(){
-  db.lastBackup=Date.now();save();
-  download("block-log-backup-"+new Date().toISOString().slice(0,10)+".json",JSON.stringify(db),"application/json");
-  renderHistory();
-  toast("Backup downloaded — keep it somewhere safe");
+/* Prefer the share sheet so a backup can go straight to Drive/Gmail instead of
+   dying unnoticed in the Downloads folder; fall back to a plain download. */
+async function shareOrDownload(filename,text,mime){
+  try{
+    const file=new File([text],filename,{type:mime});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:filename});
+      return "shared";
+    }
+  }catch(e){if(e&&e.name==="AbortError")return "cancelled"}
+  download(filename,text,mime);
+  return "downloaded";
+}
+async function exportPhotos(){
+  const out={};
+  for(const m of db.metrics||[])for(const id of m.photos||[]){
+    const data=await IDB.get("photo:"+id);
+    if(data)out[id]=data;
+  }
+  return out;
+}
+async function backupJSON(withPhotos){
+  const payload=clone(db);
+  payload.exportedAt=new Date().toISOString();
+  payload.appVersion=APP_VERSION;
+  if(withPhotos)payload.photoBlobs=await exportPhotos();
+  const name="block-log-"+new Date().toISOString().slice(0,10)+(withPhotos?"-full":"")+".json";
+  const res=await shareOrDownload(name,JSON.stringify(payload),"application/json");
+  if(res==="cancelled")return;
+  db.lastBackup=Date.now();save();renderStats();
+  toast(res==="shared"?"Backup shared":"Backup saved");
 }
 function restoreJSON(input){
   const f=input.files[0];if(!f)return;
   const r=new FileReader();
-  r.onload=()=>{
+  r.onload=async()=>{
     try{
       const d=JSON.parse(r.result);
       if(typeof d!=="object"||!("logs"in d))throw 0;
-      if(!confirm("Replace everything on this device with the backup? Current data will be overwritten."))return;
-      db={block:d.block||1,logs:d.logs||{},selWeek:d.selWeek||1,swaps:d.swaps||{},prev:d.prev||null,
-          metrics:d.metrics||[],notes:d.notes||{},lastBackup:d.lastBackup||null};
-      save();renderHistory();toast("Backup restored");
+      const blocks=1+((d.archive||[]).length)+(d.prev?1:0);
+      if(!confirm("Replace everything on this device with this backup?\n\n"+
+        blocks+" block(s), "+Object.keys(d.logs||{}).length+" sessions in the current block.\n\nCurrent data will be overwritten."))return;
+      const photos=d.photoBlobs||null;delete d.photoBlobs;
+      db=migrate(d);
+      if(photos)for(const[id,data]of Object.entries(photos))await IDB.set("photo:"+id,data);
+      DAYS=db.programme;
+      save();renderStats();toast("Backup restored"+(photos?" with photos":""));
     }catch(e){toast("That file isn't a valid backup")}
     input.value="";
   };
   r.readAsText(f);
 }
 function exportCSV(){
-  let rows=[["block","week","day","date","exercise","set","kg","reps"]];
-  const dump=(logs,blk)=>{
-    for(const[k,L]of Object.entries(logs||{})){
+  const q=v=>/[",]/.test(v)?'"'+String(v).replace(/"/g,'""')+'"':v;
+  let rows=[["block","week","day","date","exercise","set","kg","reps","e1rm"]];
+  for(const B of allBlocks()){
+    for(const[k,L]of Object.entries(B.logs||{})){
       const[w,d]=k.split("-");
       for(const[i,sets]of Object.entries(L.ex||{}))
-        sets.forEach((s,si)=>{if(s&&s.kg!=null)rows.push([blk,w,d,L.date,exName(d,i),si+1,s.kg,s.reps])});
-    }};
-  dump(db.prev,db.block-1);dump(db.logs,db.block);
-  download("block-log.csv",rows.map(r=>r.join(",")).join("\n"),"text/csv");
-  toast("CSV downloaded");
+        sets.forEach((s,si)=>{if(s&&s.kg!=null)
+          rows.push([B.block,w,d,L.date||"",q(setName(s,B,d,i)),si+1,s.kg,s.reps,e1rm(s.kg,s.reps)])});
+    }
+  }
+  download("block-log-"+new Date().toISOString().slice(0,10)+".csv",rows.map(r=>r.join(",")).join("\n"),"text/csv");
+  toast(rows.length-1+" sets exported");
 }
 function rollover(){
   if(!weekComplete(6)&&!confirm("Week 6 isn't finished. Start the next block anyway?"))return;
-  if(!confirm("Start Block "+(db.block+1)+"? This block's logs are kept for reference and the coach will seed your new weights from your week 5 numbers."))return;
-  db.prev=db.logs;db.logs={};db.block++;db.selWeek=1;
+  if(!confirm("Start Block "+(db.block+1)+"? This block is filed in the archive — every past block is kept — and the coach seeds new weights from your recent numbers."))return;
+  /* archive keeps the programme + swaps this block ran under, so its history
+     stays readable even after you edit the programme */
+  db.archive.push({block:db.block,logs:db.logs,programme:clone(db.programme),
+    swaps:clone(db.swaps),endedAt:Date.now()});
+  db.logs={};db.block++;db.selWeek=1;db.session=null;db.rest=null;
   save();show("home");
-  toast("Block "+db.block+" — weights seeded from last block");
+  toast("Block "+db.block+" — previous block archived");
 }
-function wipeData(){
-  if(confirm("Erase every logged set, all blocks, all swaps? This can't be undone. (Take a JSON backup first if unsure.)"))
-    {db={block:1,logs:{},selWeek:1,swaps:{},prev:null,metrics:[],notes:{},lastBackup:null};save();renderHistory();toast("All data erased")}
+async function wipeData(){
+  if(!confirm("Erase every logged set, all blocks, all swaps, notes and photos? This can't be undone. (Take a backup first if unsure.)"))return;
+  for(const k of await IDB.keys())if(String(k).startsWith("photo:"))await IDB.del(k);
+  db=migrate({});DAYS=db.programme;save();renderStats();toast("All data erased");
 }
 
 /* ================= INIT ================= */
@@ -1528,12 +2146,18 @@ async function init(){
   /* localStorage gone (eviction / new browser profile)? Recover from the IndexedDB mirror. */
   if(!localStorage.getItem(KEY)){
     const m=await IDB.get("db");
-    if(m&&m.logs&&Object.keys(m.logs).length){
-      db=m;if(!db.notes)db.notes={};if(!db.metrics)db.metrics=[];
+    if(m&&m.logs&&(Object.keys(m.logs).length||(m.archive||[]).length)){
+      db=migrate(m);DAYS=db.programme;
       save();toast("Log restored from device mirror");
     }
   }
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+  db=migrate(db);
+  DAYS=db.programme;
+  /* keep the focused input clear of the Android keyboard */
+  document.querySelectorAll('input[type=number]').forEach(el=>{
+    el.addEventListener("focus",()=>setTimeout(()=>el.scrollIntoView({block:"center",behavior:"smooth"}),280));
+  });
   history.replaceState({scr:"home"},"");
   renderHome();
 }
