@@ -103,6 +103,14 @@ test("validatePlan keeps an open plan's shape and clamps its cadence",()=>{
   assert.equal(C.validatePlan({open:true,startDate:"nonsense",weeks:[{},{}]},D.DEFAULT_PLAN,D.PHASES).startDate,null);
   assert.deepEqual(C.validatePlan(D.PHYSIQUE_PLAN,D.DEFAULT_PLAN,D.PHASES),D.PHYSIQUE_PLAN,"the shipped open plan is already clean");
 });
+test("ramp-in weeks scale sets to about two-thirds, never below two",()=>{
+  const P={open:true,every:6,lightOffset:0,rampWeeks:2,weeks:[{phase:"Build"},{phase:"Deload"}]};
+  assert.deepEqual([1,2,3].map(w=>C.isRampWeek(P,w)),[true,true,false]);
+  assert.equal(C.isRampWeek(D.DEFAULT_PLAN,1),false,"block plans never ramp");
+  assert.deepEqual([4,3,2,1].map(C.rampSets),[3,2,2,1]);
+  assert.equal(C.validatePlan({open:true,rampWeeks:9,weeks:[{},{}]},D.DEFAULT_PLAN,D.PHASES).rampWeeks,4);
+  assert.equal(C.validatePlan({open:true,weeks:[{},{}]},D.DEFAULT_PLAN,D.PHASES).rampWeeks,0);
+});
 test("light weeks land on the cadence and move when postponed",()=>{
   const P={open:true,every:6,lightOffset:0,weeks:[{phase:"Build"},{phase:"Deload"}]};
   assert.deepEqual([1,5,6,7,12,13].map(w=>C.isLightWeek(P,w)),[false,false,true,false,true,false]);

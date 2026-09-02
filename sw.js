@@ -9,7 +9,7 @@
    the next open; css/js/icons are cache-first for instant offline loads and
    are matched on their exact (versioned) URL, so a new index.html always pulls
    matching assets rather than a stale mix. */
-const CACHE = "atlas-v6.6";
+const CACHE = "atlas-v6.7";
 const V = CACHE.replace("atlas-v", "");
 const ASSETS = [
   "./", "./index.html", "./manifest.json",

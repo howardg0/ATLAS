@@ -61,7 +61,7 @@ function validatePlan(p,fallback,phases){
     rir:normaliseRange(w&&w.rir!=null?w.rir:"2")||"2"});
   if(p.open){
     return{name:String((p.name||"Open-ended")).slice(0,40),open:true,
-      every:clampInt(p.every,2,12,6),lightOffset:clampInt(p.lightOffset,0,999,0),
+      every:clampInt(p.every,2,12,6),lightOffset:clampInt(p.lightOffset,0,999,0),rampWeeks:clampInt(p.rampWeeks,0,4,0),
       startDate:/^\d{4}-\d{2}-\d{2}$/.test(p.startDate||"")?p.startDate:null,
       weeks:[cleanWeek(p.weeks[0]),cleanWeek(p.weeks[1])]};
   }
@@ -69,6 +69,9 @@ function validatePlan(p,fallback,phases){
 }
 /* Light weeks fall every `every` weeks, pushed later by lightOffset (postponements) */
 function isLightWeek(plan,w){if(!plan.open)return false;const x=w-(plan.lightOffset||0);return x>0&&x%(plan.every||6)===0}
+/* the first rampWeeks of an open plan run at about two-thirds of the sets */
+function isRampWeek(plan,w){return !!plan.open&&w<=(plan.rampWeeks||0)}
+function rampSets(n){return n<=1?n:Math.max(2,Math.round(n*0.67))}
 function nextLightWeek(plan,fromW){let w=Math.max(1,fromW);while(!isLightWeek(plan,w))w++;return w}
 const planWeeks=plan=>plan.open?Infinity:plan.weeks.length;
 const planWeek=(plan,w)=>plan.open?plan.weeks[isLightWeek(plan,w)?1:0]:plan.weeks[Math.min(w,plan.weeks.length)-1];
@@ -246,5 +249,5 @@ function migrate(d,defaultDays,defaultSettings,defaultPlan,phases){
 }
 
 if(typeof module!=="undefined"&&module.exports)module.exports={clone,logKey,parseRange,repTop,repBottom,normaliseRange,fmtKg,snapStep,
-  e1rm,setScore,setTonnage,fmtSet,validatePlan,planWeeks,planWeek,isDeload,isLightWeek,nextLightWeek,isoDate,mondayOf,calendarWeek,maxLoggedWeek,historyOrder,syncDecision,exNameIn,setName,incrementFor,restFor,isUnilateral,plateBreakdown,
+  e1rm,setScore,setTonnage,fmtSet,validatePlan,planWeeks,planWeek,isDeload,isLightWeek,isRampWeek,rampSets,nextLightWeek,isoDate,mondayOf,calendarWeek,maxLoggedWeek,historyOrder,syncDecision,exNameIn,setName,incrementFor,restFor,isUnilateral,plateBreakdown,
   exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate};

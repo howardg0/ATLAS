@@ -18,7 +18,7 @@ const DEFAULT_PLAN={name:"6-week",weeks:PLAN_PRESETS["6-week"]};
 /* Open-ended plan: weeks count up from startDate forever. weeks[0] is a hard
    week, weeks[1] the light week that lands every `every` weeks (shifted by
    lightOffset when postponed). No block end, no rollover. */
-const PHYSIQUE_PLAN={name:"ATLAS Physique",open:true,every:6,lightOffset:0,startDate:null,
+const PHYSIQUE_PLAN={name:"ATLAS Physique",open:true,every:6,lightOffset:0,rampWeeks:2,startDate:null,
   weeks:[W("Build",3,3,"0–1"),W("Deload",2,2,"2–3")]};
 /* User-adjustable defaults (Settings screen). Live values sit in db.settings. */
 const DEFAULT_SETTINGS={
@@ -278,6 +278,9 @@ const EXDB={
 "Chin-Up":{g:"Back",pat:"Vertical Pull",eq:"Bodyweight",pri:["lats","biceps"],sec:["upper_back","forearms","abs"],
  about:"Pull-ups with a palms-facing grip — more biceps, a touch easier for most people, still one of the best back builders.",
  form:["Full hang, shoulders packed","Pull the chin over the bar, elbows to the ribs","Lower to straight arms every rep"]},
+"Wide-Grip Lat Pulldown":{g:"Back",pat:"Vertical Pull",eq:"Cable",pri:["lats"],sec:["upper_back","biceps","delts_rear"],
+ about:"A wide overhand grip shortens the range but pulls the elbows out to the sides, which loads the outer lats and upper back — the width muscles.",
+ form:["Grip just outside shoulder width, slight lean back","Drive the elbows down and out towards the hips","Let the bar rise to a full stretch, don't shrug up with it"]},
 "Neutral-Grip Pulldown":{g:"Back",pat:"Vertical Pull",eq:"Cable",pri:["lats"],sec:["biceps","upper_back","forearms"],
  about:"A parallel-grip handle puts the shoulders in their strongest pulling position, so it is often the pulldown people can push hardest.",
  form:["Slight lean back, chest up","Pull the handle to the upper chest, elbows down and back","Control the stretch at the top"]},
@@ -534,15 +537,15 @@ const PROGRAMME_TEMPLATES=[
     E:{title:"Pull 2",ex:[["Barbell Row","6–8",1],["Pull-Up","6–10",1],["Seated Cable Row","10–12",1],["Reverse Pec Deck","15–20",0],["Cable Curl","12–15",0],["Barbell Shrug","10–12",0]]},
     F:{title:"Legs 2",ex:[["Hack Squat","8–12",1],["Barbell Hip Thrust","8–12",1],["Bulgarian Split Squat","10–12",0],["Lying Leg Curl","12–15",0],["Leg Extension","12–15",0],["Seated Calf Raise","12–15",0],["Hanging Leg Raise","10–15",0]]}}},
   {id:"physique",name:"ATLAS Physique",tag:"6 days · Mon to Sat · open-ended",
-   desc:"Push / pull / legs twice through, biased to chest, shoulders, arms and back. Every set 0 to 1 RIR, a light week every sixth week, and it never ends: weeks count up and every lift progresses on its own.",
+   desc:"Push / pull / legs twice through, biased to chest, shoulders, back width and arms. Every set 0 to 1 RIR, two ramp-in weeks, a light week every sixth week, and it never ends: weeks count up and every lift progresses on its own.",
    plan:PHYSIQUE_PLAN,
    programme:{
     A:{title:"Push A · chest",ex:[["Incline Barbell Press","6–10",1],["Flat Dumbbell Bench Press","8–12",1],["Low-to-High Cable Fly","12–15",0],["Seated DB Shoulder Press","8–12",1],["Cable Lateral Raise","12–20",0,{sets:4}],["Overhead Cable Triceps Extension","10–15",0],["Cable Triceps Pushdown","12–15",0],["Cable Crunch","12–15",0]]},
-    B:{title:"Pull A · width",ex:[["Pull-Up","6–10",1],["Chest-Supported Row","8–12",1],["Neutral-Grip Pulldown","10–12",1],["Cable Rear Delt Fly","15–20",0],["Straight-Arm Pulldown","12–15",0,{sets:2}],["Incline DB Curl","8–12",0],["Bayesian Cable Curl","12–15",0],["Hammer Curl","10–12",0,{sets:2}],["Hanging Leg Raise","10–15",0]]},
+    B:{title:"Pull A · width",ex:[["Pull-Up","6–10",1],["Chest-Supported Row","8–12",1],["Wide-Grip Lat Pulldown","8–12",1],["Cable Rear Delt Fly","15–20",0],["Straight-Arm Pulldown","12–15",0],["Incline DB Curl","8–12",0],["Bayesian Cable Curl","12–15",0],["Hanging Leg Raise","10–15",0]]},
     C:{title:"Legs A · quads",ex:[["Hack Squat","8–12",1],["Romanian Deadlift","8–10",1],["Leg Extension","12–15",0],["Seated Leg Curl","10–15",0],["Standing Calf Raise","10–15",0,{sets:4}],["Lean-Away Lateral Raise","12–20",0],["Plank","45–60",0]]},
-    D:{title:"Push B · shoulders",ex:[["Standing Barbell Overhead Press","6–10",1],["Incline Dumbbell Press","8–12",1],["Machine Chest Press","10–15",1],["Pec Deck","12–15",0],["DB Lateral Raise","12–20",0,{sets:4}],["Skull Crusher","8–12",0],["Single-Arm Cable Pushdown","12–15",0,{sets:2}],["Cable Woodchop","12–15",0]]},
-    E:{title:"Pull B · thickness",ex:[["Pendlay Row","6–10",1],["Lat Pulldown","8–12",1],["Single-Arm Cable Row","10–12",1],["Reverse Pec Deck","15–20",0],["Face Pull","15–20",0,{sets:2}],["Barbell Curl","8–12",0],["Spider Curl","10–15",0],["Reverse Curl","12–15",0,{sets:2}],["Weighted Sit-Up","12–15",0]]},
-    F:{title:"Legs B · posterior",ex:[["Leg Press","10–15",1],["Barbell Hip Thrust","8–12",1],["Lying Leg Curl","12–15",0],["Bulgarian Split Squat","10–12",0,{sets:2}],["Seated Calf Raise","12–15",0,{sets:4}],["Cable Lateral Raise","15–20",0],["Overhead DB Extension","10–15",0],["Cable Curl","12–15",0,{sets:2}]]}}},
+    D:{title:"Push B · shoulders",ex:[["Standing Barbell Overhead Press","6–10",1],["Incline Dumbbell Press","8–12",1],["Machine Chest Press","10–15",1],["Pec Deck","12–15",0],["DB Lateral Raise","12–20",0,{sets:4}],["Skull Crusher","8–12",0],["Single-Arm Cable Pushdown","12–15",0,{sets:2}],["Cable Rear Delt Fly","15–20",0,{sets:2}],["Cable Woodchop","12–15",0]]},
+    E:{title:"Pull B · thickness",ex:[["Pendlay Row","6–10",1],["Lat Pulldown","8–12",1],["Single-Arm Cable Row","10–12",1],["Reverse Pec Deck","15–20",0,{sets:4}],["Face Pull","15–20",0],["Barbell Curl","8–12",0],["Spider Curl","10–15",0],["Weighted Sit-Up","12–15",0]]},
+    F:{title:"Legs B · posterior",ex:[["Leg Press","10–15",1],["Barbell Hip Thrust","8–12",1],["Lying Leg Curl","12–15",0],["Bulgarian Split Squat","10–12",0,{sets:2}],["Seated Calf Raise","12–15",0,{sets:4}],["Cable Lateral Raise","15–20",0],["Overhead DB Extension","10–15",0]]}}},
   {id:"blank",name:"Build my own",tag:"start empty",
    desc:"One empty day and the full lift library. Add days, lifts, rep ranges and supersets yourself.",
    programme:{A:{title:"Day A",ex:[]}}}

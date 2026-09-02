@@ -6,7 +6,7 @@
    address of every logged set on the device. */
 const KEY="block-log-v2";
 /* Keep in step with CACHE in sw.js and the ?v= stamps in index.html (tests/version.test.js checks) */
-const APP_VERSION="6.6";
+const APP_VERSION="6.7";
 let restEnd=0,restTick=null,restDur=1,restLabel="",restHintTxt="";
 let S=null;
 const migrateDb=d=>migrate(d,DEFAULT_DAYS,DEFAULT_SETTINGS,DEFAULT_PLAN,PHASES);
@@ -25,7 +25,8 @@ function curWeek(){return isOpen()?calendarWeek(db.plan.startDate,todayISO()):db
 const WEEKS=()=>isOpen()?Math.max(curWeek(),maxLoggedWeek(db.logs),1)+1:db.plan.weeks.length;
 const wk=w=>planWeek(db.plan,w);
 const phaseOf=w=>wk(w).phase,rirOf=w=>wk(w).rir,deloadWeek=w=>phaseOf(w)==="Deload";
-const phaseLabel=w=>isOpen()?(deloadWeek(w)?"Light week":"Hard week"):phaseOf(w);
+const rampWeek=w=>isRampWeek(db.plan,w);
+const phaseLabel=w=>isOpen()?(deloadWeek(w)?"Light week":rampWeek(w)?"Ramp-in week":"Hard week"):phaseOf(w);
 const weekNums=()=>Array.from({length:WEEKS()},(_,i)=>i+1);
 const blockComplete=()=>!isOpen()&&weekNums().every(weekComplete);
 /* the weeks a strip or chart shows: everything for a block, a rolling window for an open plan */
@@ -104,7 +105,11 @@ function bumpEl(id,step){
 }
 function setsFor(w,isComp){return isComp?wk(w).comp:wk(w).acc}
 /* a slot can pin its own set count ({sets:n}); light weeks scale it to about 60% */
-function slotSets(w,d,i){const e=DAYS[d].ex[i];const o=exOpt(e,"sets");if(o)return deloadWeek(w)?Math.max(1,Math.round(o*0.6)):o;return setsFor(w,e[2])}
+function slotSets(w,d,i){
+  const e=DAYS[d].ex[i];const o=exOpt(e,"sets");
+  const n=o?(deloadWeek(w)?Math.max(1,Math.round(o*0.6)):o):setsFor(w,e[2]);
+  return rampWeek(w)?rampSets(n):n;
+}
 function totalSets(w,d){return DAYS[d].ex.reduce((a,e,i)=>a+slotSets(w,d,i),0)}
 function loggedSets(w,d,logs){logs=logs||db.logs;const L=logs[logKey(w,d)];if(!L)return 0;let n=0;for(const ex of Object.values(L.ex||{}))n+=ex.filter(s=>s&&s.kg!=null).length;return n}
 function sessionTonnage(w,d,logs){logs=logs||db.logs;const L=logs[logKey(w,d)];if(!L)return 0;let t=0;for(const ex of Object.values(L.ex||{}))for(const s of ex)if(s&&s.kg!=null)t+=setTonnage(s);return Math.round(t)}
@@ -335,7 +340,7 @@ function homeCards(){
   if(!db.seenIntro&&fresh)
     html+=`<div class="introcard"><h3>How ATLAS works</h3>
       ${isOpen()
-        ?`<div class="introstep"><span class="n">1</span><div><b>An open-ended plan</b><p>Weeks count up from this Monday and never reset. Hard weeks are every set to ${esc(rirOf(1))} RIR; every ${db.plan.every}th week is light: same weights, fewer sets. Postpone it from the Plan screen if you're flying.</p></div></div>`
+        ?`<div class="introstep"><span class="n">1</span><div><b>An open-ended plan</b><p>Weeks count up from this Monday and never reset.${db.plan.rampWeeks?` The first ${db.plan.rampWeeks===1?"week runs":db.plan.rampWeeks+" weeks run"} at about two-thirds of the sets while you settle in.`:""} Hard weeks are every set to ${esc(rirOf(db.plan.rampWeeks+1||1))} RIR; every ${db.plan.every}th week is light: same weights, fewer sets. Postpone it from the Plan screen if you're flying.</p></div></div>`
         :`<div class="introstep"><span class="n">1</span><div><b>Training in blocks</b><p>Sets and intensity climb week by week, then a deload. The default block is six weeks; change the length and phases under Programme → Block structure.</p></div></div>`}
       <div class="introstep"><span class="n">2</span><div><b>RIR is your effort dial</b><p>Reps in reserve. ${isOpen()?"0 to 1 RIR means every set ends at, or one rep before, failure. Stop a heavy compound at 1 when form goes, not muscle.":"3 RIR means stop three reps short of failure. The target tightens as the block goes on."}</p></div></div>
       <div class="introstep"><span class="n">3</span><div><b>The coach picks the weight</b><p>Hit the top of the rep range on every set and it tells you to add load. Miss it and you chase reps at the same weight.</p></div></div>
@@ -391,7 +396,7 @@ function renderHome(){
   const nl=isOpen()?nextLightWeek(db.plan,curWeek()):0;
   const canPostpone=isOpen()&&!weekHasLogs(nl)&&(w===curWeek()||(deloadWeek(w)&&w>=curWeek()));
   $("weekmeta").innerHTML=(isOpen()
-      ?`Week ${w}${w===curWeek()?" · this week":w<curWeek()?" · past":" · upcoming"} · <b>${phaseLabel(w)}</b> · target <b>${rirOf(w)} RIR</b> · ${deloadWeek(w)?"same weights, fewer sets":"compounds "+wk(w).comp+" sets, accessories "+wk(w).acc}`
+      ?`Week ${w}${w===curWeek()?" · this week":w<curWeek()?" · past":" · upcoming"} · <b>${phaseLabel(w)}</b> · target <b>${rirOf(w)} RIR</b> · ${deloadWeek(w)?"same weights, fewer sets":rampWeek(w)?"about two-thirds of the sets while you settle in":"compounds "+wk(w).comp+" sets, accessories "+wk(w).acc}`
        +(!deloadWeek(w)?` · next light week <b>W${nextLightWeek(db.plan,w+1)}</b>`:"")
       :`Week ${w} of ${WEEKS()} · <b>${phaseOf(w)}</b> · target <b>${rirOf(w)} RIR</b> · compounds ${wk(w).comp} sets, accessories ${wk(w).acc}`)
     +(canPostpone?` <button class="pill ss" style="margin-left:6px;vertical-align:middle" onclick="postponeLight()">Postpone${deloadWeek(w)?"":" W"+nl}</button>`:"");
@@ -1742,6 +1747,7 @@ function removeWeek(w){
 }
 function setOpenField(k,v){
   if(k==="every"){const n=parseInt(v);if(isNaN(n)||n<2||n>12){toast("Light week every 2 to 12 weeks");renderProg();return}db.plan.every=n}
+  else if(k==="ramp"){const n=parseInt(v);if(isNaN(n)||n<0||n>4){toast("Ramp-in 0 to 4 weeks");renderProg();return}db.plan.rampWeeks=n}
   else{const i=k==="hard"?0:1;const f=arguments[2],val=arguments[3];
     if(f==="rir"){const r=normaliseRange(val);if(!r){toast("RIR like 0–1");renderProg();return}db.plan.weeks[i].rir=r}else db.plan.weeks[i][f]=parseInt(val)}
   planChanged();
@@ -1760,6 +1766,8 @@ function openPlanCardHTML(){
     ${row("Hard",0,"")}${row("Light",1,"")}
     <div class="setrow" style="padding:10px 0 0"><div class="lrtext"><b>Light week every</b><i>Next one is week ${nl}${nl===cw?" (this week)":""}</i></div>
       <div class="stepper small"><button onclick="setOpenField('every',${P.every-1})" aria-label="Fewer weeks">−</button><input type="number" value="${P.every}" onchange="setOpenField('every',this.value)" aria-label="Weeks between light weeks"><button onclick="setOpenField('every',${P.every+1})" aria-label="More weeks">+</button></div><span class="sunit">wk</span></div>
+    <div class="setrow" style="padding:10px 0 0"><div class="lrtext"><b>Ramp-in weeks</b><i>${P.rampWeeks?`Weeks 1 to ${P.rampWeeks} at about two-thirds of the sets`:"Full volume from week 1"}</i></div>
+      <div class="stepper small"><button onclick="setOpenField('ramp',${(P.rampWeeks||0)-1})" aria-label="Fewer ramp weeks">−</button><input type="number" value="${P.rampWeeks||0}" onchange="setOpenField('ramp',this.value)" aria-label="Ramp-in weeks"><button onclick="setOpenField('ramp',${(P.rampWeeks||0)+1})" aria-label="More ramp weeks">+</button></div><span class="sunit">wk</span></div>
     <div class="libchips wrap" style="margin-top:12px">${Object.keys(PLAN_PRESETS).map(n=>`<button class="libchip" onclick="applyPreset('${n.replace(/'/g,"\\'")}')">Switch to ${n} blocks</button>`).join("")}</div>
     <div class="hsets" style="margin-top:8px;color:var(--ink-faint)">Switching to fixed blocks archives everything logged under this plan and starts block ${db.block+1} at week 1.</div>
   </div>`;

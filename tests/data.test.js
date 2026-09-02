@@ -84,6 +84,12 @@ test("programme templates only use real lifts and valid tuples",()=>{
   const phys=D.PROGRAMME_TEMPLATES.find(t=>t.id==="physique");
   assert.ok(phys&&phys.plan&&phys.plan.open,"the physique template carries an open plan");
   assert.equal(Object.keys(phys.programme).length,6);
+  assert.equal(phys.plan.rampWeeks,2);
+  /* the revision: arm work only on two days, rear delts on three */
+  const daysWith=n=>Object.keys(phys.programme).filter(d=>phys.programme[d].ex.some(e=>e[0]===n));
+  assert.deepEqual(daysWith("Hammer Curl"),[]);assert.deepEqual(daysWith("Reverse Curl"),[]);assert.deepEqual(daysWith("Cable Curl"),[]);
+  assert.deepEqual(daysWith("Cable Rear Delt Fly"),["B","D"]);
+  assert.deepEqual(daysWith("Wide-Grip Lat Pulldown"),["B"]);
   for(const day of Object.values(phys.programme))for(const e of day.ex)if(e[3]&&e[3].sets)assert.ok(e[3].sets>=1&&e[3].sets<=8,"pinned sets in range");
   assert.ok(D.PROGRAMME_TEMPLATES.some(t=>Object.values(t.programme).every(day=>day.ex.length===0)),"there is an empty starting point");
 });

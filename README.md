@@ -98,6 +98,11 @@ The app is a public static site: anyone with the link gets their own independent
 
 ## Changelog
 
+### 6.7
+
+- **ATLAS Physique revised** after review: biceps cut to 12 direct sets on two days (Hammer, Reverse and Cable Curl dropped), rear delts up to 12 across three days, more vertical pulling with a new Wide-Grip Lat Pulldown lift and a third set of straight-arm pulldowns, Saturday arm work reduced to the overhead triceps extension so elbows get two days off.
+- **Ramp-in weeks** for open-ended plans: the first N weeks (2 for Physique) run at about two-thirds of the sets, then full volume. Adjustable in the plan editor.
+
 ### 6.6
 
 - **Open-ended plans.** A plan can be `open`: weeks are calendar weeks from a start date and never reset. A light week (weights held, sets cut) lands every N weeks and can be postponed from the Plan screen. Strips and charts show a rolling eight-week window; today's session leads the Home screen; past undone days show as missed. No rollover, no block end.
