@@ -94,6 +94,39 @@ function historyOrder(plan,logs){
   return [...ws.filter(w=>!isDeload(plan,w)),...ws.filter(w=>isDeload(plan,w))];
 }
 
+/* ---------- streaks ---------- */
+/* `list` is planned sessions in order, each {done, due}. A session that is not
+   due yet (later today, later this week) is skipped rather than breaking the run. */
+function sessionStreak(list){
+  let n=0;
+  for(let i=list.length-1;i>=0;i--){const x=list[i];if(!x.due)continue;if(x.done)n++;else break}
+  return n;
+}
+function adherence(list){const due=list.filter(x=>x.due);return due.length?due.filter(x=>x.done).length/due.length:null}
+
+/* ---------- calendar reminders (.ics) ---------- */
+const ICS_DAYS=["MO","TU","WE","TH","FR","SA","SU"];
+function icsEscape(t){return String(t).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\n/g,"\\n")}
+/* events: [{weekday:0..6 (Mon=0), title, desc}], time "HH:MM", from: ISO date the series starts on or after */
+function buildICS(events,time,from,minutesBefore){
+  const [hh,mm]=time.split(":").map(Number);
+  const base=new Date(from+"T12:00:00");
+  const pad=n=>String(n).padStart(2,"0");
+  const stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+Z$/,"Z");
+  const out=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//ATLAS//Training reminders//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH"];
+  events.forEach((e,i)=>{
+    const d=new Date(base);const cur=(d.getDay()+6)%7;d.setDate(d.getDate()+((e.weekday-cur+7)%7));
+    const dt=`${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(hh)}${pad(mm)}00`;
+    const end=new Date(d);end.setHours(hh+1,mm);
+    const de=`${end.getFullYear()}${pad(end.getMonth()+1)}${pad(end.getDate())}T${pad(end.getHours())}${pad(end.getMinutes())}00`;
+    out.push("BEGIN:VEVENT",`UID:atlas-${from}-${e.weekday}-${i}@atlas`,`DTSTAMP:${stamp}`,`DTSTART:${dt}`,`DTEND:${de}`,
+      `RRULE:FREQ=WEEKLY;BYDAY=${ICS_DAYS[e.weekday]}`,`SUMMARY:${icsEscape(e.title)}`,`DESCRIPTION:${icsEscape(e.desc||"")}`,
+      "BEGIN:VALARM","ACTION:DISPLAY",`DESCRIPTION:${icsEscape(e.title)}`,`TRIGGER:-PT${minutesBefore||0}M`,"END:VALARM","END:VEVENT");
+  });
+  out.push("END:VCALENDAR");
+  return out.join("\r\n")+"\r\n";
+}
+
 /* ---------- Drive sync ---------- */
 /* Newer copy wins. An empty phone never overwrites a Drive log; a missing
    Drive file always gets this phone's copy. */
@@ -238,6 +271,7 @@ function migrate(d,defaultDays,defaultSettings,defaultPlan,phases){
   d.updatedAt=d.updatedAt||0;
   d.sync=d.sync||{};
   d.programmeName=d.programmeName||"ATLAS full body";
+  d.errors=Array.isArray(d.errors)?d.errors.slice(-5):[];
   /* single-slot `prev` used to be the only archive — fold it in so it stops
      being overwritten (and lost) on the next block rollover */
   if(d.prev){
@@ -249,5 +283,5 @@ function migrate(d,defaultDays,defaultSettings,defaultPlan,phases){
 }
 
 if(typeof module!=="undefined"&&module.exports)module.exports={clone,logKey,parseRange,repTop,repBottom,normaliseRange,fmtKg,snapStep,
-  e1rm,setScore,setTonnage,fmtSet,validatePlan,planWeeks,planWeek,isDeload,isLightWeek,isRampWeek,rampSets,nextLightWeek,isoDate,mondayOf,calendarWeek,maxLoggedWeek,historyOrder,syncDecision,exNameIn,setName,incrementFor,restFor,isUnilateral,plateBreakdown,
+  e1rm,setScore,setTonnage,fmtSet,validatePlan,planWeeks,planWeek,isDeload,isLightWeek,isRampWeek,rampSets,nextLightWeek,isoDate,mondayOf,calendarWeek,maxLoggedWeek,historyOrder,sessionStreak,adherence,buildICS,syncDecision,exNameIn,setName,incrementFor,restFor,isUnilateral,plateBreakdown,
   exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate};

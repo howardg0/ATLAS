@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="ATLAS">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="css/atlas.css?v=6.7">
+<link rel="stylesheet" href="css/atlas.css?v=6.9">
 <title>ATLAS — Training Log</title>
 <script>
 if ("serviceWorker" in navigator && location.protocol === "https:")
@@ -27,9 +27,9 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </head>
 <body>
 
-<script src="js/config.js?v=6.7"></script>
-<script src="js/data.js?v=6.7"></script>
-<script src="js/core.js?v=6.7"></script>
+<script src="js/config.js?v=6.9"></script>
+<script src="js/data.js?v=6.9"></script>
+<script src="js/core.js?v=6.9"></script>
 
 <!-- ================= SCREENS ================= -->
 <div class="screen active" id="scr-home">
@@ -55,6 +55,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
   </div>
   <div id="home-cards"></div>
   <div id="hero"></div>
+  <div id="streaks"></div>
   <div class="weekrow" id="weekrow"></div>
   <div class="weekmeta" id="weekmeta"></div>
   <div id="daylist"></div>
@@ -167,6 +168,9 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
   <div class="sectlabel">Training</div>
   <div class="listgroup" id="set-train"></div>
 
+  <div class="sectlabel">Reminders</div>
+  <div class="listgroup" id="set-remind"></div>
+
   <div class="sectlabel">Sync</div>
   <div class="listgroup" id="set-drive"></div>
 
@@ -199,6 +203,14 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
       <svg viewBox="0 0 24 24" class="chev"><path d="M9.6 5.4 16.2 12l-6.6 6.6"/></svg></button>
   </div>
 
+  <div class="sectlabel">Help</div>
+  <div class="listgroup">
+    <button class="listrow" onclick="reportProblem()">
+      <span class="lrico"><svg viewBox="0 0 24 24" class="gico"><circle cx="12" cy="12" r="8.6"/><path d="M12 8v4.5M12 15.5v.5"/></svg></span>
+      <span class="lrtext"><b>Report a problem</b><i>Shares the app version, phone and recent errors</i></span>
+      <svg viewBox="0 0 24 24" class="chev"><path d="M9.6 5.4 16.2 12l-6.6 6.6"/></svg></button>
+  </div>
+
   <div class="sectlabel" style="color:var(--plate-red)">Danger</div>
   <div class="listgroup">
     <button class="listrow danger" onclick="wipeData()">
@@ -221,7 +233,8 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
     <h3 id="pick-title">Add exercise</h3>
     <div class="shint">Pick from the lift library — its muscle map and form guide come with it.</div>
     <input class="searchbar" id="picksearch" type="search" placeholder="Search lifts…" oninput="renderPick()">
-    <div id="picklist" style="max-height:46vh;overflow-y:auto"></div>
+    <div class="libchips eqrow" id="pickeq"></div>
+    <div id="picklist" style="max-height:42vh;overflow-y:auto"></div>
     <button class="bigbtn ghost" onclick="closePick()">Cancel</button>
   </div>
 </div>
@@ -230,6 +243,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
   <div class="topbar"><div><h1>Lift Library</h1><div class="sub" id="lib-sub">Every lift in the plan and its swaps — tap one to learn it</div></div></div>
   <input class="searchbar" id="libsearch" type="search" placeholder="Search lifts, muscles, equipment…" oninput="LIB.q=this.value;renderLib()">
   <div class="libchips" id="libchips"></div>
+  <div class="libchips eqrow" id="libeq"></div>
   <div id="liblist"></div>
 </div>
 
@@ -240,91 +254,177 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
   </div>
   <div class="extags" id="lift-tags" style="margin-bottom:12px"></div>
   <div class="anatcard">
-    <svg id="anat" class="anat" viewBox="0 0 440 452" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Targeted muscles, front and back view">
-      <defs><filter id="mglow" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#E0413E" flood-opacity=".45"/></filter></defs>
-      <!-- ============ FRONT FIGURE ============ -->
-      <g transform="translate(0,4)">
-        <ellipse class="neutral" cx="105" cy="26" rx="15" ry="17"/>
-        <path class="neutral" d="M97,41 L96,56 L114,56 L113,41 Q105,45 97,41 Z"/>
-        <g class="mus" id="m-fr-traps">
-          <path d="M107,54 Q119,55 130,62 Q118,67 108,68 Q106,60 107,54 Z"/>
-          <path d="M107,54 Q119,55 130,62 Q118,67 108,68 Q106,60 107,54 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <g class="mus" id="m-fr-delts">
-          <path d="M121,66 Q126,56 137,60 Q148,66 147,80 Q144,90 134,88 Q123,82 121,66 Z"/>
-          <path d="M121,66 Q126,56 137,60 Q148,66 147,80 Q144,90 134,88 Q123,82 121,66 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <g class="mus" id="m-fr-chest">
-          <path d="M106,64 Q122,64 131,72 Q135,82 130,95 Q120,105 108,101 Q105,98 106,64 Z"/>
-          <path d="M106,64 Q122,64 131,72 Q135,82 130,95 Q120,105 108,101 Q105,98 106,64 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <g class="mus" id="m-fr-biceps">
-          <path d="M129,92 Q140,88 146,98 Q152,114 150,128 Q142,136 134,126 Q127,106 129,92 Z"/>
-          <path d="M129,92 Q140,88 146,98 Q152,114 150,128 Q142,136 134,126 Q127,106 129,92 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <g class="mus" id="m-fr-forearms">
-          <path d="M148,134 Q156,130 160,140 Q165,158 164,177 Q159,183 152,179 Q146,158 146,141 Z"/>
-          <path d="M148,134 Q156,130 160,140 Q165,158 164,177 Q159,183 152,179 Q146,158 146,141 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <ellipse class="neutral" cx="163" cy="192" rx="7" ry="9"/>
-        <ellipse class="neutral" cx="47" cy="192" rx="7" ry="9"/>
-        <g class="mus" id="m-fr-abs">
-          <path d="M94,107 Q105,101 116,107 L115,171 Q105,181 95,171 Z"/>
-          <path class="cut" d="M94,123 L116,123 M94,139 L116,139 M95,155 L115,155 M105,103 L105,177"/></g>
-        <g class="mus" id="m-fr-obliques">
-          <path d="M118,109 Q127,113 128,121 Q128,148 122,166 Q118,169 117,163 Q118,134 118,109 Z"/>
-          <path d="M118,109 Q127,113 128,121 Q128,148 122,166 Q118,169 117,163 Q118,134 118,109 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <g class="mus" id="m-fr-hipflex">
-          <path d="M94,177 Q105,187 116,177 Q114,196 108,204 Q105,208 102,204 Q96,196 94,177 Z"/></g>
-        <g class="mus" id="m-fr-quads">
-          <path d="M113,190 Q128,190 133,210 Q137,245 130,278 Q125,296 117,298 Q109,290 108,260 Q108,218 113,190 Z"/>
-          <path d="M113,190 Q128,190 133,210 Q137,245 130,278 Q125,296 117,298 Q109,290 108,260 Q108,218 113,190 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <g class="mus" id="m-fr-adductors">
-          <path d="M112,192 Q109,212 108,232 Q105,238 103,230 Q104,208 108,194 Q110,190 112,192 Z"/>
-          <path d="M112,192 Q109,212 108,232 Q105,238 103,230 Q104,208 108,194 Q110,190 112,192 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <circle class="neutral" cx="121" cy="306" r="6"/><circle class="neutral" cx="89" cy="306" r="6"/>
-        <path class="neutral" d="M115,316 Q125,314 126,332 Q127,360 120,386 Q114,390 111,382 Q109,346 115,316 Z"/>
-        <path class="neutral" d="M115,316 Q125,314 126,332 Q127,360 120,386 Q114,390 111,382 Q109,346 115,316 Z" transform="translate(210,0) scale(-1,1)"/>
-        <ellipse class="neutral" cx="118" cy="398" rx="9" ry="6"/><ellipse class="neutral" cx="92" cy="398" rx="9" ry="6"/>
-        <text x="105" y="440" text-anchor="middle">Front</text>
-      </g>
-      <!-- ============ BACK FIGURE ============ -->
-      <g transform="translate(230,4)">
-        <ellipse class="neutral" cx="105" cy="26" rx="15" ry="17"/>
-        <path class="neutral" d="M97,41 L96,52 L114,52 L113,41 Q105,45 97,41 Z"/>
-        <g class="mus" id="m-bk-traps">
-          <path d="M105,50 L131,64 Q116,72 110,88 Q106,104 105,114 Q104,104 100,88 Q94,72 79,64 Z"/></g>
-        <g class="mus" id="m-bk-delts">
-          <path d="M121,66 Q126,56 137,60 Q148,66 147,80 Q144,90 134,88 Q123,82 121,66 Z"/>
-          <path d="M121,66 Q126,56 137,60 Q148,66 147,80 Q144,90 134,88 Q123,82 121,66 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <g class="mus" id="m-bk-upperback">
-          <path d="M112,74 Q123,70 129,80 Q127,92 119,98 Q112,94 111,84 Z"/>
-          <path d="M112,74 Q123,70 129,80 Q127,92 119,98 Q112,94 111,84 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <g class="mus" id="m-bk-lats">
-          <path d="M111,94 Q127,93 133,102 Q130,126 121,146 Q112,162 108,168 Q105,136 107,106 Z"/>
-          <path d="M111,94 Q127,93 133,102 Q130,126 121,146 Q112,162 108,168 Q105,136 107,106 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <g class="mus" id="m-bk-lowerback">
-          <path d="M97,148 L113,148 L111,190 Q105,197 99,190 Z"/>
-          <path class="cut" d="M105,150 L105,193"/></g>
-        <g class="mus" id="m-bk-triceps">
-          <path d="M129,92 Q141,88 147,98 Q152,116 149,130 Q140,136 133,124 Q127,106 129,92 Z"/>
-          <path d="M129,92 Q141,88 147,98 Q152,116 149,130 Q140,136 133,124 Q127,106 129,92 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <g class="mus" id="m-bk-forearms">
-          <path d="M148,134 Q156,130 160,140 Q165,158 164,177 Q159,183 152,179 Q146,158 146,141 Z"/>
-          <path d="M148,134 Q156,130 160,140 Q165,158 164,177 Q159,183 152,179 Q146,158 146,141 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <ellipse class="neutral" cx="163" cy="192" rx="7" ry="9"/>
-        <ellipse class="neutral" cx="47" cy="192" rx="7" ry="9"/>
-        <g class="mus" id="m-bk-glutes">
-          <path d="M106,190 Q124,188 129,203 Q132,222 122,232 Q109,236 105,223 Q103,203 106,190 Z"/>
-          <path d="M106,190 Q124,188 129,203 Q132,222 122,232 Q109,236 105,223 Q103,203 106,190 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <g class="mus" id="m-bk-hams">
-          <path d="M109,238 Q126,236 130,254 Q133,283 126,304 Q119,312 113,304 Q106,274 109,238 Z"/>
-          <path d="M109,238 Q126,236 130,254 Q133,283 126,304 Q119,312 113,304 Q106,274 109,238 Z" transform="translate(210,0) scale(-1,1)"/></g>
-        <circle class="neutral" cx="120" cy="311" r="5"/><circle class="neutral" cx="90" cy="311" r="5"/>
-        <g class="mus" id="m-bk-calves">
-          <path d="M112,318 Q124,316 126,338 Q127,362 120,380 Q113,386 110,376 Q106,344 112,318 Z"/>
-          <path class="cut" d="M119,320 L118,356"/>
-          <path d="M112,318 Q124,316 126,338 Q127,362 120,380 Q113,386 110,376 Q106,344 112,318 Z" transform="translate(210,0) scale(-1,1)"/>
-          <path class="cut" d="M119,320 L118,356" transform="translate(210,0) scale(-1,1)"/></g>
-        <ellipse class="neutral" cx="118" cy="392" rx="9" ry="6"/><ellipse class="neutral" cx="92" cy="392" rx="9" ry="6"/>
-        <text x="105" y="440" text-anchor="middle">Back</text>
-      </g>
-    </svg>
+    <div class="anat3d" id="anat3d" role="img" aria-label="Targeted muscles, front and back view. Drag to spin.">
+      <div class="anatflip" id="anatflip">
+        <div class="anatface front">
+          <svg class="anat" id="anat-front" viewBox="0 0 200 460" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="gSkinF" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--anat-skin-hi)"/><stop offset="1" stop-color="var(--anat-skin)"/></linearGradient>
+              <linearGradient id="gMusF" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="var(--anat-mus-hi)"/><stop offset="1" stop-color="var(--anat-mus)"/></linearGradient>
+              <linearGradient id="gPriF" x1="0" y1="0" x2="0.7" y2="1"><stop offset="0" stop-color="#FFA396"/><stop offset="0.55" stop-color="#FF5A4E"/><stop offset="1" stop-color="#C8302E"/></linearGradient>
+              <linearGradient id="gSecF" x1="0" y1="0" x2="0.7" y2="1"><stop offset="0" stop-color="#FF8B80" stop-opacity=".55"/><stop offset="1" stop-color="#D63A37" stop-opacity=".35"/></linearGradient>
+              <filter id="glowF" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3.2" result="b"/><feFlood flood-color="#FF5A4E" flood-opacity=".7"/><feComposite in2="b" operator="in" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <!-- skin / skeleton silhouette -->
+            <g class="skin">
+              <ellipse cx="100" cy="31" rx="19" ry="22"/>
+              <path d="M90 50 C88 58 88 62 86 66 L114 66 C112 62 112 58 110 50 Q100 56 90 50 Z"/>
+              <path d="M52 74 C46 98 54 130 64 160 C68 178 70 192 72 202 L128 202 C130 192 132 178 136 160 C146 130 154 98 148 74 C132 67 116 64 100 64 C84 64 68 67 52 74 Z"/>
+              <path d="M56 78 C40 84 34 110 34 150 C32 176 28 200 24 222 C22 232 26 240 30 242 C36 240 40 232 40 222 C44 200 50 178 52 152 C56 126 62 100 62 82 Z"/>
+              <path d="M144 78 C160 84 166 110 166 150 C168 176 172 200 176 222 C178 232 174 240 170 242 C164 240 160 232 160 222 C156 200 150 178 148 152 C144 126 138 100 138 82 Z"/>
+              <ellipse cx="30" cy="228" rx="7.5" ry="11"/><ellipse cx="170" cy="228" rx="7.5" ry="11"/>
+              <path d="M72 200 C64 230 62 270 66 300 C66 316 66 340 66 360 C66 384 70 404 74 414 L92 414 C94 400 96 380 96 360 C96 340 96 320 96 300 C99 270 100 240 100 200 Z"/>
+              <path d="M128 200 C136 230 138 270 134 300 C134 316 134 340 134 360 C134 384 130 404 126 414 L108 414 C106 400 104 380 104 360 C104 340 104 320 104 300 C101 270 100 240 100 200 Z"/>
+              <path d="M72 414 C68 418 66 424 70 428 L94 428 C96 424 94 418 92 414 Z"/><path d="M128 414 C132 418 134 424 130 428 L106 428 C104 424 106 418 108 414 Z"/>
+            </g>
+            <!-- muscles: right half drawn, mirrored about x=100 -->
+            <g class="mus" id="m-fr-traps">
+              <path d="M91 60 C80 62 66 68 52 76 C64 78 78 78 92 76 C93 70 93 65 91 60 Z"/>
+              <path d="M91 60 C80 62 66 68 52 76 C64 78 78 78 92 76 C93 70 93 65 91 60 Z" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="mus" id="m-fr-delts">
+              <path d="M60 79 C52 74 42 80 40 92 C39 104 45 111 53 110 C60 108 63 98 63 89 C63 84 62 81 60 79 Z"/>
+              <path class="cut" d="M46 86 C50 92 52 100 52 108"/>
+              <path d="M60 79 C52 74 42 80 40 92 C39 104 45 111 53 110 C60 108 63 98 63 89 C63 84 62 81 60 79 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M46 86 C50 92 52 100 52 108" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="mus" id="m-fr-chest">
+              <path d="M63 84 C76 82 88 82 99 84 L99 123 C90 131 74 129 65 119 C59 111 59 96 63 84 Z"/>
+              <path class="cut" d="M66 100 C76 104 88 106 98 106"/><path class="cut" d="M70 115 C80 120 90 122 98 121"/>
+              <path d="M63 84 C76 82 88 82 99 84 L99 123 C90 131 74 129 65 119 C59 111 59 96 63 84 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M66 100 C76 104 88 106 98 106" transform="matrix(-1 0 0 1 200 0)"/><path class="cut" d="M70 115 C80 120 90 122 98 121" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="mus" id="m-fr-biceps">
+              <path d="M52 110 C43 114 36 128 35 146 C35 154 42 158 48 153 C53 142 55 126 53 112 Z"/>
+              <path class="cut" d="M44 122 C42 132 42 142 44 150"/>
+              <path d="M52 110 C43 114 36 128 35 146 C35 154 42 158 48 153 C53 142 55 126 53 112 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M44 122 C42 132 42 142 44 150" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="mus" id="m-fr-forearms">
+              <path d="M36 158 C30 166 26 186 25 208 C25 216 30 221 35 217 C40 202 44 180 44 162 C42 156 38 155 36 158 Z"/>
+              <path class="cut" d="M34 170 C32 184 31 198 32 212"/>
+              <path d="M36 158 C30 166 26 186 25 208 C25 216 30 221 35 217 C40 202 44 180 44 162 C42 156 38 155 36 158 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M34 170 C32 184 31 198 32 212" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="mus" id="m-fr-abs">
+              <path d="M88 127 C96 125 104 125 112 127 L110 188 C106 195 94 195 90 188 Z"/>
+              <path class="cut" d="M100 128 L100 190 M89 143 L111 143 M89 158 L111 158 M90 173 L110 173"/>
+            </g>
+            <g class="mus" id="m-fr-obliques">
+              <path d="M87 129 C78 134 72 148 72 166 C72 178 78 188 88 192 C86 172 86 150 87 129 Z"/>
+              <path class="cut" d="M80 148 C77 158 77 170 80 182"/>
+              <path d="M87 129 C78 134 72 148 72 166 C72 178 78 188 88 192 C86 172 86 150 87 129 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M80 148 C77 158 77 170 80 182" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="mus" id="m-fr-hipflex">
+              <path d="M90 192 C96 198 104 198 110 192 C108 204 104 210 100 212 C96 210 92 204 90 192 Z"/>
+            </g>
+            <g class="mus" id="m-fr-quads">
+              <path d="M74 198 C88 200 96 210 97 224 C99 254 97 282 91 302 C85 311 72 309 68 298 C64 270 66 232 70 208 C71 203 72 200 74 198 Z"/>
+              <path class="cut" d="M80 210 C78 240 78 270 82 298 M90 214 C92 244 92 272 88 296"/>
+              <path d="M74 198 C88 200 96 210 97 224 C99 254 97 282 91 302 C85 311 72 309 68 298 C64 270 66 232 70 208 C71 203 72 200 74 198 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M80 210 C78 240 78 270 82 298 M90 214 C92 244 92 272 88 296" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="mus" id="m-fr-adductors">
+              <path d="M97 208 C99.5 222 99.5 238 97.5 252 C95.5 256 92.5 254 91.5 248 C90.5 232 92.5 218 95 208 Z"/>
+              <path d="M97 208 C99.5 222 99.5 238 97.5 252 C95.5 256 92.5 254 91.5 248 C90.5 232 92.5 218 95 208 Z" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="skin"><ellipse cx="81" cy="312" rx="10" ry="7"/><ellipse cx="119" cy="312" rx="10" ry="7"/></g>
+            <g class="mus" id="m-fr-calves">
+              <path d="M73 322 C66 334 66 362 70 392 C72 400 80 401 85 395 C91 362 91 334 85 322 C81 318 76 318 73 322 Z"/>
+              <path class="cut" d="M78 326 C76 350 76 372 79 392"/>
+              <path d="M73 322 C66 334 66 362 70 392 C72 400 80 401 85 395 C91 362 91 334 85 322 C81 318 76 318 73 322 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M78 326 C76 350 76 372 79 392" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+          </svg>
+          <div class="anatlabel">Front</div>
+        </div>
+        <div class="anatface back">
+          <svg class="anat" id="anat-back" viewBox="0 0 200 460" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="gSkinB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--anat-skin-hi)"/><stop offset="1" stop-color="var(--anat-skin)"/></linearGradient>
+              <linearGradient id="gMusB" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="var(--anat-mus-hi)"/><stop offset="1" stop-color="var(--anat-mus)"/></linearGradient>
+              <linearGradient id="gPriB" x1="0" y1="0" x2="0.7" y2="1"><stop offset="0" stop-color="#FFA396"/><stop offset="0.55" stop-color="#FF5A4E"/><stop offset="1" stop-color="#C8302E"/></linearGradient>
+              <linearGradient id="gSecB" x1="0" y1="0" x2="0.7" y2="1"><stop offset="0" stop-color="#FF8B80" stop-opacity=".55"/><stop offset="1" stop-color="#D63A37" stop-opacity=".35"/></linearGradient>
+              <filter id="glowB" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3.2" result="b"/><feFlood flood-color="#FF5A4E" flood-opacity=".7"/><feComposite in2="b" operator="in" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <g class="skin">
+              <ellipse cx="100" cy="31" rx="19" ry="22"/>
+              <path d="M90 50 C88 56 88 60 87 64 L113 64 C112 60 112 56 110 50 Q100 54 90 50 Z"/>
+              <path d="M52 74 C46 98 54 130 64 160 C68 178 70 192 72 202 L128 202 C130 192 132 178 136 160 C146 130 154 98 148 74 C132 67 116 64 100 64 C84 64 68 67 52 74 Z"/>
+              <path d="M56 78 C40 84 34 110 34 150 C32 176 28 200 24 222 C22 232 26 240 30 242 C36 240 40 232 40 222 C44 200 50 178 52 152 C56 126 62 100 62 82 Z"/>
+              <path d="M144 78 C160 84 166 110 166 150 C168 176 172 200 176 222 C178 232 174 240 170 242 C164 240 160 232 160 222 C156 200 150 178 148 152 C144 126 138 100 138 82 Z"/>
+              <ellipse cx="30" cy="228" rx="7.5" ry="11"/><ellipse cx="170" cy="228" rx="7.5" ry="11"/>
+              <path d="M72 200 C64 230 62 270 66 300 C66 316 66 340 66 360 C66 384 70 404 74 414 L92 414 C94 400 96 380 96 360 C96 340 96 320 96 300 C99 270 100 240 100 200 Z"/>
+              <path d="M128 200 C136 230 138 270 134 300 C134 316 134 340 134 360 C134 384 130 404 126 414 L108 414 C106 400 104 380 104 360 C104 340 104 320 104 300 C101 270 100 240 100 200 Z"/>
+              <path d="M72 414 C68 418 66 424 70 428 L94 428 C96 424 94 418 92 414 Z"/><path d="M128 414 C132 418 134 424 130 428 L106 428 C104 424 106 418 108 414 Z"/>
+            </g>
+            <g class="mus" id="m-bk-traps">
+              <path d="M100 52 C86 58 68 66 52 76 C66 80 80 86 91 98 C95 112 98 128 100 144 C102 128 105 112 109 98 C120 86 134 80 148 76 C132 66 114 58 100 52 Z"/>
+              <path class="cut" d="M100 60 L100 140 M84 74 C90 84 94 96 96 110 M116 74 C110 84 106 96 104 110"/>
+            </g>
+            <g class="mus" id="m-bk-delts">
+              <path d="M60 79 C52 74 42 80 40 92 C39 104 45 111 53 110 C60 108 63 98 63 89 C63 84 62 81 60 79 Z"/>
+              <path class="cut" d="M47 88 C50 94 52 102 51 108"/>
+              <path d="M60 79 C52 74 42 80 40 92 C39 104 45 111 53 110 C60 108 63 98 63 89 C63 84 62 81 60 79 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M47 88 C50 94 52 102 51 108" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="mus" id="m-bk-upperback">
+              <path d="M63 86 C74 88 84 94 90 102 C86 114 78 118 68 114 C62 106 60 96 63 86 Z"/>
+              <path class="cut" d="M70 96 C76 100 82 106 86 112"/>
+              <path d="M63 86 C74 88 84 94 90 102 C86 114 78 118 68 114 C62 106 60 96 63 86 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M70 96 C76 100 82 106 86 112" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="mus" id="m-bk-lats">
+              <path d="M65 116 C75 118 86 122 92 130 C91 154 86 172 80 182 C76 186 71 182 70 176 C66 156 62 136 65 116 Z"/>
+              <path class="cut" d="M76 124 C80 144 80 164 78 180"/>
+              <path d="M65 116 C75 118 86 122 92 130 C91 154 86 172 80 182 C76 186 71 182 70 176 C66 156 62 136 65 116 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M76 124 C80 144 80 164 78 180" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="mus" id="m-bk-lowerback">
+              <path d="M93 146 C96 142 104 142 107 146 C108.5 162 108 178 106 192 C104 197 96 197 94 192 C92 178 91.5 162 93 146 Z"/>
+              <path class="cut" d="M100 148 L100 195"/>
+            </g>
+            <g class="mus" id="m-bk-triceps">
+              <path d="M52 110 C43 114 36 128 35 146 C35 154 42 158 48 153 C53 142 55 126 53 112 Z"/>
+              <path class="cut" d="M42 128 C46 136 48 144 46 152 M50 118 C48 128 46 136 46 144"/>
+              <path d="M52 110 C43 114 36 128 35 146 C35 154 42 158 48 153 C53 142 55 126 53 112 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M42 128 C46 136 48 144 46 152 M50 118 C48 128 46 136 46 144" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="mus" id="m-bk-forearms">
+              <path d="M36 158 C30 166 26 186 25 208 C25 216 30 221 35 217 C40 202 44 180 44 162 C42 156 38 155 36 158 Z"/>
+              <path class="cut" d="M34 170 C32 184 31 198 32 212"/>
+              <path d="M36 158 C30 166 26 186 25 208 C25 216 30 221 35 217 C40 202 44 180 44 162 C42 156 38 155 36 158 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M34 170 C32 184 31 198 32 212" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="mus" id="m-bk-glutes">
+              <path d="M71 190 C85 188 96 192 98 206 C100 224 92 238 80 238 C68 236 62 224 64 208 C65 200 67 194 71 190 Z"/>
+              <path class="cut" d="M76 200 C72 212 72 224 76 234"/>
+              <path d="M71 190 C85 188 96 192 98 206 C100 224 92 238 80 238 C68 236 62 224 64 208 C65 200 67 194 71 190 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M76 200 C72 212 72 224 76 234" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="mus" id="m-bk-hams">
+              <path d="M70 240 C82 242 92 244 94 254 C96 282 92 302 86 308 C80 312 72 308 70 298 C66 274 66 254 70 240 Z"/>
+              <path class="cut" d="M82 248 C84 268 84 288 82 304"/>
+              <path d="M70 240 C82 242 92 244 94 254 C96 282 92 302 86 308 C80 312 72 308 70 298 C66 274 66 254 70 240 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M82 248 C84 268 84 288 82 304" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+            <g class="skin"><ellipse cx="81" cy="314" rx="10" ry="6"/><ellipse cx="119" cy="314" rx="10" ry="6"/></g>
+            <g class="mus" id="m-bk-calves">
+              <path d="M72 322 C64 332 64 362 68 394 C70 402 80 404 86 396 C92 364 92 332 86 322 C82 318 76 318 72 322 Z"/>
+              <path class="cut" d="M79 326 C78 348 78 372 79 394"/>
+              <path d="M72 322 C64 332 64 362 68 394 C70 402 80 404 86 396 C92 364 92 332 86 322 C82 318 76 318 72 322 Z" transform="matrix(-1 0 0 1 200 0)"/>
+              <path class="cut" d="M79 326 C78 348 78 372 79 394" transform="matrix(-1 0 0 1 200 0)"/>
+            </g>
+          </svg>
+          <div class="anatlabel">Back</div>
+        </div>
+      </div>
+    </div>
+    <div class="anatctl">
+      <div class="segrow" style="margin:0;flex:1"><button class="seg sel" id="anat-btn-front" onclick="anatTurn(0)">Front</button><button class="seg" id="anat-btn-back" onclick="anatTurn(180)">Back</button></div>
+      <div class="anathint">Drag to spin</div>
+    </div>
     <div class="legend"><span><span class="ldot pri"></span>Primary</span><span><span class="ldot sec"></span>Secondary</span></div>
   </div>
   <div class="mchips" id="lift-muscles"></div>
@@ -440,8 +540,8 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/share.js?v=6.7"></script>
-<script src="js/drive.js?v=6.7"></script>
-<script src="js/app.js?v=6.7"></script>
+<script src="js/share.js?v=6.9"></script>
+<script src="js/drive.js?v=6.9"></script>
+<script src="js/app.js?v=6.9"></script>
 </body>
 </html>

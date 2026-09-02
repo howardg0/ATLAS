@@ -20,6 +20,7 @@
   --well:rgba(10,11,15,.55); --nav-bg:rgba(16,19,27,.82); --veil:rgba(8,9,13,.985); --scrim:rgba(8,9,13,.66);
   --btn-grad:linear-gradient(180deg,#FCFDFF,#DFE3ED); --btn-ink:#0A0B0F; --btn-glow:rgba(255,255,255,.5);
   --anat-fill:#1A1E28; --anat-stroke:#2C3240; --anat-mus:#252A36; --anat-mus-stroke:#3A4254;
+  --anat-skin:#151923; --anat-skin-hi:#222838; --anat-mus-hi:#343B4C;
   color-scheme:dark;
 }
 html[data-theme=light]{
@@ -34,6 +35,7 @@ html[data-theme=light]{
   --well:rgba(15,19,32,.06); --nav-bg:rgba(255,255,255,.84); --veil:rgba(243,244,248,.985); --scrim:rgba(15,19,32,.45);
   --btn-grad:linear-gradient(180deg,#1B2030,#0F1320); --btn-ink:#FFFFFF; --btn-glow:rgba(15,19,32,.35);
   --anat-fill:#E6E9F1; --anat-stroke:#C9CFDC; --anat-mus:#D9DEE9; --anat-mus-stroke:#B7BFD0;
+  --anat-skin:#E3E7EF; --anat-skin-hi:#F4F6FA; --anat-mus-hi:#EEF1F6;
   color-scheme:light;
 }
 html[data-theme=light] body::before{background:
@@ -443,15 +445,42 @@ h1,h2,h3,.dp{font-family:var(--f-dp);letter-spacing:-.028em}
 
 /* ================= LIFT DETAIL ================= */
 .anatcard{background:radial-gradient(80% 70% at 50% 30%,var(--surface2),var(--surface) 75%);
-  border:1px solid var(--line);border-radius:var(--r-lg);padding:16px 8px 14px;margin-bottom:14px;
-  box-shadow:var(--lift-sh)}
-.anat{width:100%;height:auto;display:block}
-.anat .neutral{fill:var(--anat-fill);stroke:var(--anat-stroke);stroke-width:1.1}
-.anat .mus path{fill:var(--anat-mus);stroke:var(--anat-mus-stroke);stroke-width:1.1;transition:fill .3s,stroke .3s}
-.anat .mus.pri path{fill:var(--ember);stroke:#FF8B82;filter:url(#mglow)}
-.anat .mus.sec path{fill:rgba(255,90,78,.26);stroke:rgba(255,90,78,.6)}
-.anat .mus path.cut{fill:none;stroke:rgba(8,9,13,.55);filter:none}
-.anat text{fill:var(--ink-faint);font-size:11px;font-weight:700;letter-spacing:.24em;text-transform:uppercase}
+  border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 8px 14px;margin-bottom:14px;
+  box-shadow:var(--lift-sh);overflow:hidden}
+/* a 3D card: two faces, front and back, spun by dragging */
+.anat3d{perspective:1100px;touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none}
+.anat3d:active{cursor:grabbing}
+.anatflip{position:relative;width:min(240px,62vw);height:calc(min(240px,62vw)*2.3);margin:0 auto;
+  transform-style:preserve-3d;transition:transform .55s cubic-bezier(.2,.8,.25,1);will-change:transform}
+.anatflip.dragging{transition:none}
+.anatflip.idle{animation:anatSway 6s ease-in-out infinite}
+/* sways around whichever face is showing (--face is 0deg or 180deg) */
+@keyframes anatSway{0%,100%{transform:rotateX(1deg) rotateY(calc(var(--face,0deg) - 7deg))}50%{transform:rotateX(-1deg) rotateY(calc(var(--face,0deg) + 7deg))}}
+.anatface{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  display:flex;flex-direction:column;align-items:center}
+.anatface.back{transform:rotateY(180deg)}
+.anatface .anat{width:100%;height:auto;display:block;flex:1;
+  filter:drop-shadow(0 18px 24px rgba(0,0,0,.45))}
+.anatlabel{font-size:.62rem;font-weight:800;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-faint);margin-top:6px}
+/* figure */
+.anat .skin{fill:url(#gSkinF);stroke:var(--anat-stroke);stroke-width:.9}
+#anat-back .skin{fill:url(#gSkinB)}
+.anat .mus path{fill:url(#gMusF);stroke:var(--anat-mus-stroke);stroke-width:.9;stroke-linejoin:round;transition:fill .35s,stroke .35s}
+#anat-back .mus path{fill:url(#gMusB)}
+.anat .mus path.cut{fill:none;stroke:rgba(8,9,13,.45);stroke-width:.8;stroke-linecap:round}
+html[data-theme=light] .anat .mus path.cut{stroke:rgba(15,19,32,.16)}
+.anat .mus.pri path{fill:url(#gPriF);stroke:#FF9C92;filter:url(#glowF);animation:musPulse 2.4s ease-in-out infinite}
+#anat-back .mus.pri path{fill:url(#gPriB);filter:url(#glowB)}
+.anat .mus.sec path{fill:url(#gSecF);stroke:rgba(255,90,78,.7)}
+#anat-back .mus.sec path{fill:url(#gSecB)}
+.anat .mus.pri path.cut{fill:none;stroke:rgba(90,10,10,.45);filter:none;animation:none}
+.anat .mus.sec path.cut{fill:none;stroke:rgba(90,10,10,.3)}
+@keyframes musPulse{0%,100%{opacity:1}50%{opacity:.82}}
+.anatctl{display:flex;align-items:center;gap:10px;margin:10px 8px 4px}
+.anatctl .segrow{max-width:200px}
+.anatctl .seg{padding:8px 4px;font-size:.72rem}
+.anathint{flex:1;text-align:right;font-size:.68rem;color:var(--ink-faint);font-weight:600}
+@media (prefers-reduced-motion:reduce){.anatflip.idle{animation:none}.anat .mus.pri path{animation:none}}
 .legend{display:flex;gap:20px;justify-content:center;margin-top:12px;font-size:.72rem;
   color:var(--ink-dim);font-weight:600}
 .ldot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
@@ -730,3 +759,15 @@ body.in-session .toast{bottom:calc(var(--dock-h,300px) + 14px)}
 .progex input.perange.sets{width:42px}
 .progex .pill{padding:5px 7px;font-size:.56rem}
 .progex .miniBtn{width:30px;height:30px}
+
+/* ================= 6.9 · STREAKS · EQUIPMENT CHIPS ================= */
+.streaks{display:flex;gap:8px;margin:-8px 0 18px}
+.stk{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:10px 8px;text-align:center;box-shadow:var(--card-sh)}
+.stk b{display:flex;align-items:center;justify-content:center;gap:4px;font-family:var(--f-dp);font-size:1.15rem;font-weight:700;letter-spacing:-.03em}
+.stk b .gico{width:16px;height:16px;color:var(--ink-faint);stroke-width:1.9}
+.stk.hot b .gico{color:var(--ember);fill:rgba(255,90,78,.2)}
+.stk span{display:block;font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin-top:3px}
+.libchips.eqrow{margin-top:-4px}
+.libchip.eq{font-size:.7rem;padding:6px 11px}
+.libchip.eq.sel{border-color:var(--blue);background:rgba(91,141,239,.13)}
+input[type=time].searchbar{-webkit-appearance:none;appearance:none;color:var(--ink)}

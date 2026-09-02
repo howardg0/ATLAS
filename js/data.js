@@ -72,7 +72,7 @@ traps:["m-fr-traps","m-bk-traps"],delts_front:["m-fr-delts"],delts_side:["m-fr-d
 delts_rear:["m-bk-delts"],chest:["m-fr-chest"],biceps:["m-fr-biceps"],triceps:["m-bk-triceps"],
 forearms:["m-fr-forearms","m-bk-forearms"],lats:["m-bk-lats"],upper_back:["m-bk-upperback"],
 lower_back:["m-bk-lowerback"],abs:["m-fr-abs"],obliques:["m-fr-obliques"],hip_flexors:["m-fr-hipflex"],
-glutes:["m-bk-glutes"],quads:["m-fr-quads"],hamstrings:["m-bk-hams"],adductors:["m-fr-adductors"],calves:["m-bk-calves"]};
+glutes:["m-bk-glutes"],quads:["m-fr-quads"],hamstrings:["m-bk-hams"],adductors:["m-fr-adductors"],calves:["m-bk-calves","m-fr-calves"]};
 const GROUPS=["Quads","Hams & Glutes","Chest","Back","Shoulders","Biceps","Triceps","Calves","Core"];
 
 /* g: group · pat: movement pattern · eq: equipment · pri/sec: muscles · about: what & why · form: cues

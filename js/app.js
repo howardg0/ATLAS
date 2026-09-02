@@ -6,7 +6,7 @@
    address of every logged set on the device. */
 const KEY="block-log-v2";
 /* Keep in step with CACHE in sw.js and the ?v= stamps in index.html (tests/version.test.js checks) */
-const APP_VERSION="6.7";
+const APP_VERSION="6.9";
 let restEnd=0,restTick=null,restDur=1,restLabel="",restHintTxt="";
 let S=null;
 const migrateDb=d=>migrate(d,DEFAULT_DAYS,DEFAULT_SETTINGS,DEFAULT_PLAN,PHASES);
@@ -89,6 +89,12 @@ function save(opts){
 }
 
 /* ================= HELPERS ================= */
+/* keep the last few runtime errors so a problem report carries something useful */
+function logErr(msg){
+  try{if(!db||!Array.isArray(db.errors))return;db.errors.push({t:new Date().toISOString().slice(0,16),m:String(msg).slice(0,200)});db.errors=db.errors.slice(-5);save({quiet:true})}catch(e){}
+}
+addEventListener("error",e=>logErr((e.message||"error")+" @ "+String(e.filename||"").split("/").pop()+":"+(e.lineno||"")));
+addEventListener("unhandledrejection",e=>logErr("promise: "+((e.reason&&e.reason.message)||e.reason)));
 const $=id=>document.getElementById(id);
 function toast(m,actionLabel,actionFn){
   const t=$("toast");
@@ -364,6 +370,39 @@ function backupNudgeHTML(minDays){
   return `<button class="nudge tap" onclick="backupJSON(false)"><svg viewBox="0 0 24 24" class="gico"><path d="M12 3.6 21.2 20H2.8z"/><path d="M12 10v4.2M12 17v.4"/></svg>
     <span>${days===null?"No backup yet":"Last backup "+days+" days ago"} — your history lives only on this phone. <b>Back up now</b></span></button>`;
 }
+/* every planned session up to now, in order, with whether it is done and whether it was due */
+function sessionList(){
+  const out=[];
+  const cw=isOpen()?curWeek():Math.max(db.selWeek,maxLoggedWeek(db.logs));
+  const ti=todayIdx();
+  for(let w=1;w<=cw;w++)dayIds().forEach((d,i)=>{
+    const total=totalSets(w,d);if(!total)return;
+    const done=loggedSets(w,d)>=total;
+    let due;
+    if(isOpen())due=w<cw||i<ti||done;            /* today counts only once it's finished */
+    else due=done||w<cw;                           /* block plans have no calendar: earlier weeks are due */
+    out.push({done,due,w,d});
+  });
+  /* block plans: within the latest week, a session is due once a later one has been logged */
+  if(!isOpen()){let seen=false;for(let i=out.length-1;i>=0;i--){if(out[i].w!==cw)break;if(out[i].done)seen=true;else if(seen)out[i].due=true}}
+  return out;
+}
+function weekStreak(){
+  let n=0;const last=isOpen()?curWeek()-1:Math.max(db.selWeek,maxLoggedWeek(db.logs));
+  for(let w=last;w>=1;w--){if(weekComplete(w))n++;else if(isOpen()||w<last)break;}
+  return n;
+}
+function renderStreaks(){
+  const el=$("streaks");if(!el)return;
+  const list=sessionList();
+  if(!list.some(x=>x.due)){el.innerHTML="";return}
+  const ss=sessionStreak(list),ws=weekStreak(),ad=adherence(list);
+  const flame='<svg viewBox="0 0 24 24" class="gico"><path d="M12 3c1 3.5 4.5 5 4.5 9.2A4.6 4.6 0 0 1 12 17a4.6 4.6 0 0 1-4.5-4.8C7.5 9 10 8.5 9.5 5.5 11 6.4 11.6 7.6 12 9c.6-1.6.4-3.5 0-6z"/></svg>';
+  el.innerHTML=`<div class="streaks">
+    <div class="stk ${ss>=3?"hot":""}"><b>${flame}${ss}</b><span>session streak</span></div>
+    <div class="stk"><b>${ws}</b><span>week streak</span></div>
+    <div class="stk"><b>${Math.round(ad*100)}%</b><span>sessions kept</span></div></div>`;
+}
 function renderHome(){
   /* open plan: follow the calendar once a day, but let a manual week choice stand for the rest of that day */
   if(isOpen()&&db.autoWeekFor!==todayISO()){db.selWeek=curWeek();db.autoWeekFor=todayISO();save({quiet:true})}
@@ -422,7 +461,7 @@ function renderHome(){
     card.onclick=()=>{tap(8);if(total===0){go("prog");return}shareTitle(card.querySelector(".dtitle"));done>=total?showDone(w,d):showPreview(w,d)};
     dl.appendChild(card);
   }
-  animateRings();
+  animateRings();renderStreaks();
 }
 function postponeLight(){
   if(!isOpen())return;
@@ -614,7 +653,7 @@ function renderSet(){
     const have2=((db.logs[logKey(w,d)].ex[j])||[]).filter(s=>s&&s.kg!=null).length;
     const st=have2>=need2?"done":j===exIdx?"cur":"";
     const link=j>0&&exOpt(DAYS[d].ex[j-1],"ss")?"⇄ ":"";
-    return `<button class="upchip ${st}" ${st==="done"?"disabled":""} onclick="jumpTo(${j})">${st==="done"?"✓ ":(j+1)+". "}${link}${exName(d,j)}</button>`;
+    return `<button class="upchip ${st}" onclick="${st==="done"?"editLift("+j+")":"jumpTo("+j+")"}" aria-label="${st==="done"?"Edit sets for ":""}${exName(d,j)}">${st==="done"?"✓ ":(j+1)+". "}${link}${exName(d,j)}</button>`;
   }).join("");
   renderPlates();
   renderWarmup();
@@ -647,6 +686,13 @@ function tickTon(to){
   requestAnimationFrame(step);
 }
 function jumpTo(i){S.exIdx=i;S.setIdx=firstOpenSet();renderSet();save()}
+/* a finished lift in the session map: pick one of its sets to change or delete */
+function editLift(j){
+  const {w,d}=S;const arr=db.logs[logKey(w,d)].ex[j]||[];
+  const opts=arr.map((s,si)=>s&&s.kg!=null?{label:`Set ${si+1} · ${fmtSet(s)}`,value:si}:null).filter(Boolean);
+  if(!opts.length){jumpTo(j);return}
+  chooseSheet(exName(d,j),"Tap a set to change or delete it.",opts,si=>openEdit(w,d,j,si,"session"));
+}
 async function endEarly(){
   const {w,d}=S;
   const left=totalSets(w,d)-loggedSets(w,d);
@@ -892,7 +938,8 @@ function similarLifts(name){
   return [...new Set([...(SUBS[name]||[]),...same])].filter(n=>EXDB[n]);
 }
 /* ================= LIFT LIBRARY ================= */
-const LIB={q:"",grp:"All",current:null,src:"lib"};
+const LIB={q:"",grp:"All",eq:"All",current:null,src:"lib"};
+const EQUIPMENT=["Barbell","Dumbbell","Cable","Machine","Smith","EZ-Bar","Bodyweight"];
 function planDays(name){
   const days=[];
   for(const d of dayIds())DAYS[d].ex.forEach((e,i)=>{if(exName(d,i)===name&&!days.includes(d))days.push(d)});
@@ -901,11 +948,13 @@ function planDays(name){
 function renderLib(){
   $("libchips").innerHTML=["All",...GROUPS].map(g=>
     `<button class="libchip ${g===LIB.grp?"sel":""}" aria-pressed="${g===LIB.grp}" onclick="LIB.grp='${g.replace(/&/g,"&amp;")}';renderLib()">${g}</button>`).join("");
+  $("libeq").innerHTML=["All",...EQUIPMENT].map(g=>
+    `<button class="libchip eq ${g===LIB.eq?"sel":""}" aria-pressed="${g===LIB.eq}" onclick="LIB.eq='${g}';renderLib()">${g}</button>`).join("");
   const q=LIB.q.trim().toLowerCase();
   let html="";
   for(const g of GROUPS){
     if(LIB.grp!=="All"&&LIB.grp!==g)continue;
-    const items=Object.entries(EXDB).filter(([,e])=>e.g===g).filter(([n,e])=>{
+    const items=Object.entries(EXDB).filter(([,e])=>e.g===g).filter(([,e])=>LIB.eq==="All"||e.eq===LIB.eq).filter(([n,e])=>{
       if(!q)return true;
       const hay=(n+" "+e.eq+" "+e.pat+" "+g+" "+[...e.pri,...e.sec].map(m=>MUSCLE_NAMES[m]).join(" ")).toLowerCase();
       return hay.includes(q);
@@ -920,7 +969,7 @@ function renderLib(){
         ${days.length?`<span class="daybadge">${days.join("·")}</span>`:""}<svg viewBox="0 0 24 24" class="chev"><path d="M9.6 5.4 16.2 12l-6.6 6.6"/></svg></button>`;
     }
   }
-  $("liblist").innerHTML=html||`<div class="emptymsg">No lifts match "${LIB.q}".<br>Try a muscle — "hamstrings", "rear delts", "abs"…</div>`;
+  $("liblist").innerHTML=html||`<div class="emptymsg">No ${LIB.eq==="All"?"":LIB.eq.toLowerCase()+" "}lifts match${LIB.q?` "${esc(LIB.q)}"`:""}.<br>Try a muscle — "hamstrings", "rear delts", "abs"…</div>`;
   $("lib-sub").textContent=Object.keys(EXDB).length+" lifts · every movement in the plan and its swaps";
 }
 function openLift(name,src){
@@ -933,11 +982,14 @@ function openLift(name,src){
   $("lift-tags").innerHTML=`<span class="tag comp">${e.pat}</span><span class="tag">${e.eq}</span>`
     +(days.length?`<span class="tag" style="color:var(--plate-green)">In plan · Day ${days.join(", ")}</span>`
                  :`<span class="tag">Swap option</span>`);
-  /* muscle diagram */
-  document.querySelectorAll("#anat .mus").forEach(m=>m.classList.remove("pri","sec"));
+  /* muscle diagram: mark the regions, then face whichever side carries the primaries */
+  document.querySelectorAll(".anat .mus").forEach(m=>m.classList.remove("pri","sec"));
   const mark=(keys,cls)=>keys.forEach(k=>(MUSCLE_MAP[k]||[]).forEach(id=>{
     const el=$(id);if(el&&!(cls==="sec"&&el.classList.contains("pri")))el.classList.add(cls)}));
   mark(e.pri,"pri");mark(e.sec,"sec");
+  const ids=e.pri.flatMap(k=>MUSCLE_MAP[k]||[]);
+  const backCount=ids.filter(id=>id.startsWith("m-bk")).length,frontCount=ids.length-backCount;
+  anatTurn(backCount>frontCount?180:0,true);
   $("lift-muscles").innerHTML=
     e.pri.map(m=>`<span class="mchip pri">${MUSCLE_NAMES[m]}</span>`).join("")
     +e.sec.map(m=>`<span class="mchip">${MUSCLE_NAMES[m]}</span>`).join("");
@@ -997,6 +1049,56 @@ function liftToggleTimed(){
 }
 function liftResetOpts(){delete db.lifts[LIB.current];save();renderLiftSettings(LIB.current);toast("Defaults restored")}
 function backFromLift(){history.back()}
+
+/* ---------- 3D muscle card: drag to spin, snaps to a face, sways when idle ---------- */
+const ANAT={rot:0,tilt:0,drag:null,idleT:null};
+function anatApply(){
+  const el=$("anatflip");if(!el)return;
+  el.style.transform=`rotateX(${ANAT.tilt.toFixed(2)}deg) rotateY(${ANAT.rot.toFixed(2)}deg)`;
+  const back=((Math.round(ANAT.rot/180)%2)+2)%2===1;
+  $("anat-btn-front").classList.toggle("sel",!back);$("anat-btn-back").classList.toggle("sel",back);
+}
+function anatIdle(on){
+  const el=$("anatflip");if(!el)return;
+  clearTimeout(ANAT.idleT);
+  if(on&&!reduceMotion()){ANAT.idleT=setTimeout(()=>{if(!ANAT.drag&&Math.abs(ANAT.rot%180)<1){el.style.setProperty("--face",(Math.round(ANAT.rot/180)*180)+"deg");el.classList.add("idle")}},900)}
+  else el.classList.remove("idle");
+}
+/* turn to a face (0 = front, 180 = back). `snap` jumps without animating, for a fresh screen. */
+function anatTurn(deg,snap){
+  const el=$("anatflip");if(!el)return;
+  anatIdle(false);
+  if(snap){el.classList.add("dragging");ANAT.rot=deg;ANAT.tilt=0;anatApply();void el.offsetWidth;el.classList.remove("dragging")}
+  else{
+    /* rotate the short way round to the requested face */
+    const cur=ANAT.rot,base=Math.round(cur/360)*360;
+    const cands=[base+deg,base+deg-360,base+deg+360];
+    ANAT.rot=cands.reduce((a,b)=>Math.abs(b-cur)<Math.abs(a-cur)?b:a);ANAT.tilt=0;anatApply();tap(6);
+  }
+  anatIdle(true);
+}
+function anatBind(){
+  const host=$("anat3d"),el=$("anatflip");if(!host||!el)return;
+  host.addEventListener("pointerdown",e=>{
+    ANAT.drag={x:e.clientX,y:e.clientY,rot:ANAT.rot,moved:false};
+    anatIdle(false);el.classList.add("dragging");host.setPointerCapture(e.pointerId);
+  });
+  host.addEventListener("pointermove",e=>{
+    if(!ANAT.drag)return;
+    const dx=e.clientX-ANAT.drag.x,dy=e.clientY-ANAT.drag.y;
+    if(Math.abs(dx)>4)ANAT.drag.moved=true;
+    ANAT.rot=ANAT.drag.rot+dx*0.7;
+    ANAT.tilt=Math.max(-9,Math.min(9,-dy*0.06));
+    anatApply();
+  });
+  const end=e=>{
+    if(!ANAT.drag)return;
+    const moved=ANAT.drag.moved;ANAT.drag=null;el.classList.remove("dragging");
+    if(!moved){anatTurn(Math.abs(ANAT.rot%360)<90||Math.abs(ANAT.rot%360)>270?180:0);return}   /* a tap flips */
+    ANAT.rot=Math.round(ANAT.rot/180)*180;ANAT.tilt=0;anatApply();haptic("select");anatIdle(true);
+  };
+  host.addEventListener("pointerup",end);host.addEventListener("pointercancel",end);
+}
 function openLiftFromSession(){if(S)openLift(exName(S.d,S.exIdx),"session")}
 function saveNote(val){
   clearTimeout(window._noteT);
@@ -1587,10 +1689,55 @@ function renderSettings(){
   $("set-rollsub").textContent=blockComplete()
     ?`Week ${WEEKS()} complete — ready to roll over`
     :`Week ${WEEKS()} isn't finished yet`;
-  renderTrainSettings();renderDrive();
+  renderTrainSettings();renderDrive();renderReminders();
   $("set-theme").innerHTML=[["auto","Auto"],["dark","Dark"],["light","Light"]].map(([k,l])=>
     `<button class="seg ${db.settings.theme===k?"sel":""}" aria-pressed="${db.settings.theme===k}" onclick="setTheme('${k}')">${l}</button>`).join("");
 }
+/* ---------- reminders: a recurring calendar event per training day ---------- */
+function renderReminders(){
+  const el=$("set-remind");if(!el)return;
+  const days=dayIds().filter(d=>DAYS[d].ex.length);
+  const fixed=days.length<=7;
+  el.innerHTML=`<div class="setrow col">
+    <div class="lrtext"><b>Training reminders</b><i>${fixed
+      ?`Adds one repeating event per training day (${days.map(d=>WEEKDAYS[dayIds().indexOf(d)]).join(", ")}) to your calendar, with an alert. Reliable on every phone, unlike web notifications, and it keeps working when the app is closed.`
+      :"Your programme has more than seven days, so it can't map onto weekdays."}</i></div>
+    ${fixed?`<div style="display:flex;gap:8px;align-items:center">
+      <input type="time" id="remind-time" class="searchbar" style="margin:0;flex:1" value="${esc(db.settings.remindTime||"17:30")}" aria-label="Reminder time" onchange="db.settings.remindTime=this.value;save()">
+      <button class="bigbtn primary" style="flex:1.3;padding:13px" onclick="addReminders()">Add to calendar</button></div>`:""}
+  </div>`;
+}
+async function addReminders(){
+  const t=($("remind-time")&&$("remind-time").value)||"17:30";
+  db.settings.remindTime=t;save();
+  const evs=dayIds().map((d,i)=>({weekday:i,title:`ATLAS · Day ${d} · ${DAYS[d].title}`,desc:`${DAYS[d].ex.length} lifts. Open ATLAS to start.`})).filter((e,i)=>DAYS[dayIds()[i]].ex.length);
+  const ics=buildICS(evs,t,todayISO(),0);
+  const res=await shareOrDownload("atlas-training.ics",ics,"text/calendar");
+  if(res!=="cancelled")toast(res==="shared"?"Calendar file shared — open it with Google Calendar":"Calendar file saved — open it to add the events");
+}
+
+/* ---------- report a problem ---------- */
+function buildReport(){
+  const ua=navigator.userAgent.replace(/\)\s.*$/,")");
+  const lines=[`ATLAS ${APP_VERSION}`,`Device: ${ua}`,`Screen: ${screen.width}×${screen.height} @${Math.round(devicePixelRatio*100)/100} · ${matchMedia("(display-mode: standalone)").matches?"installed":"browser tab"}`,
+    `Theme: ${db.settings.theme} · Plan: ${db.plan.name}${isOpen()?" (open, week "+curWeek()+")":" ("+WEEKS()+" weeks, week "+db.selWeek+")"}`,
+    `Programme: ${db.programmeName} · ${dayIds().length} days · ${Object.keys(db.logs).length} sessions this block · ${db.archive.length} archived`,
+    `Drive sync: ${driveOn()?"on"+(db.sync.error?" · last error "+db.sync.error:""):"off"} · Last backup: ${db.lastBackup?new Date(db.lastBackup).toISOString().slice(0,10):"never"}`,
+    `Recent errors: ${db.errors&&db.errors.length?"\n  "+db.errors.map(e=>e.t+" "+e.m).join("\n  "):"none"}`,
+    "","What happened:","","What I expected:",""];
+  return lines.join("\n");
+}
+function reportProblem(){
+  const txt=buildReport();
+  const opts=[{label:"Share the report…",value:"share"},{label:"Copy to clipboard",value:"copy"}];
+  if(typeof REPORT_URL!=="undefined"&&REPORT_URL)opts.push({label:"Open a GitHub issue",value:"gh"});
+  chooseSheet("Report a problem","The report has the app version, phone, screen and the last few errors. No sets or personal data.",opts,async v=>{
+    if(v==="share"){try{if(navigator.share){await navigator.share({title:"ATLAS problem report",text:txt});return}}catch(e){if(e&&e.name==="AbortError")return}v="copy"}
+    if(v==="copy"){try{await navigator.clipboard.writeText(txt);toast("Report copied — paste it to Howard")}catch(e){toast("Couldn't copy on this browser")}return}
+    if(v==="gh")open(REPORT_URL+(REPORT_URL.includes("?")?"&":"?")+"title="+encodeURIComponent("Problem in ATLAS "+APP_VERSION)+"&body="+encodeURIComponent(txt),"_blank","noopener");
+  });
+}
+
 /* ---------- appearance ---------- */
 function applyTheme(){
   const pref=db.settings.theme||"dark";
@@ -1826,12 +1973,14 @@ function renderProg(){
   $("prog-body").innerHTML=html;
 }
 /* ---------- exercise picker ---------- */
-let PICK=null;
-function openPick(d){PICK=d;$("picksearch").value="";renderPick();$("picksheet").classList.add("active")}
+let PICK=null,PICK_EQ="All";
+function openPick(d){PICK=d;PICK_EQ="All";$("picksearch").value="";renderPick();$("picksheet").classList.add("active")}
 function closePick(){$("picksheet").classList.remove("active")}
 function renderPick(){
   const q=$("picksearch").value.trim().toLowerCase();
-  const match=([n,e])=>!q||(n+" "+e.eq+" "+e.g+" "+e.pat+" "+[...e.pri,...e.sec].map(m=>MUSCLE_NAMES[m]).join(" ")).toLowerCase().includes(q);
+  $("pickeq").innerHTML=["All",...EQUIPMENT].map(g=>
+    `<button class="libchip eq ${g===PICK_EQ?"sel":""}" aria-pressed="${g===PICK_EQ}" onclick="PICK_EQ='${g}';renderPick()">${g}</button>`).join("");
+  const match=([n,e])=>(PICK_EQ==="All"||e.eq===PICK_EQ)&&(!q||(n+" "+e.eq+" "+e.g+" "+e.pat+" "+[...e.pri,...e.sec].map(m=>MUSCLE_NAMES[m]).join(" ")).toLowerCase().includes(q));
   let html="";
   for(const g of GROUPS){
     const items=Object.entries(EXDB).filter(([,e])=>e.g===g).filter(match);
@@ -1974,7 +2123,7 @@ async function init(){
     el.addEventListener("focus",()=>setTimeout(()=>el.scrollIntoView({block:"center",behavior:"smooth"}),280));
   });
   try{history.scrollRestoration="manual"}catch(e){}   /* we restore scroll ourselves */
-  applyTheme();
+  applyTheme();anatBind();
   /* swipe between weeks on Plan and Progression */
   onSwipe($("scr-home"),dir=>{const w=Math.min(WEEKS(),Math.max(1,db.selWeek+dir));db.autoWeekFor=todayISO();if(w!==db.selWeek){haptic("select");db.selWeek=w;save();renderHome()}});
   onSwipe($("scr-progress"),dir=>{const w=Math.min(WEEKS(),Math.max(1,(PG.week||db.selWeek)+dir));if(w!==PG.week){haptic("select");PG.week=w;renderProgress()}});

@@ -145,6 +145,32 @@ test("maxLoggedWeek and historyOrder handle open plans",()=>{
   assert.deepEqual(C.historyOrder(D.DEFAULT_PLAN,{}),[5,4,3,2,1,6],"block plans ignore logs");
 });
 
+/* ---------- streaks ---------- */
+test("sessionStreak counts back from the latest due session and skips ones not yet due",()=>{
+  const S=(done,due=true)=>({done,due});
+  assert.equal(C.sessionStreak([S(true),S(true),S(true)]),3);
+  assert.equal(C.sessionStreak([S(true),S(false),S(true),S(true)]),2);
+  assert.equal(C.sessionStreak([S(true),S(true),S(false,false),S(false,false)]),2,"future sessions don't break it");
+  assert.equal(C.sessionStreak([S(true),S(false)]),0);
+  assert.equal(C.sessionStreak([]),0);
+  assert.equal(C.adherence([S(true),S(false),S(true),S(false,false)]),2/3);
+  assert.equal(C.adherence([S(false,false)]),null);
+});
+
+/* ---------- calendar reminders ---------- */
+test("buildICS emits one weekly recurring event with an alarm per training day",()=>{
+  const ics=C.buildICS([{weekday:0,title:"Day A · Push",desc:"8 lifts"},{weekday:2,title:"Day B, Pull; hard"}],"17:30","2026-09-02",10);
+  assert.ok(ics.startsWith("BEGIN:VCALENDAR\r\n"));
+  assert.equal((ics.match(/BEGIN:VEVENT/g)||[]).length,2);
+  assert.ok(ics.includes("RRULE:FREQ=WEEKLY;BYDAY=MO"));
+  assert.ok(ics.includes("RRULE:FREQ=WEEKLY;BYDAY=WE"));
+  assert.ok(ics.includes("DTSTART:20260907T173000"),"first Monday on or after Wed 2 Sep 2026 is 7 Sep");
+  assert.ok(ics.includes("DTSTART:20260902T173000"),"Wednesday starts the same day");
+  assert.ok(ics.includes("TRIGGER:-PT10M"));
+  assert.ok(ics.includes("SUMMARY:Day B\\, Pull\\; hard"),"commas and semicolons are escaped");
+  assert.ok(ics.endsWith("END:VCALENDAR\r\n"));
+});
+
 /* ---------- Drive sync ---------- */
 test("syncDecision: newer wins, empty phone never overwrites, missing file gets uploaded",()=>{
   assert.equal(C.syncDecision(10,0,false,false),"upload");
@@ -273,6 +299,7 @@ test("migrate fills every field from an empty save",()=>{
   assert.equal(d.updatedAt,0);
   assert.deepEqual(d.sync,{});
   assert.equal(d.programmeName,"ATLAS full body");
+  assert.deepEqual(d.errors,[]);
 });
 test("migrate gives archived blocks a plan and keeps a valid custom plan",()=>{
   const d=C.migrate({archive:[{block:1,logs:{}}],plan:{name:"Short",weeks:[{phase:"Build",comp:3,acc:3,rir:"2"},{phase:"Peak",comp:4,acc:3,rir:"1"}]}},D.DEFAULT_DAYS,D.DEFAULT_SETTINGS,D.DEFAULT_PLAN,D.PHASES);

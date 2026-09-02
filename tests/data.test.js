@@ -25,6 +25,8 @@ test("every lift has a valid group, pattern, equipment, muscles, about and cues"
 test("every muscle used in the map has a diagram region and a display name",()=>{
   for(const k of Object.keys(D.MUSCLE_NAMES))assert.ok(Array.isArray(D.MUSCLE_MAP[k])&&D.MUSCLE_MAP[k].length,"no diagram region for "+k);
   for(const k of Object.keys(D.MUSCLE_MAP))assert.ok(k in D.MUSCLE_NAMES,"no name for "+k);
+  const html=require("node:fs").readFileSync(require("node:path").join(__dirname,"..","index.html"),"utf8");
+  for(const ids of Object.values(D.MUSCLE_MAP))for(const id of ids)assert.ok(html.includes(`id="${id}"`),"diagram is missing region "+id);
 });
 
 test("substitutions and the default programme only reference real lifts",()=>{

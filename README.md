@@ -98,6 +98,18 @@ The app is a public static site: anyone with the link gets their own independent
 
 ## Changelog
 
+### 6.9
+
+- **Streaks** under the Home hero: session streak, week streak and percentage of planned sessions kept. Calendar-aware on open plans, so a session later today doesn't break the run.
+- **Training reminders** as a calendar file: pick a time in Settings and the app builds one repeating weekly event per training day, with an alert, to add to Google Calendar or iOS Calendar. Chosen over web notifications because it works with the app closed and on iPhone.
+- **Equipment filter chips** in the lift library and the exercise picker.
+- **Report a problem** in Settings: shares or copies a report with the app version, phone, screen, theme, plan and the last five captured errors. `REPORT_URL` in `js/config.js` adds an "Open a GitHub issue" option.
+- **Session map**: tapping a finished lift lists its sets to change or delete without leaving the session.
+
+### 6.8
+
+- **Muscle diagram rebuilt.** Two redrawn figures with gradient-shaded muscle bellies and striations sit on the faces of a 3D card: drag to spin, tap to flip, tilt follows your thumb, it snaps to the nearest face and sways gently when idle. Active muscles glow and pulse. The lift screen opens on whichever side the lift's primary muscles are on. Calves now show on the front figure too.
+
 ### 6.7
 
 - **ATLAS Physique revised** after review: biceps cut to 12 direct sets on two days (Hammer, Reverse and Cable Curl dropped), rear delts up to 12 across three days, more vertical pulling with a new Wide-Grip Lat Pulldown lift and a third set of straight-arm pulldowns, Saturday arm work reduced to the overhead triceps extension so elbows get two days off.
