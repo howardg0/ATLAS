@@ -1,0 +1,248 @@
+/* Unit tests for js/core.js. Zero dependencies: `npm test` (Node 18+). */
+const test=require("node:test");
+const assert=require("node:assert/strict");
+const D=require("../js/data.js");
+const C=require("../js/core.js");
+
+/* ---------- rep ranges ---------- */
+test("parseRange accepts en dash, hyphen, em dash and spaces",()=>{
+  for(const r of ["6–8","6-8","6 - 8","6—8"," 6–8 "])assert.deepEqual(C.parseRange(r),{lo:6,hi:8});
+  assert.deepEqual(C.parseRange("12"),{lo:12,hi:12});
+  assert.equal(C.repTop("10–15"),15);
+  assert.equal(C.repBottom("10–15"),10);
+});
+test("normaliseRange canonicalises to an en dash or rejects",()=>{
+  assert.equal(C.normaliseRange("8-12"),"8–12");
+  assert.equal(C.normaliseRange(" 8 – 12 "),"8–12");
+  assert.equal(C.normaliseRange("12"),"12");
+  assert.equal(C.normaliseRange("eight"),null);
+  assert.equal(C.normaliseRange("8-"),null);
+});
+
+/* ---------- numbers ---------- */
+test("fmtKg trims trailing zeros and caps at two decimals",()=>{
+  assert.equal(C.fmtKg(60),"60");
+  assert.equal(C.fmtKg(62.5),"62.5");
+  assert.equal(C.fmtKg(41.25),"41.25");
+  assert.equal(C.fmtKg(41.2500001),"41.25");
+});
+test("snapStep pulls a value back onto the increment grid",()=>{
+  assert.equal(C.snapStep(43.75,2.5),45);
+  assert.equal(C.snapStep(41.25+5,5),45);
+  assert.equal(C.snapStep(12.5,1),13);
+  assert.equal(C.snapStep(7.5,2.5),7.5);
+  assert.equal(C.snapStep(20,2),20);
+});
+
+/* ---------- sets ---------- */
+test("e1rm is Epley to one decimal",()=>{
+  assert.equal(C.e1rm(100,10),133.3);
+  assert.equal(C.e1rm(80,8),101.3);
+  assert.equal(C.e1rm(60,1),62);
+});
+test("setTonnage doubles a per-side set and ignores timed sets",()=>{
+  assert.equal(C.setTonnage({kg:20,reps:10}),200);
+  assert.equal(C.setTonnage({kg:20,reps:10,uni:1}),400);
+  assert.equal(C.setTonnage({kg:20,reps:60,timed:1}),0);
+});
+test("setScore: e1RM for reps, seconds (load-scaled) for timed sets",()=>{
+  assert.equal(C.setScore({kg:100,reps:10}),133.3);
+  assert.equal(C.setScore({kg:0,reps:60,timed:1}),60);
+  assert.equal(C.setScore({kg:10,reps:60,timed:1}),20);
+  assert.ok(C.setScore({kg:10,reps:90,timed:1})>C.setScore({kg:10,reps:60,timed:1}));
+});
+test("fmtSet reads naturally for every kind of set",()=>{
+  assert.equal(C.fmtSet({kg:85,reps:12}),"85 kg × 12");
+  assert.equal(C.fmtSet({kg:85,reps:12},true),"85 × 12");
+  assert.equal(C.fmtSet({kg:20,reps:60,timed:1}),"20 kg × 60 s");
+  assert.equal(C.fmtSet({kg:0,reps:60,timed:1}),"60 s");
+  assert.equal(C.fmtSet({kg:0,reps:12}),"12 reps");
+  assert.equal(C.fmtSet({kg:24,reps:10,uni:1}),"24 kg × 10 /side");
+});
+
+/* ---------- block plan ---------- */
+test("validatePlan cleans a plan or falls back to the default",()=>{
+  const ok=C.validatePlan({name:"Mine",weeks:[{phase:"Build",comp:4,acc:3,rir:"2"},{phase:"Deload",comp:"2",acc:2,rir:"4-5"}]},D.DEFAULT_PLAN,D.PHASES);
+  assert.equal(ok.name,"Mine");
+  assert.equal(ok.weeks.length,2);
+  assert.equal(ok.weeks[1].comp,2);
+  assert.equal(ok.weeks[1].rir,"4–5","rir normalised to an en dash");
+  const bad=C.validatePlan({weeks:[{phase:"Nonsense",comp:99,acc:-1,rir:"x"}]},D.DEFAULT_PLAN,D.PHASES);
+  assert.deepEqual(bad,D.DEFAULT_PLAN,"one week is too short, so the default comes back");
+  const fixed=C.validatePlan({weeks:[{phase:"Nonsense",comp:99,acc:-1,rir:"x"},{}]},D.DEFAULT_PLAN,D.PHASES);
+  assert.deepEqual(fixed.weeks[0],{phase:"Build",comp:8,acc:0,rir:"2"});
+  assert.deepEqual(fixed.weeks[1],{phase:"Build",comp:3,acc:3,rir:"2"});
+  assert.notEqual(C.validatePlan(null,D.DEFAULT_PLAN,D.PHASES).weeks,D.DEFAULT_PLAN.weeks,"fallback is a copy");
+});
+test("plan accessors and history order",()=>{
+  const P=D.DEFAULT_PLAN;
+  assert.equal(C.planWeeks(P),6);
+  assert.equal(C.planWeek(P,1).phase,"Re-groove");
+  assert.equal(C.planWeek(P,99).phase,"Deload","out-of-range clamps to the last week");
+  assert.equal(C.isDeload(P,6),true);
+  assert.equal(C.isDeload(P,5),false);
+  assert.deepEqual(C.historyOrder(P),[5,4,3,2,1,6]);
+  assert.deepEqual(C.historyOrder({weeks:D.PLAN_PRESETS["5-week · no deload"]}),[5,4,3,2,1]);
+});
+test("every preset is valid as-is",()=>{
+  for(const [n,weeks] of Object.entries(D.PLAN_PRESETS)){
+    const v=C.validatePlan({name:n,weeks},D.DEFAULT_PLAN,D.PHASES);
+    assert.deepEqual(v.weeks,weeks,n);
+  }
+});
+
+/* ---------- Drive sync ---------- */
+test("syncDecision: newer wins, empty phone never overwrites, missing file gets uploaded",()=>{
+  assert.equal(C.syncDecision(10,0,false,false),"upload");
+  assert.equal(C.syncDecision(10,0,false,true),"upload");
+  assert.equal(C.syncDecision(10,20,true,false),"download");
+  assert.equal(C.syncDecision(30,20,true,false),"upload");
+  assert.equal(C.syncDecision(20,20,true,false),"none");
+  assert.equal(C.syncDecision(999,1,true,true),"download","a fresh install adopts Drive even with a newer stamp");
+});
+test("setName prefers the stamped name over the slot",()=>{
+  const ctx={programme:{A:{ex:[["Back Squat","6–8",1]]}},swaps:{"A-0":"Hack Squat"}};
+  assert.equal(C.setName({kg:1,reps:1,name:"Leg Press"},ctx,"A",0),"Leg Press");
+  assert.equal(C.setName({kg:1,reps:1},ctx,"A",0),"Hack Squat");
+  assert.equal(C.exNameIn({programme:ctx.programme,swaps:{}},"A",0),"Back Squat");
+  assert.equal(C.exNameIn({programme:ctx.programme,swaps:{}},"A",9),"—");
+});
+
+/* ---------- per-lift overrides ---------- */
+test("incrementFor: big lifts 5, others 2.5, override wins",()=>{
+  assert.equal(C.incrementFor("Back Squat",{},D.BIG_INC),5);
+  assert.equal(C.incrementFor("Cable Curl",{},D.BIG_INC),2.5);
+  assert.equal(C.incrementFor("Cable Curl",{"Cable Curl":{inc:1}},D.BIG_INC),1);
+  assert.equal(C.incrementFor("Back Squat",{"Back Squat":{inc:0}},D.BIG_INC),5);
+});
+test("restFor: compound/accessory default, override wins",()=>{
+  const rest=D.DEFAULT_SETTINGS.rest;
+  assert.equal(C.restFor("Back Squat",1,{},rest),150);
+  assert.equal(C.restFor("Cable Curl",0,{},rest),90);
+  assert.equal(C.restFor("Cable Curl",0,{"Cable Curl":{rest:45}},rest),45);
+});
+test("isUnilateral: encyclopedia default, explicit 0/1 override",()=>{
+  assert.equal(C.isUnilateral("Bulgarian Split Squat",{},D.EXDB),true);
+  assert.equal(C.isUnilateral("Back Squat",{},D.EXDB),false);
+  assert.equal(C.isUnilateral("Bulgarian Split Squat",{"Bulgarian Split Squat":{uni:0}},D.EXDB),false);
+  assert.equal(C.isUnilateral("Cable Curl",{"Cable Curl":{uni:1}},D.EXDB),true);
+});
+
+/* ---------- plates ---------- */
+test("plateBreakdown loads greedily per side",()=>{
+  const P=D.DEFAULT_SETTINGS.plates;
+  assert.deepEqual(C.plateBreakdown(100,20,P).perSide,[25,15]);
+  assert.deepEqual(C.plateBreakdown(62.5,20,P).perSide,[20,1.25]);
+  assert.equal(C.plateBreakdown(20,20,P).ok,true);
+  assert.deepEqual(C.plateBreakdown(20,20,P).perSide,[]);
+});
+test("plateBreakdown reports below-bar and nearest clean load",()=>{
+  assert.equal(C.plateBreakdown(15,20,[25]).belowBar,true);
+  const r=C.plateBreakdown(72,20,[25,20,15,10,5,2.5]);   /* 26 per side: 25 + 1 left over */
+  assert.equal(r.ok,false);
+  assert.equal(r.nearest,70);
+  assert.equal(C.plateBreakdown(72,20,[25,20,15,10,5,2.5,1]).ok,true);
+  assert.deepEqual(C.plateBreakdown(30,15,[5,2.5]).perSide,[5,2.5]);   /* 15 kg bar */
+});
+
+/* ---------- supersets ---------- */
+test("exOpt/setExOpt keep the tuple tidy",()=>{
+  const e=["A","6–8",1];
+  C.setExOpt(e,"ss",1);assert.deepEqual(e,["A","6–8",1,{ss:1}]);
+  assert.equal(C.exOpt(e,"ss"),1);
+  C.setExOpt(e,"ss",0);assert.deepEqual(e,["A","6–8",1]);
+  assert.equal(C.exOpt(e,"ss"),0);
+});
+test("pairOf pairs a flagged slot with the next one, both ways",()=>{
+  const exs=[["A","6–8",1,{ss:1}],["B","10–12",0],["C","10–12",0]];
+  assert.equal(C.pairOf(exs,0),1);
+  assert.equal(C.pairOf(exs,1),0);
+  assert.equal(C.pairOf(exs,2),-1);
+});
+test("normaliseSupersets clears flags on the last slot and on chains",()=>{
+  const exs=[["A","6–8",1,{ss:1}],["B","10–12",0,{ss:1}],["C","10–12",0],["D","10–12",0,{ss:1}]];
+  C.normaliseSupersets(exs);
+  assert.equal(C.exOpt(exs[0],"ss"),1);
+  assert.equal(C.exOpt(exs[1],"ss"),0,"B follows a flagged slot, so it cannot start a pair");
+  assert.equal(C.exOpt(exs[3],"ss"),0,"last slot has nothing to pair with");
+  assert.equal(C.pairOf(exs,2),-1);
+  assert.equal(C.pairOf(exs,1),0);
+});
+
+/* ---------- programme edits ---------- */
+function fixture(){
+  const s=i=>[{kg:10*i,reps:5,name:"L"+i}];
+  return{
+    logs:{"1-A":{date:"2026-01-01",ex:{0:s(0),1:s(1),2:s(2)}},"2-A":{date:"2026-01-08",ex:{1:s(1)}}},
+    swaps:{"A-1":"Swapped","A-2":"Other","B-0":"Untouched"}
+  };
+}
+test("remapSlots: removing a slot shifts logs and swaps together",()=>{
+  const {logs,swaps}=fixture();
+  C.remapSlots(logs,swaps,"A",3,a=>{a.splice(0,1);return a},6);
+  assert.deepEqual(Object.keys(logs["1-A"].ex),["0","1"]);
+  assert.equal(logs["1-A"].ex[0][0].name,"L1");
+  assert.equal(logs["1-A"].ex[1][0].name,"L2");
+  assert.equal(logs["2-A"].ex[0][0].name,"L1");
+  assert.deepEqual(swaps,{"A-0":"Swapped","A-1":"Other","B-0":"Untouched"});
+});
+test("remapSlots: swapping two slots keeps history attached to its lift",()=>{
+  const {logs,swaps}=fixture();
+  C.remapSlots(logs,swaps,"A",3,a=>{const t=a[0];a[0]=a[1];a[1]=t;return a},6);
+  assert.equal(logs["1-A"].ex[0][0].name,"L1");
+  assert.equal(logs["1-A"].ex[1][0].name,"L0");
+  assert.equal(swaps["A-0"],"Swapped");
+  assert.equal(swaps["A-1"],undefined);
+  assert.equal(swaps["A-2"],"Other");
+});
+
+/* ---------- progression ---------- */
+test("stallStreak counts consecutive non-improving weeks",()=>{
+  const wk=e=>new Map([["Back Squat",{top:{e}}]]);
+  assert.equal(C.stallStreak("Back Squat",3,{1:wk(100),2:wk(100),3:wk(100)}),2);
+  assert.equal(C.stallStreak("Back Squat",3,{1:wk(100),2:wk(105),3:wk(110)}),0);
+  assert.equal(C.stallStreak("Back Squat",3,{1:wk(110),2:wk(105),3:wk(105)}),2);
+  assert.equal(C.stallStreak("Back Squat",4,{1:wk(100),3:wk(100),4:wk(100)}),2,"skips weeks with no data");
+  assert.equal(C.stallStreak("Nope",3,{1:wk(100)}),0);
+});
+
+/* ---------- migration ---------- */
+test("migrate fills every field from an empty save",()=>{
+  const d=C.migrate({},D.DEFAULT_DAYS,D.DEFAULT_SETTINGS,D.DEFAULT_PLAN,D.PHASES);
+  assert.equal(d.block,1);
+  assert.deepEqual(d.logs,{});
+  assert.deepEqual(d.programme,D.DEFAULT_DAYS);
+  assert.notEqual(d.programme,D.DEFAULT_DAYS,"programme must be a copy, not the shared default");
+  assert.deepEqual(d.settings,D.DEFAULT_SETTINGS);
+  assert.deepEqual(d.lifts,{});
+  assert.deepEqual(d.plan,D.DEFAULT_PLAN);
+  assert.equal(d.updatedAt,0);
+  assert.deepEqual(d.sync,{});
+});
+test("migrate gives archived blocks a plan and keeps a valid custom plan",()=>{
+  const d=C.migrate({archive:[{block:1,logs:{}}],plan:{name:"Short",weeks:[{phase:"Build",comp:3,acc:3,rir:"2"},{phase:"Peak",comp:4,acc:3,rir:"1"}]}},D.DEFAULT_DAYS,D.DEFAULT_SETTINGS,D.DEFAULT_PLAN,D.PHASES);
+  assert.equal(d.plan.name,"Short");
+  assert.equal(d.plan.weeks.length,2);
+  assert.deepEqual(d.archive[0].plan,D.DEFAULT_PLAN);
+});
+test("migrate keeps user settings and fills only what is missing",()=>{
+  const d=C.migrate({logs:{},settings:{bar:15,rest:{comp:120}}},D.DEFAULT_DAYS,D.DEFAULT_SETTINGS,D.DEFAULT_PLAN,D.PHASES);
+  assert.equal(d.settings.bar,15);
+  assert.equal(d.settings.rest.comp,120);
+  assert.equal(d.settings.rest.acc,90);
+  assert.equal(d.settings.rest.super,30);
+  assert.equal(d.settings.theme,"dark");
+  assert.deepEqual(d.settings.plates,D.DEFAULT_SETTINGS.plates);
+  assert.equal(C.migrate({settings:{theme:"auto"}},D.DEFAULT_DAYS,D.DEFAULT_SETTINGS,D.DEFAULT_PLAN,D.PHASES).settings.theme,"auto");
+  assert.equal(C.migrate({settings:{theme:"neon"}},D.DEFAULT_DAYS,D.DEFAULT_SETTINGS,D.DEFAULT_PLAN,D.PHASES).settings.theme,"dark");
+  const bad=C.migrate({settings:{bar:-1,plates:[]}},D.DEFAULT_DAYS,D.DEFAULT_SETTINGS,D.DEFAULT_PLAN,D.PHASES);
+  assert.equal(bad.settings.bar,20);
+  assert.equal(bad.settings.plates.length>0,true);
+});
+test("migrate folds the legacy single-slot prev into the archive",()=>{
+  const d=C.migrate({block:3,prev:{"1-A":{ex:{}}},swaps:{"A-0":"X"}},D.DEFAULT_DAYS,D.DEFAULT_SETTINGS,D.DEFAULT_PLAN,D.PHASES);
+  assert.equal("prev" in d,false);
+  assert.equal(d.archive.length,1);
+  assert.equal(d.archive[0].block,2);
+  assert.deepEqual(d.archive[0].swaps,{"A-0":"X"});
+});

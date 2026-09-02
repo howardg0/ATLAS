@@ -1,15 +1,19 @@
 {
   "name": "ATLAS — Training Log",
   "short_name": "ATLAS",
-  "description": "Strength training log: periodised blocks, a 65-lift encyclopedia with muscle maps, week-by-week progression and coaching.",
+  "description": "Strength training log: configurable periodised blocks, a 130-lift encyclopedia with muscle maps, week-by-week progression and coaching.",
   "id": "./",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#0A0B0F",
   "theme_color": "#0A0B0F",
   "categories": ["health", "fitness", "sports"],
+  "shortcuts": [
+    { "name": "Start next session", "short_name": "Next session", "url": "./index.html?start",
+      "icons": [ { "src": "icon-192.png", "sizes": "192x192" } ] }
+  ],
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
