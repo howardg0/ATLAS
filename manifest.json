@@ -1,7 +1,7 @@
 {
   "name": "ATLAS — Training Log",
   "short_name": "ATLAS",
-  "description": "Strength training log: configurable periodised blocks, a 130-lift encyclopedia with muscle maps, week-by-week progression and coaching.",
+  "description": "Strength training log: build your own programme or start from a template, configurable periodised blocks, a 130-lift encyclopedia with muscle maps, week-by-week progression and coaching.",
   "id": "./",
   "start_url": "./index.html",
   "scope": "./",

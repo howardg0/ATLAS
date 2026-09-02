@@ -50,22 +50,44 @@ function fmtSet(s,short){
 
 /* ---------- block plan ---------- */
 function clampInt(v,lo,hi,dflt){v=parseInt(v);return isNaN(v)?dflt:Math.max(lo,Math.min(hi,v))}
-/* Returns a clean plan, or a copy of `fallback` when the input is unusable */
+/* Returns a clean plan, or a copy of `fallback` when the input is unusable.
+   Block plans have 2 to 12 weeks. Open plans (open:true) have exactly two
+   week definitions, hard then light, plus the cadence of the light week. */
 function validatePlan(p,fallback,phases){
   if(!p||!Array.isArray(p.weeks)||p.weeks.length<2||p.weeks.length>12)return clone(fallback);
-  const weeks=p.weeks.map(w=>({
+  const cleanWeek=w=>({
     phase:phases.includes(w&&w.phase)?w.phase:"Build",
     comp:clampInt(w&&w.comp,1,8,3),acc:clampInt(w&&w.acc,0,8,3),
-    rir:normaliseRange(w&&w.rir!=null?w.rir:"2")||"2"}));
-  return{name:String((p.name||"Custom")).slice(0,40),weeks};
+    rir:normaliseRange(w&&w.rir!=null?w.rir:"2")||"2"});
+  if(p.open){
+    return{name:String((p.name||"Open-ended")).slice(0,40),open:true,
+      every:clampInt(p.every,2,12,6),lightOffset:clampInt(p.lightOffset,0,999,0),
+      startDate:/^\d{4}-\d{2}-\d{2}$/.test(p.startDate||"")?p.startDate:null,
+      weeks:[cleanWeek(p.weeks[0]),cleanWeek(p.weeks[1])]};
+  }
+  return{name:String((p.name||"Custom")).slice(0,40),weeks:p.weeks.map(cleanWeek)};
 }
-const planWeeks=plan=>plan.weeks.length;
-const planWeek=(plan,w)=>plan.weeks[Math.min(w,plan.weeks.length)-1];
+/* Light weeks fall every `every` weeks, pushed later by lightOffset (postponements) */
+function isLightWeek(plan,w){if(!plan.open)return false;const x=w-(plan.lightOffset||0);return x>0&&x%(plan.every||6)===0}
+function nextLightWeek(plan,fromW){let w=Math.max(1,fromW);while(!isLightWeek(plan,w))w++;return w}
+const planWeeks=plan=>plan.open?Infinity:plan.weeks.length;
+const planWeek=(plan,w)=>plan.open?plan.weeks[isLightWeek(plan,w)?1:0]:plan.weeks[Math.min(w,plan.weeks.length)-1];
+/* calendar weeks, Monday start: which week of an open plan today falls in */
+function isoDate(d){const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
+function mondayOf(dateStr){const d=new Date(dateStr+"T12:00:00");d.setDate(d.getDate()-((d.getDay()+6)%7));return d}
+function calendarWeek(startDate,today){
+  if(!startDate)return 1;
+  const t=typeof today==="string"?today:isoDate(today);
+  return Math.max(1,Math.round((mondayOf(t)-mondayOf(startDate))/(7*86400e3))+1);
+}
+/* highest week number that has any set logged (0 when empty) */
+function maxLoggedWeek(logs){let m=0;for(const k of Object.keys(logs||{})){const w=parseInt(k);if(w>m)m=w}return m}
 const isDeload=(plan,w)=>planWeek(plan,w).phase==="Deload";
 /* Which weeks of an old block to look at first for "last time": the heaviest
    ones — latest non-deload week first, deloads last. */
-function historyOrder(plan){
-  const ws=[];for(let w=planWeeks(plan);w>=1;w--)ws.push(w);
+function historyOrder(plan,logs){
+  const n=plan.open?maxLoggedWeek(logs):planWeeks(plan);
+  const ws=[];for(let w=n;w>=1;w--)ws.push(w);
   return [...ws.filter(w=>!isDeload(plan,w)),...ws.filter(w=>isDeload(plan,w))];
 }
 
@@ -212,6 +234,7 @@ function migrate(d,defaultDays,defaultSettings,defaultPlan,phases){
   }
   d.updatedAt=d.updatedAt||0;
   d.sync=d.sync||{};
+  d.programmeName=d.programmeName||"ATLAS full body";
   /* single-slot `prev` used to be the only archive — fold it in so it stops
      being overwritten (and lost) on the next block rollover */
   if(d.prev){
@@ -223,5 +246,5 @@ function migrate(d,defaultDays,defaultSettings,defaultPlan,phases){
 }
 
 if(typeof module!=="undefined"&&module.exports)module.exports={clone,logKey,parseRange,repTop,repBottom,normaliseRange,fmtKg,snapStep,
-  e1rm,setScore,setTonnage,fmtSet,validatePlan,planWeeks,planWeek,isDeload,historyOrder,syncDecision,exNameIn,setName,incrementFor,restFor,isUnilateral,plateBreakdown,
+  e1rm,setScore,setTonnage,fmtSet,validatePlan,planWeeks,planWeek,isDeload,isLightWeek,nextLightWeek,isoDate,mondayOf,calendarWeek,maxLoggedWeek,historyOrder,syncDecision,exNameIn,setName,incrementFor,restFor,isUnilateral,plateBreakdown,
   exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate};

@@ -91,6 +91,52 @@ test("every preset is valid as-is",()=>{
   }
 });
 
+/* ---------- open-ended plans ---------- */
+test("validatePlan keeps an open plan's shape and clamps its cadence",()=>{
+  const v=C.validatePlan({name:"Go",open:true,every:99,lightOffset:-3,startDate:"2026-09-07",weeks:[{phase:"Build",comp:3,acc:3,rir:"0-1"},{phase:"Deload",comp:2,acc:2,rir:"2–3"}]},D.DEFAULT_PLAN,D.PHASES);
+  assert.equal(v.open,true);
+  assert.equal(v.every,12);
+  assert.equal(v.lightOffset,0);
+  assert.equal(v.startDate,"2026-09-07");
+  assert.equal(v.weeks.length,2);
+  assert.equal(v.weeks[0].rir,"0–1");
+  assert.equal(C.validatePlan({open:true,startDate:"nonsense",weeks:[{},{}]},D.DEFAULT_PLAN,D.PHASES).startDate,null);
+  assert.deepEqual(C.validatePlan(D.PHYSIQUE_PLAN,D.DEFAULT_PLAN,D.PHASES),D.PHYSIQUE_PLAN,"the shipped open plan is already clean");
+});
+test("light weeks land on the cadence and move when postponed",()=>{
+  const P={open:true,every:6,lightOffset:0,weeks:[{phase:"Build"},{phase:"Deload"}]};
+  assert.deepEqual([1,5,6,7,12,13].map(w=>C.isLightWeek(P,w)),[false,false,true,false,true,false]);
+  assert.equal(C.nextLightWeek(P,1),6);
+  assert.equal(C.nextLightWeek(P,6),6);
+  assert.equal(C.nextLightWeek(P,7),12);
+  const Q={...P,lightOffset:1};
+  assert.deepEqual([6,7,13].map(w=>C.isLightWeek(Q,w)),[false,true,true]);
+  assert.equal(C.planWeek(P,6).phase,"Deload");
+  assert.equal(C.planWeek(P,47).phase,"Build");
+  assert.equal(C.isDeload(P,12),true);
+  assert.equal(C.planWeeks(P),Infinity);
+  assert.equal(C.isLightWeek(D.DEFAULT_PLAN,6),false,"block plans never report light weeks");
+});
+test("calendar weeks start on Monday and count from the start week",()=>{
+  assert.equal(C.isoDate(C.mondayOf("2026-09-02")),"2026-08-31","Wednesday → that week's Monday");
+  assert.equal(C.isoDate(C.mondayOf("2026-08-31")),"2026-08-31","Monday stays");
+  assert.equal(C.isoDate(C.mondayOf("2026-09-06")),"2026-08-31","Sunday belongs to the week that began the Monday before");
+  assert.equal(C.calendarWeek("2026-08-31","2026-08-31"),1);
+  assert.equal(C.calendarWeek("2026-08-31","2026-09-06"),1);
+  assert.equal(C.calendarWeek("2026-08-31","2026-09-07"),2);
+  assert.equal(C.calendarWeek("2026-09-02","2026-09-08"),2,"a mid-week start still makes that week 1");
+  assert.equal(C.calendarWeek("2026-08-31","2026-12-25"),17);
+  assert.equal(C.calendarWeek("2026-08-31","2026-08-01"),1,"before the start is clamped to 1");
+  assert.equal(C.calendarWeek(null,"2026-09-02"),1);
+});
+test("maxLoggedWeek and historyOrder handle open plans",()=>{
+  assert.equal(C.maxLoggedWeek({}),0);
+  assert.equal(C.maxLoggedWeek({"3-A":{},"11-C":{},"7-B":{}}),11);
+  const P={open:true,every:6,lightOffset:0,weeks:[{phase:"Build"},{phase:"Deload"}]};
+  assert.deepEqual(C.historyOrder(P,{"7-A":{},"6-A":{},"5-A":{},"1-A":{}}),[7,5,4,3,2,1,6],"latest hard weeks first, light weeks last");
+  assert.deepEqual(C.historyOrder(D.DEFAULT_PLAN,{}),[5,4,3,2,1,6],"block plans ignore logs");
+});
+
 /* ---------- Drive sync ---------- */
 test("syncDecision: newer wins, empty phone never overwrites, missing file gets uploaded",()=>{
   assert.equal(C.syncDecision(10,0,false,false),"upload");
@@ -218,6 +264,7 @@ test("migrate fills every field from an empty save",()=>{
   assert.deepEqual(d.plan,D.DEFAULT_PLAN);
   assert.equal(d.updatedAt,0);
   assert.deepEqual(d.sync,{});
+  assert.equal(d.programmeName,"ATLAS full body");
 });
 test("migrate gives archived blocks a plan and keeps a valid custom plan",()=>{
   const d=C.migrate({archive:[{block:1,logs:{}}],plan:{name:"Short",weeks:[{phase:"Build",comp:3,acc:3,rir:"2"},{phase:"Peak",comp:4,acc:3,rir:"1"}]}},D.DEFAULT_DAYS,D.DEFAULT_SETTINGS,D.DEFAULT_PLAN,D.PHASES);

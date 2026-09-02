@@ -62,6 +62,31 @@ test("block plan presets are well-formed",()=>{
     }
   }
 });
+test("programme templates only use real lifts and valid tuples",()=>{
+  assert.ok(D.PROGRAMME_TEMPLATES.length>=3);
+  const ids=new Set();
+  for(const t of D.PROGRAMME_TEMPLATES){
+    assert.ok(t.id&&t.name&&t.tag&&t.desc,"template metadata");
+    assert.ok(!ids.has(t.id),"duplicate id "+t.id);ids.add(t.id);
+    const days=Object.keys(t.programme);
+    assert.ok(days.length>=1&&days.length<=8,t.id+": day count");
+    for(const d of days){
+      assert.match(d,/^[A-H]$/,t.id+": day id "+d);
+      assert.ok(t.programme[d].title,t.id+": day title");
+      for(const e of t.programme[d].ex){
+        assert.ok(e[0] in D.EXDB,t.id+" day "+d+": unknown lift "+e[0]);
+        assert.match(e[1],/^\d+(–\d+)?$/,t.id+": rep range "+e[1]);
+        assert.ok(e[2]===0||e[2]===1,t.id+": compound flag");
+      }
+    }
+  }
+  assert.ok(D.PROGRAMME_TEMPLATES.some(t=>t.programme===D.DEFAULT_DAYS),"the default programme is one of the templates");
+  const phys=D.PROGRAMME_TEMPLATES.find(t=>t.id==="physique");
+  assert.ok(phys&&phys.plan&&phys.plan.open,"the physique template carries an open plan");
+  assert.equal(Object.keys(phys.programme).length,6);
+  for(const day of Object.values(phys.programme))for(const e of day.ex)if(e[3]&&e[3].sets)assert.ok(e[3].sets>=1&&e[3].sets<=8,"pinned sets in range");
+  assert.ok(D.PROGRAMME_TEMPLATES.some(t=>Object.values(t.programme).every(day=>day.ex.length===0)),"there is an empty starting point");
+});
 test("isBarbellLift follows the equipment field",()=>{
   assert.equal(D.isBarbellLift("Back Squat"),true);
   assert.equal(D.isBarbellLift("Leg Press"),false);

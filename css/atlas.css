@@ -704,3 +704,29 @@ body.in-session .toast{bottom:calc(var(--dock-h,300px) + 14px)}
 .timerbtn.running{border-color:var(--gold);color:var(--gold);background:rgba(242,180,65,.12)}
 .setdock .timerbtn{margin-top:10px}
 #set-drive .searchbar{font-size:.8rem;padding:12px 13px}
+
+/* ================= 6.5 · TEMPLATES · DAYS D–H ================= */
+.daycard.dD .dayletter{color:#A78BFA;background:rgba(167,139,250,.14)} .daycard.dD .dayprog i{background:#A78BFA} .hero.dD .hkick{color:#A78BFA}
+.daycard.dE .dayletter{color:#2DD4BF;background:rgba(45,212,191,.14)} .daycard.dE .dayprog i{background:#2DD4BF} .hero.dE .hkick{color:#2DD4BF}
+.daycard.dF .dayletter{color:#F472B6;background:rgba(244,114,182,.14)} .daycard.dF .dayprog i{background:#F472B6} .hero.dF .hkick{color:#F472B6}
+.daycard.dG .dayletter{color:#FB923C;background:rgba(251,146,60,.14)} .daycard.dG .dayprog i{background:#FB923C} .hero.dG .hkick{color:#FB923C}
+.daycard.dH .dayletter{color:#86EFAC;background:rgba(134,239,172,.14)} .daycard.dH .dayprog i{background:#86EFAC} .hero.dH .hkick{color:#86EFAC}
+.introcard .librow{margin-bottom:8px}
+.introcard .librow:last-child{margin-bottom:0}
+
+/* ================= 6.6 · OPEN-ENDED PLANS ================= */
+.weekcell.future{opacity:.45}
+.weekcell.now{border-color:rgba(243,245,250,.28)}
+.weekcell.now.sel{border-color:var(--ember)}
+.daystate.missed{color:var(--ink-faint);text-decoration:line-through;text-decoration-color:rgba(255,90,78,.5)}
+.daystate.today{color:var(--ink)}
+.weekmeta .pill{cursor:pointer}
+.progex input.perange.sets{width:52px}
+.progex input.perange::placeholder{color:var(--ink-faint);font-weight:500}
+.planrow.open{grid-template-columns:52px minmax(0,1fr) 44px 44px 56px 0}
+.planrow.open .wn{font-size:.82rem;color:var(--ink)}
+/* editor rows: rep range + pinned sets + flags + arrows must fit 375px */
+.progex input.perange{width:56px;font-size:.76rem;padding:7px 0}
+.progex input.perange.sets{width:42px}
+.progex .pill{padding:5px 7px;font-size:.56rem}
+.progex .miniBtn{width:30px;height:30px}

@@ -6,7 +6,7 @@
    address of every logged set on the device. */
 const KEY="block-log-v2";
 /* Keep in step with CACHE in sw.js and the ?v= stamps in index.html (tests/version.test.js checks) */
-const APP_VERSION="6.4";
+const APP_VERSION="6.6";
 let restEnd=0,restTick=null,restDur=1,restLabel="",restHintTxt="";
 let S=null;
 const migrateDb=d=>migrate(d,DEFAULT_DAYS,DEFAULT_SETTINGS,DEFAULT_PLAN,PHASES);
@@ -14,16 +14,33 @@ let db=migrateDb(load());
 /* The live programme is db.programme (editable); DAYS points at it after init. */
 let DAYS=DEFAULT_DAYS;
 const dayIds=()=>Object.keys(DAYS);
-/* the block plan: weeks, phases, set counts, RIR (db.plan; archived blocks carry their own) */
-const WEEKS=()=>db.plan.weeks.length;
+/* the plan: weeks, phases, set counts, RIR (db.plan; archived blocks carry their own).
+   Block plans have a fixed length. Open plans count calendar weeks from startDate
+   forever, so "WEEKS" is a horizon: the later of this week and the last logged
+   week, plus one to look ahead. */
+const isOpen=()=>!!db.plan.open;
+const WEEKDAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const todayISO=()=>isoDate(new Date());
+function curWeek(){return isOpen()?calendarWeek(db.plan.startDate,todayISO()):db.selWeek}
+const WEEKS=()=>isOpen()?Math.max(curWeek(),maxLoggedWeek(db.logs),1)+1:db.plan.weeks.length;
 const wk=w=>planWeek(db.plan,w);
 const phaseOf=w=>wk(w).phase,rirOf=w=>wk(w).rir,deloadWeek=w=>phaseOf(w)==="Deload";
+const phaseLabel=w=>isOpen()?(deloadWeek(w)?"Light week":"Hard week"):phaseOf(w);
 const weekNums=()=>Array.from({length:WEEKS()},(_,i)=>i+1);
-const blockComplete=()=>weekNums().every(weekComplete);
+const blockComplete=()=>!isOpen()&&weekNums().every(weekComplete);
+/* the weeks a strip or chart shows: everything for a block, a rolling window for an open plan */
+function weekWindow(focus){
+  if(!isOpen())return weekNums();
+  const hi=Math.max(focus||0,curWeek())+1,lo=Math.max(1,hi-7);
+  return Array.from({length:hi-lo+1},(_,i)=>lo+i);
+}
+/* weekday for a day slot in an open plan (fixed days, Monday first) */
+function dayWeekday(d){const i=dayIds().indexOf(d);return isOpen()&&dayIds().length<=7&&i>=0?WEEKDAYS[i]:""}
+const todayIdx=()=>(new Date().getDay()+6)%7;
 /* rough pacing: compounds are slower than accessories */
 function estMinutes(w,d){
   let m=6;
-  for(const e of DAYS[d].ex)m+=setsFor(w,e[2])*(e[2]?3.4:2.3);
+  DAYS[d].ex.forEach((e,i)=>{m+=slotSets(w,d,i)*(e[2]?3.4:2.3)});
   return Math.round(m/5)*5;
 }
 function load(){
@@ -41,6 +58,8 @@ function load(){
 /* every archived block carries the programme and swaps it was run under, so
    history resolves names against the programme in force at the time */
 function blockCtx(){return{programme:db.programme,swaps:db.swaps,block:db.block,plan:db.plan}}
+/* how many weeks an archived or current block spans (open plans: as far as was logged) */
+function blockWeeks(B){const p=B.plan||DEFAULT_PLAN;return p.open?maxLoggedWeek(B.logs):planWeeks(p)}
 function allBlocks(){return db.archive.concat([{block:db.block,logs:db.logs,programme:db.programme,swaps:db.swaps,plan:db.plan}])}
 /* localStorage is the working copy; IndexedDB is a durable mirror that survives
    most storage evictions, so years of logs don't hinge on one fragile store */
@@ -84,7 +103,9 @@ function bumpEl(id,step){
   el.value=v;
 }
 function setsFor(w,isComp){return isComp?wk(w).comp:wk(w).acc}
-function totalSets(w,d){return DAYS[d].ex.reduce((a,e)=>a+setsFor(w,e[2]),0)}
+/* a slot can pin its own set count ({sets:n}); light weeks scale it to about 60% */
+function slotSets(w,d,i){const e=DAYS[d].ex[i];const o=exOpt(e,"sets");if(o)return deloadWeek(w)?Math.max(1,Math.round(o*0.6)):o;return setsFor(w,e[2])}
+function totalSets(w,d){return DAYS[d].ex.reduce((a,e,i)=>a+slotSets(w,d,i),0)}
 function loggedSets(w,d,logs){logs=logs||db.logs;const L=logs[logKey(w,d)];if(!L)return 0;let n=0;for(const ex of Object.values(L.ex||{}))n+=ex.filter(s=>s&&s.kg!=null).length;return n}
 function sessionTonnage(w,d,logs){logs=logs||db.logs;const L=logs[logKey(w,d)];if(!L)return 0;let t=0;for(const ex of Object.values(L.ex||{}))for(const s of ex)if(s&&s.kg!=null)t+=setTonnage(s);return Math.round(t)}
 function ytLink(name){return "https://www.youtube.com/results?search_query="+encodeURIComponent(name+" proper form")}
@@ -105,7 +126,8 @@ function setLiftOpt(name,k,v){
 }
 const COMP_PATTERNS=["Squat","Hinge","Horizontal Push","Vertical Push","Horizontal Pull","Vertical Pull"];
 const isCompPattern=name=>!!(EXDB[name]&&COMP_PATTERNS.includes(EXDB[name].pat));
-function weekComplete(w){return dayIds().every(d=>loggedSets(w,d)>=totalSets(w,d))}
+function weekComplete(w){const ds=dayIds().filter(d=>totalSets(w,d)>0);return ds.length>0&&ds.every(d=>loggedSets(w,d)>=totalSets(w,d))}
+const programmeEmpty=()=>!dayIds().some(d=>DAYS[d].ex.length>0);
 
 /* ---------- in-app confirm (replaces native confirm dialogs) ---------- */
 let CONFIRM=null;
@@ -209,8 +231,10 @@ function ringSVG(n,of){
 function renderHero(){
   const w=db.selWeek;
   let sessDone=0;
-  const totalSess=dayIds().length*WEEKS();
-  for(const ww of weekNums())for(const dd of dayIds())if(loggedSets(ww,dd)>=totalSets(ww,dd))sessDone++;
+  /* ring: the block for block plans; this week for an open plan */
+  const ringWeeks=isOpen()?[w]:weekNums();
+  const totalSess=dayIds().filter(d=>DAYS[d].ex.length).length*ringWeeks.length;
+  for(const ww of ringWeeks)for(const dd of dayIds())if(totalSets(ww,dd)>0&&loggedSets(ww,dd)>=totalSets(ww,dd))sessDone++;
   const q=db.session;
   if(q&&Date.now()-q.t<6*3600e3&&DAYS[q.d]&&loggedSets(q.w,q.d)<totalSets(q.w,q.d)){
     const mins=Math.round((Date.now()-q.t)/60000);
@@ -221,8 +245,18 @@ function renderHero(){
       <div class="hring">${ringSVG(sessDone,totalSess)}</div></button>`;
     return;
   }
+  if(programmeEmpty()){
+    $("hero").innerHTML=`<button class="hero" onclick="go('prog')">
+      <div class="hinfo"><div class="hkick" style="color:var(--plate-blue)">Your programme is empty</div>
+      <div class="hname">Build your first training day</div>
+      <div class="hmeta">Add lifts from the library, set rep ranges, pair supersets. Then come back here to train.</div></div>
+      <div class="hring"><svg viewBox="0 0 24 24" class="gico" style="width:34px;height:34px;color:var(--ink-dim)"><path d="M3.5 8h9M17 8h3.5M3.5 16h3M11 16h9.5"/><circle cx="14.6" cy="8" r="2.4"/><circle cx="7.8" cy="16" r="2.4"/></svg></div></button>`;
+    return;
+  }
   let nd=null;
-  for(const d of dayIds())if(loggedSets(w,d)<totalSets(w,d)){nd=d;break}
+  /* open plan, this week: today's session first if it's still open */
+  if(isOpen()&&w===curWeek()){const td=dayIds()[todayIdx()];if(td&&totalSets(w,td)>0&&loggedSets(w,td)<totalSets(w,td))nd=td}
+  if(!nd)for(const d of dayIds())if(totalSets(w,d)>0&&loggedSets(w,d)<totalSets(w,d)){nd=d;break}
   if(nd){
     const started=loggedSets(w,nd)>0;
     const first=exName(nd,0),h0=prevSession(w,nd,0);
@@ -230,8 +264,8 @@ function renderHero(){
       ?`Starts with <b>${first}</b>${h0?` · last <b>${fmtSet(h0.sets[0])}</b>`:""}`
       :"No lifts on this day yet";
     $("hero").innerHTML=`<button class="hero d${nd}" onclick="shareTitle(this.querySelector('.hname'));showPreview(${w},'${nd}')">
-      <div class="hinfo"><div class="hkick">${started?"Continue":"Next up"} · Week ${w}</div>
-      <div class="hname">Day ${nd} · ${DAYS[nd].title}</div>
+      <div class="hinfo"><div class="hkick">${started?"Continue":(isOpen()&&w===curWeek()&&dayIds()[todayIdx()]===nd?"Today":"Next up")} · Week ${w}${isOpen()&&deloadWeek(w)?" · light":""}</div>
+      <div class="hname">${dayWeekday(nd)?dayWeekday(nd)+" · ":"Day "+nd+" · "}${DAYS[nd].title}</div>
       <div class="hmeta">${started?loggedSets(w,nd)+"/"+totalSets(w,nd)+" sets logged — pick it back up":firstTxt}</div>
       <div class="hmeta2">${DAYS[nd].ex.length} lifts · ${totalSets(w,nd)} sets · ~${estMinutes(w,nd)} min</div></div>
       <div class="hring">${ringSVG(sessDone,totalSess)}</div></button>`;
@@ -239,7 +273,7 @@ function renderHero(){
     $("hero").innerHTML=`<div class="hero">
       <div class="hinfo"><div class="hkick" style="color:var(--plate-green)">Week ${w} complete</div>
       <div class="hname">Every session done ✓</div>
-      <div class="hmeta">${w<WEEKS()?"Select week "+(w+1)+" below to keep rolling":"Block finished — roll over in Settings"}</div></div>
+      <div class="hmeta">${isOpen()?"Next week starts Monday"+(isLightWeek(db.plan,w+1)?" — and it's a light one":""):w<WEEKS()?"Select week "+(w+1)+" below to keep rolling":"Block finished — roll over in Settings"}</div></div>
       <div class="hring">${ringSVG(sessDone,totalSess)}</div></div>`;
   }
 }
@@ -251,12 +285,59 @@ function animateRings(){requestAnimationFrame(()=>requestAnimationFrame(()=>
   document.querySelectorAll(".rfgc").forEach(c=>c.style.strokeDashoffset=c.dataset.to)))}
 const INSTALL={prompt:null};
 const isStandalone=()=>matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+function templateRowsHTML(onpick){
+  return PROGRAMME_TEMPLATES.map(t=>`<button class="librow" onclick="${onpick}('${t.id}')">
+    <div class="linfo"><div class="lname">${t.name}</div><div class="lmeta">${t.tag}</div>
+    <div class="lmeta" style="margin-top:5px;line-height:1.45">${t.desc}</div></div>
+    <svg viewBox="0 0 24 24" class="chev"><path d="M9.6 5.4 16.2 12l-6.6 6.6"/></svg></button>`).join("");
+}
+function applyTemplate(id){
+  const t=PROGRAMME_TEMPLATES.find(x=>x.id===id);if(!t)return;
+  db.programme=clone(t.programme);db.swaps={};db.programmeName=t.name;db.templateChosen=1;
+  DAYS=db.programme;for(const d of dayIds())normaliseSupersets(DAYS[d].ex);
+  if(t.plan){
+    db.plan=validatePlan(clone(t.plan),DEFAULT_PLAN,PHASES);
+    if(db.plan.open){db.plan.startDate=isoDate(mondayOf(todayISO()));db.autoWeekFor=null}   /* this calendar week is week 1 */
+  }else if(isOpen())db.plan=clone(DEFAULT_PLAN);   /* a block template replaces an open plan with the default block */
+  db.selWeek=isOpen()?curWeek():1;
+  save();
+}
+/* first run: pick a starting point */
+function chooseTemplate(id){
+  applyTemplate(id);tap(8);
+  if(id==="blank"){go("prog");toast("Add your first lift with + Add exercise")}
+  else{renderHome();toast(db.programmeName+" loaded")}
+}
+/* later: Settings → Start from a template */
+async function pickTemplate(){
+  chooseSheet("Start from a template","Replaces every day and lift in the programme. Sets you've logged stay in your history and records.",
+    PROGRAMME_TEMPLATES.map(t=>({label:`${t.name} · ${t.tag}`,value:t.id})),async id=>{
+      const t=PROGRAMME_TEMPLATES.find(x=>x.id===id);
+      if(Object.keys(db.logs).length){
+        if(!await ask({title:"Archive this block and switch?",
+          body:`Everything logged so far is filed in the archive (kept for records, progression and history). <b>${esc(t.name)}</b> then starts fresh${t.plan&&t.plan.open?" with this calendar week as week 1":" at week 1"}.`,
+          ok:"Archive and switch"}))return;
+        archiveCurrent();
+      }
+      applyTemplate(id);renderSettings();toast(db.programmeName+" loaded");
+      if(id==="blank")go("prog");
+    });
+}
 function homeCards(){
   let html="";
-  if(!db.seenIntro&&!Object.keys(db.logs).length&&!db.archive.length)
+  const fresh=!Object.keys(db.logs).length&&!db.archive.length;
+  if(fresh&&!db.templateChosen){
+    $("home-cards").innerHTML=`<div class="introcard"><h3>Choose a starting point</h3>
+      <p class="hsets" style="margin:-4px 0 12px">Every one of these can be edited afterwards: days, lifts, rep ranges, block length.</p>
+      ${templateRowsHTML("chooseTemplate")}</div>`;
+    return;
+  }
+  if(!db.seenIntro&&fresh)
     html+=`<div class="introcard"><h3>How ATLAS works</h3>
-      <div class="introstep"><span class="n">1</span><div><b>Six-week blocks</b><p>Two weeks to re-groove, two to build, one to peak, one to deload. Sets per lift rise with the week.</p></div></div>
-      <div class="introstep"><span class="n">2</span><div><b>RIR is your effort dial</b><p>Reps in reserve. 3 RIR means stop three reps short of failure. The target tightens as the block goes on.</p></div></div>
+      ${isOpen()
+        ?`<div class="introstep"><span class="n">1</span><div><b>An open-ended plan</b><p>Weeks count up from this Monday and never reset. Hard weeks are every set to ${esc(rirOf(1))} RIR; every ${db.plan.every}th week is light: same weights, fewer sets. Postpone it from the Plan screen if you're flying.</p></div></div>`
+        :`<div class="introstep"><span class="n">1</span><div><b>Training in blocks</b><p>Sets and intensity climb week by week, then a deload. The default block is six weeks; change the length and phases under Programme → Block structure.</p></div></div>`}
+      <div class="introstep"><span class="n">2</span><div><b>RIR is your effort dial</b><p>Reps in reserve. ${isOpen()?"0 to 1 RIR means every set ends at, or one rep before, failure. Stop a heavy compound at 1 when form goes, not muscle.":"3 RIR means stop three reps short of failure. The target tightens as the block goes on."}</p></div></div>
       <div class="introstep"><span class="n">3</span><div><b>The coach picks the weight</b><p>Hit the top of the rep range on every set and it tells you to add load. Miss it and you chase reps at the same weight.</p></div></div>
       <button class="bigbtn ghost" onclick="db.seenIntro=1;save();renderHome()">Got it</button></div>`;
   if(INSTALL.prompt&&!db.hideInstall&&!isStandalone())
@@ -279,20 +360,27 @@ function backupNudgeHTML(minDays){
     <span>${days===null?"No backup yet":"Last backup "+days+" days ago"} — your history lives only on this phone. <b>Back up now</b></span></button>`;
 }
 function renderHome(){
-  $("home-eyebrow").textContent="Block "+db.block+" · "+WEEKS()+" Weeks";
+  /* open plan: follow the calendar once a day, but let a manual week choice stand for the rest of that day */
+  if(isOpen()&&db.autoWeekFor!==todayISO()){db.selWeek=curWeek();db.autoWeekFor=todayISO();save({quiet:true})}
+  $("home-eyebrow").textContent=isOpen()?"Ongoing · Week "+curWeek():"Block "+db.block+" · "+WEEKS()+" Weeks";
+  const nd=dayIds().length;
+  $("brand-sub").textContent=`${db.programmeName||"Custom programme"} · ${nd} day${nd===1?"":"s"} a week · double progression`;
   homeCards();
   /* the wordmark earns its space once, then gets out of the way */
   const training=Object.keys(db.logs).length>0||db.archive.length>0;
   $("brand").classList.toggle("compact",training);
   renderHero();
   const wr=$("weekrow");wr.innerHTML="";
-  wr.style.gridTemplateColumns=`repeat(${WEEKS()},1fr)`;
-  for(const w of weekNums()){
+  const ws=weekWindow(db.selWeek);
+  wr.style.gridTemplateColumns=`repeat(${ws.length},1fr)`;
+  for(const w of ws){
     const c=document.createElement("button");c.className="weekcell";
     if(weekComplete(w))c.classList.add("done");
     if(w===db.selWeek)c.classList.add("sel");
-    c.title="Week "+w+" · "+phaseOf(w);
-    c.setAttribute("aria-label","Week "+w+", "+phaseOf(w)+(weekComplete(w)?", complete":""));
+    if(isOpen()&&w>curWeek())c.classList.add("future");
+    if(isOpen()&&w===curWeek())c.classList.add("now");
+    c.title="Week "+w+" · "+phaseLabel(w);
+    c.setAttribute("aria-label","Week "+w+", "+phaseLabel(w)+(weekComplete(w)?", complete":""));
     c.setAttribute("aria-pressed",w===db.selWeek);
     c.innerHTML=`<div class="wnum">${w}</div><div class="wbar" style="background:${PHASE_COLOR[phaseOf(w)]}"></div>`;
     c.onclick=()=>{tap(6);db.selWeek=w;save();renderHome()};
@@ -300,25 +388,41 @@ function renderHome(){
   }
   if(db.selWeek>WEEKS()){db.selWeek=WEEKS();save()}
   const w=db.selWeek;
-  $("weekmeta").innerHTML=`Week ${w} of ${WEEKS()} · <b>${phaseOf(w)}</b> · target <b>${rirOf(w)} RIR</b> · compounds ${wk(w).comp} sets, accessories ${wk(w).acc}`;
+  const nl=isOpen()?nextLightWeek(db.plan,curWeek()):0;
+  const canPostpone=isOpen()&&!weekHasLogs(nl)&&(w===curWeek()||(deloadWeek(w)&&w>=curWeek()));
+  $("weekmeta").innerHTML=(isOpen()
+      ?`Week ${w}${w===curWeek()?" · this week":w<curWeek()?" · past":" · upcoming"} · <b>${phaseLabel(w)}</b> · target <b>${rirOf(w)} RIR</b> · ${deloadWeek(w)?"same weights, fewer sets":"compounds "+wk(w).comp+" sets, accessories "+wk(w).acc}`
+       +(!deloadWeek(w)?` · next light week <b>W${nextLightWeek(db.plan,w+1)}</b>`:"")
+      :`Week ${w} of ${WEEKS()} · <b>${phaseOf(w)}</b> · target <b>${rirOf(w)} RIR</b> · compounds ${wk(w).comp} sets, accessories ${wk(w).acc}`)
+    +(canPostpone?` <button class="pill ss" style="margin-left:6px;vertical-align:middle" onclick="postponeLight()">Postpone${deloadWeek(w)?"":" W"+nl}</button>`:"");
   const dl=$("daylist");dl.innerHTML="";
   for(const d of dayIds()){
     const total=totalSets(w,d),done=loggedSets(w,d);
     const card=document.createElement("button");card.className="daycard d"+d;
     let state="",cls="";
-    if(done>=total){state="Done ✓";cls="done"}
+    const isToday=isOpen()&&w===curWeek()&&dayIds()[todayIdx()]===d;
+    if(total===0)state="No lifts yet";
+    else if(done>=total){state="Done ✓";cls="done"}
     else if(done>0){state=done+"/"+total+" sets";cls="part"}
+    else if(isOpen()&&w<curWeek()){state="Missed";cls="missed"}
+    else if(isToday){state="Today · "+total+" sets";cls="today"}
+    else if(isOpen()&&w>curWeek())state="Upcoming · "+total+" sets";
     else state=total+" sets";
     const pct=total?Math.round(100*done/total):0;
     card.innerHTML=`<div class="dayrow"><div class="dayletter">${d}</div>
       <div class="dayinfo"><div class="dtitle">${DAYS[d].title}</div>
-      <div class="dsub">${DAYS[d].ex.length} exercises · ~${estMinutes(w,d)} min</div></div>
+      <div class="dsub">${dayWeekday(d)?dayWeekday(d)+" · ":""}${DAYS[d].ex.length} exercises · ~${estMinutes(w,d)} min</div></div>
       <div class="daystate ${cls}">${state}</div></div>
       <div class="dayprog"><i class="${cls}" style="width:${pct}%"></i></div>`;
-    card.onclick=()=>{tap(8);shareTitle(card.querySelector(".dtitle"));done>=total?showDone(w,d):showPreview(w,d)};
+    card.onclick=()=>{tap(8);if(total===0){go("prog");return}shareTitle(card.querySelector(".dtitle"));done>=total?showDone(w,d):showPreview(w,d)};
     dl.appendChild(card);
   }
   animateRings();
+}
+function postponeLight(){
+  if(!isOpen())return;
+  db.plan.lightOffset=(db.plan.lightOffset||0)+1;save();renderHome();
+  toast("Light week moved to week "+nextLightWeek(db.plan,curWeek()));
 }
 
 /* ================= SESSION PREVIEW ================= */
@@ -326,8 +430,8 @@ let PV=null;
 function showPreview(w,d){PV={w,d};show("preview")}
 function renderPreview(){
   const {w,d}=PV;
-  $("pv-title").textContent="Day "+d+" · Week "+w;
-  $("pv-sub").textContent=DAYS[d].title+" · "+phaseOf(w);
+  $("pv-title").textContent=(dayWeekday(d)?dayWeekday(d)+" · ":"")+"Day "+d+" · Week "+w;
+  $("pv-sub").textContent=DAYS[d].title+" · "+phaseLabel(w);
   const total=totalSets(w,d),done=loggedSets(w,d);
   $("pv-stats").innerHTML=
     `<div class="pvstat"><div class="v">${DAYS[d].ex.length}</div><div class="k">Lifts</div></div>
@@ -339,7 +443,7 @@ function renderPreview(){
   DAYS[d].ex.forEach((e,i)=>{
     const [,range,isComp]=e;
     const name=exName(d,i);
-    const need=setsFor(w,isComp);
+    const need=slotSets(w,d,i);
     const have=(L[i]||[]).filter(s=>s&&s.kg!=null).length;
     const isDone=have>=need;
     const isNext=!isDone&&!nextFound;
@@ -371,7 +475,7 @@ function startSession(w,d){
   let exIdx=0,setIdx=0,found=false;
   const exs=DAYS[d].ex;
   for(let i=0;i<exs.length&&!found;i++){
-    const need=setsFor(w,exs[i][2]);
+    const need=slotSets(w,d,i);
     const have=(db.logs[k].ex[i]||[]).filter(s=>s&&s.kg!=null).length;
     if(have<need){exIdx=i;setIdx=have;found=true}
   }
@@ -413,7 +517,7 @@ function prevSession(w,d,exIdx){
   }
   for(let a=db.archive.length-1;a>=0;a--){
     const B=db.archive[a];
-    for(const pw of historyOrder(B.plan||DEFAULT_PLAN)){
+    for(const pw of historyOrder(B.plan||DEFAULT_PLAN,B.logs)){
       const sets=pick(B.logs[logKey(pw,d)],B);
       if(sets)return{w:pw,block:B.block,sets};
     }
@@ -451,9 +555,9 @@ function renderSet(){
   const {w,d,exIdx,setIdx}=S;
   const [,reps,isComp]=DAYS[d].ex[exIdx];
   const name=exName(d,exIdx);
-  const nsets=setsFor(w,isComp);
-  $("ss-title").textContent="Day "+d+" · Week "+w;
-  $("ss-sub").textContent=DAYS[d].title+" · "+phaseOf(w);
+  const nsets=slotSets(w,d,exIdx);
+  $("ss-title").textContent=(dayWeekday(d)?dayWeekday(d)+" · ":"")+"Day "+d+" · Week "+w;
+  $("ss-sub").textContent=DAYS[d].title+" · "+phaseLabel(w);
   $("ss-exnum").textContent="Exercise "+(exIdx+1)+" of "+DAYS[d].ex.length;
   $("ss-exname").textContent=name;
   const pair=pairOf(DAYS[d].ex,exIdx),uni=isUni(name),timed=isTimed(name);
@@ -501,7 +605,7 @@ function renderSet(){
   $("ss-setcount").textContent=loggedSets(w,d)+"/"+totalSets(w,d)+" sets";
   tickTon(sessionTonnage(w,d));
   $("ss-upnext").innerHTML=DAYS[d].ex.map((e2,j)=>{
-    const need2=setsFor(w,e2[2]);
+    const need2=slotSets(w,d,j);
     const have2=((db.logs[logKey(w,d)].ex[j])||[]).filter(s=>s&&s.kg!=null).length;
     const st=have2>=need2?"done":j===exIdx?"cur":"";
     const link=j>0&&exOpt(DAYS[d].ex[j-1],"ss")?"⇄ ":"";
@@ -640,12 +744,12 @@ function nextTarget(){
   if(pair>=0){
     const first=Math.min(pair,exIdx),second=Math.max(pair,exIdx);
     for(const j of [pair,exIdx]){
-      if(open(j)<setsFor(w,exs[j][2]))
+      if(open(j)<slotSets(w,d,j))
         return{exIdx:j,setIdx:open(j),rest:(exIdx===first&&j===second)?db.settings.rest.super:restSecs(d,exIdx)};
     }
     after=second+1;
   }else{
-    if(setIdx+1<setsFor(w,exs[exIdx][2]))return{exIdx,setIdx:setIdx+1,rest:restSecs(d,exIdx)};
+    if(setIdx+1<slotSets(w,d,exIdx))return{exIdx,setIdx:setIdx+1,rest:restSecs(d,exIdx)};
     after=exIdx+1;
   }
   if(after<exs.length)return{exIdx:after,setIdx:open(after),rest:restSecs(d,exIdx)};
@@ -761,6 +865,7 @@ function openSwap(){
   const opts=[orig,...similarLifts(orig)];
   $("swaplist").innerHTML=opts.map(o=>
     `<button class="subopt ${o===cur?"current":""}" onclick="doSwap('${o.replace(/'/g,"\\'")}')">${o}${o===orig?" <span style='color:var(--ink-faint);font-weight:400'>(programme default)</span>":""}</button>`).join("");
+  $("swap-hint").textContent=isOpen()?"Same movement pattern, different tool. The swap sticks until you change it back, so your progression stays comparable.":"Same movement pattern, different tool. The swap sticks for this whole block so your progression stays comparable.";
   $("swapsheet").classList.add("active");
 }
 function doSwap(name){
@@ -1023,8 +1128,8 @@ function sparkSVG(series,w2,h2,color){
     <circle cx="${last[0]}" cy="${last[1]}" r="2.5" fill="${col}"/></svg>`;
 }
 function tonChartHTML(){
-  const vals=[],proj=[],N=WEEKS();
-  for(let w=1;w<=N;w++){
+  const vals=[],proj=[],ws=weekWindow(db.selWeek).filter(w=>!isOpen()||w<=curWeek()),N=ws.length;
+  for(const w of ws){
     const v=dayIds().reduce((a,d)=>a+sessionTonnage(w,d),0);
     const done=dayIds().reduce((a,d)=>a+loggedSets(w,d),0),plan=dayIds().reduce((a,d)=>a+totalSets(w,d),0);
     vals.push(v);
@@ -1042,17 +1147,17 @@ function tonChartHTML(){
   vals.forEach((v,i)=>{
     const h=v?Math.max(6,Math.round(100*v/max)):3;
     const x=8+i*(bw+gap),y=118-h;
-    const cur=(i+1)===db.selWeek,pj=proj[i];
+    const wn=ws[i],cur=wn===db.selWeek,pj=proj[i];
     if(pj){const ph=Math.max(h,Math.round(100*pj/max));
       s+=`<rect x="${x}" y="${118-ph}" width="${bw}" height="${ph}" rx="6" fill="none" stroke="var(--ink-faint)" stroke-dasharray="3 3" stroke-width="1"/>`}
     s+=`<rect class="tonbar${pj?" partial":""}" x="${x}" y="${y}" width="${bw}" height="${h}" rx="6" fill="${v?(cur?"url(#tgCur)":"url(#tgPast)"):"var(--surface3)"}"/>`;
     const lbl=n=>n>=10000?(n/1000).toFixed(1)+"k":n.toLocaleString();
     if(v)s+=`<text x="${x+bw/2}" y="${(pj?118-Math.max(h,Math.round(100*pj/max)):y)-7}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${cur?"var(--ember)":"var(--ink-dim)"}">${pj?"~"+lbl(pj):lbl(v)}</text>`;
-    s+=`<text x="${x+bw/2}" y="133" text-anchor="middle" font-size="9.5" font-weight="700" fill="${cur?"var(--ink)":"var(--ink-faint)"}">W${i+1}</text>`;
-    s+=`<text x="${x+bw/2}" y="144" text-anchor="middle" font-size="${N>6?6.5:8}" fill="var(--ink-faint)">${phaseOf(i+1)}</text>`;
+    s+=`<text x="${x+bw/2}" y="133" text-anchor="middle" font-size="9.5" font-weight="700" fill="${cur?"var(--ink)":"var(--ink-faint)"}">W${wn}</text>`;
+    s+=`<text x="${x+bw/2}" y="144" text-anchor="middle" font-size="${N>6?6.5:8}" fill="var(--ink-faint)">${isOpen()?(deloadWeek(wn)?"Light":"Hard"):phaseOf(wn)}</text>`;
   });
   const anyProj=proj.some(Boolean);
-  return `<div class="chartcard"><div class="sectlabel" style="margin:0 0 10px">Weekly tonnage · kg · block ${db.block}</div>
+  return `<div class="chartcard"><div class="sectlabel" style="margin:0 0 10px">Weekly tonnage · kg · ${isOpen()?"last "+N+" weeks":"block "+db.block}</div>
     <svg viewBox="0 0 ${W} 150" style="width:100%;display:block">${s}</svg>
     ${anyProj?`<div class="hsets" style="margin-top:8px;color:var(--ink-faint)">Dashed outline = where an unfinished week is heading at its current pace.</div>`:""}</div>`;
 }
@@ -1074,7 +1179,7 @@ function muscleVolume(w){
   for(const d of dayIds()){
     const L=db.logs[logKey(w,d)];
     DAYS[d].ex.forEach((e,i)=>{
-      bump(exName(d,i),setsFor(w,e[2]),"planned");
+      bump(exName(d,i),slotSets(w,d,i),"planned");
       const done=((L&&L.ex[i])||[]).filter(s=>s&&s.kg!=null);
       if(!done.length)return;
       const byName={};
@@ -1159,7 +1264,7 @@ function recordsHTML(){
 /* ---------- per-lift progression (estimated 1RM) ---------- */
 function liftSeries(name){
   const pts=[];
-  for(const B of allBlocks())for(let w=1;w<=planWeeks(B.plan||DEFAULT_PLAN);w++)for(const d of Object.keys(B.programme||{})){
+  for(const B of allBlocks())for(let w=1;w<=blockWeeks(B);w++)for(const d of Object.keys(B.programme||{})){
     const L=(B.logs||{})[logKey(w,d)];if(!L)continue;
     for(const[i,sets]of Object.entries(L.ex||{})){
       const done=(sets||[]).filter(s=>s&&s.kg!=null);
@@ -1243,7 +1348,7 @@ function baselineFor(w,WK){
     if(WK[pw]&&WK[pw].size)return{w:pw,block:db.block,lifts:WK[pw],label:"week "+pw,sameBlock:true};
   for(let a=db.archive.length-1;a>=0;a--){
     const B=db.archive[a];
-    for(let pw=planWeeks(B.plan||DEFAULT_PLAN);pw>=1;pw--){
+    for(let pw=blockWeeks(B);pw>=1;pw--){
       const m=weekLifts(pw,B);
       if(m.size)return{w:pw,block:B.block,lifts:m,label:"block "+B.block+" wk "+pw,sameBlock:false};
     }
@@ -1282,7 +1387,7 @@ function readyToAddLoad(w){
     const L=db.logs[logKey(w,d)];if(!L)continue;
     DAYS[d].ex.forEach((e,i)=>{
       const done=(L.ex[i]||[]).filter(s=>s&&s.kg!=null);
-      if(done.length<setsFor(w,e[2]))return;
+      if(done.length<slotSets(w,d,i))return;
       const top=repTop(e[1]);
       if(!isNaN(top)&&done.every(s=>s.reps>=top)){
         const name=exName(d,i);
@@ -1394,14 +1499,15 @@ function renderProgress(){
   }
   PG.week=w;
   const logged=weekNums().filter(x=>WK[x]&&WK[x].size).length;
-  $("pg-sub").textContent=logged?`Block ${db.block} · ${logged} week${logged===1?"":"s"} logged`
+  $("pg-sub").textContent=logged?(isOpen()?`Week ${curWeek()} · ongoing · ${logged} week${logged===1?"":"s"} logged`:`Block ${db.block} · ${logged} week${logged===1?"":"s"} logged`)
     :"Log a session and this fills in";
   const wr=$("pg-weeks");wr.innerHTML="";
-  wr.style.gridTemplateColumns=`repeat(${WEEKS()},1fr)`;
-  for(const x of weekNums()){
+  const ws=weekWindow(w).filter(x=>!isOpen()||x<=curWeek());
+  wr.style.gridTemplateColumns=`repeat(${ws.length},1fr)`;
+  for(const x of ws){
     const c=document.createElement("button");
     c.className="weekcell"+(x===w?" sel":"")+((WK[x]&&WK[x].size)?"":" nodata");
-    c.setAttribute("aria-label","Week "+x+", "+phaseOf(x)+((WK[x]&&WK[x].size)?"":", no data"));
+    c.setAttribute("aria-label","Week "+x+", "+phaseLabel(x)+((WK[x]&&WK[x].size)?"":", no data"));
     c.setAttribute("aria-pressed",x===w);
     c.innerHTML=`<div class="wnum">${x}</div><div class="wbar" style="background:${PHASE_COLOR[phaseOf(x)]}"></div>`;
     c.onclick=()=>{tap(6);PG.week=x;renderProgress()};
@@ -1410,7 +1516,7 @@ function renderProgress(){
   const S=weekSummary(w,WK);
   const V=weekVerdict(S);
   let html=`<div class="verdict ${V.tone}">
-    <div class="vkick">Week ${w} · ${phaseOf(w)}${S.base?" vs "+S.base.label:""}</div>
+    <div class="vkick">Week ${w} · ${phaseLabel(w)}${S.base?" vs "+S.base.label:""}</div>
     <h2>${V.title}</h2><p>${V.body}</p></div>`;
 
   if(S.cur.size){
@@ -1464,14 +1570,15 @@ const TIPICO={
 
 /* ================= SETTINGS ================= */
 function renderSettings(){
-  $("set-sub").textContent="Block "+db.block+" · "+(db.archive.length+1)+" block"+(db.archive.length?"s":"")+" on record";
+  $("set-sub").textContent=isOpen()?`${db.plan.name} · week ${curWeek()} · ${db.archive.length} archived block${db.archive.length===1?"":"s"}`:"Block "+db.block+" · "+(db.archive.length+1)+" block"+(db.archive.length?"s":"")+" on record";
   $("set-ver").textContent="ATLAS "+APP_VERSION;
   const nEx=dayIds().reduce((a,d)=>a+DAYS[d].ex.length,0);
-  $("set-progsub").textContent=dayIds().length+" days · "+nEx+" exercises";
+  $("set-progsub").textContent=(db.programmeName||"Custom programme")+" · "+dayIds().length+" day"+(dayIds().length===1?"":"s")+" · "+nEx+" exercises";
   const days=db.lastBackup?Math.floor((Date.now()-db.lastBackup)/86400000):null;
   $("set-backupsub").textContent=db.lastBackup
     ?(days===0?"Last backed up today":"Last backed up "+days+" day"+(days===1?"":"s")+" ago")
     :"Never backed up";
+  $("rollover-btn").style.display=isOpen()?"none":"";
   $("set-rollsub").textContent=blockComplete()
     ?`Week ${WEEKS()} complete — ready to roll over`
     :`Week ${WEEKS()} isn't finished yet`;
@@ -1528,7 +1635,12 @@ function slotHasLogs(d,i){
   }
   return false;
 }
-function progChanged(){DAYS=db.programme;for(const d of dayIds())normaliseSupersets(DAYS[d].ex);save();renderProg()}
+function progChanged(){
+  DAYS=db.programme;for(const d of dayIds())normaliseSupersets(DAYS[d].ex);
+  if(PROGRAMME_TEMPLATES.some(t=>t.name===db.programmeName)&&!sameProgramme(db.programme,PROGRAMME_TEMPLATES.find(t=>t.name===db.programmeName).programme))db.programmeName="Custom programme";
+  save();renderProg();
+}
+function sameProgramme(a,b){return JSON.stringify(a)===JSON.stringify(b)}
 function setDayTitle(d,v){DAYS[d].title=v.trim()||"Untitled day";progChanged()}
 function setRange(d,i,v){
   const r=normaliseRange(v);
@@ -1544,6 +1656,13 @@ function ssCtl(d,i){
   return `<button class="pill ${on?"ss":""}" role="switch" aria-checked="${!!on}" aria-label="Superset with the next lift" onclick="toggleSS('${d}',${i})">⇄ ${on?"SUPERSET":"PAIR"}</button>`;
 }
 function toggleSS(d,i){setExOpt(DAYS[d].ex[i],"ss",exOpt(DAYS[d].ex[i],"ss")?0:1);progChanged()}
+/* pin a slot's set count; blank returns it to the plan's compound/accessory default */
+function setSlotSets(d,i,v){
+  v=String(v).trim().replace(/×/g,"");
+  const n=parseInt(v);
+  if(v!==""&&(isNaN(n)||n<1||n>8)){toast("Sets 1 to 8, or blank for the plan default");renderProg();return}
+  setExOpt(DAYS[d].ex[i],"sets",v===""?0:n);progChanged();
+}
 function toggleComp(d,i){DAYS[d].ex[i][2]=DAYS[d].ex[i][2]?0:1;progChanged()}
 function moveEx(d,i,dir){
   const j=i+dir;
@@ -1582,7 +1701,7 @@ async function resetProgramme(){
   if(!await ask({title:"Reset the programme?",
     body:"Every day and exercise goes back to the default. Your logged history is untouched.",
     ok:"Reset",danger:1}))return;
-  db.programme=clone(DEFAULT_DAYS);db.swaps={};
+  db.programme=clone(DEFAULT_DAYS);db.swaps={};db.programmeName="ATLAS full body";
   progChanged();toast("Programme reset");
 }
 /* ---------- block structure ---------- */
@@ -1590,6 +1709,13 @@ function weekHasLogs(w){return dayIds().some(d=>loggedSets(w,d)>0)}
 function planChanged(){db.plan=validatePlan(db.plan,DEFAULT_PLAN,PHASES);if(db.selWeek>WEEKS())db.selWeek=WEEKS();save();renderProg()}
 async function applyPreset(n){
   const weeks=PLAN_PRESETS[n];if(!weeks)return;
+  if(isOpen()){
+    if(Object.keys(db.logs).length){
+      if(!await ask({title:"Switch to fixed blocks?",body:`Everything logged under <b>${esc(db.plan.name)}</b> is archived (kept for records and history) and block ${db.block+1} starts at week 1 with the ${n} structure.`,ok:"Archive and switch"}))return;
+      archiveCurrent();
+    }
+    db.plan={name:n,weeks:clone(weeks)};db.selWeek=1;planChanged();toast(n+" blocks · week 1");return;
+  }
   const lost=weekNums().filter(w=>w>weeks.length&&weekHasLogs(w));
   if(lost.length){toast(`Week${lost.length>1?"s":""} ${lost.join(", ")} already ${lost.length>1?"have":"has"} sets logged — finish the block first`);return}
   db.plan={name:n,weeks:clone(weeks)};planChanged();toast(n+" plan applied");
@@ -1614,7 +1740,32 @@ function removeWeek(w){
   if(weekNums().some(x=>x>=w&&weekHasLogs(x))){toast("Week "+w+" or a later week has sets logged — finish the block first");return}
   db.plan.weeks.splice(w-1,1);db.plan.name="Custom";planChanged();
 }
+function setOpenField(k,v){
+  if(k==="every"){const n=parseInt(v);if(isNaN(n)||n<2||n>12){toast("Light week every 2 to 12 weeks");renderProg();return}db.plan.every=n}
+  else{const i=k==="hard"?0:1;const f=arguments[2],val=arguments[3];
+    if(f==="rir"){const r=normaliseRange(val);if(!r){toast("RIR like 0–1");renderProg();return}db.plan.weeks[i].rir=r}else db.plan.weeks[i][f]=parseInt(val)}
+  planChanged();
+}
+function openPlanCardHTML(){
+  const P=db.plan,cw=curWeek(),nl=nextLightWeek(P,cw);
+  const row=(label,i,cls)=>`<div class="planrow open ${cls}"><span class="wn">${label}</span><span style="font-size:.78rem;font-weight:650;color:var(--ink-dim)">${i===0?"every week":"1 in "+P.every}</span>
+      <input class="perange" value="${P.weeks[i].comp}" inputmode="numeric" onchange="setOpenField('${i===0?"hard":"light"}',null,'comp',this.value)" aria-label="${label} compound sets">
+      <input class="perange" value="${P.weeks[i].acc}" inputmode="numeric" onchange="setOpenField('${i===0?"hard":"light"}',null,'acc',this.value)" aria-label="${label} accessory sets">
+      <input class="perange" value="${esc(P.weeks[i].rir)}" onchange="setOpenField('${i===0?"hard":"light"}',null,'rir',this.value)" aria-label="${label} RIR"><span></span></div>`;
+  return `<div class="progday">
+    <div class="pdhead"><div class="pdletter"><svg viewBox="0 0 24 24" class="gico"><path d="M4 12a8 8 0 0 1 14.2-5M20 12a8 8 0 0 1-14.2 5"/><path d="M18.5 3.5v3.7h-3.7M5.5 20.5v-3.7h3.7"/></svg></div>
+      <div class="lrtext"><b>Open-ended plan</b><i>${esc(P.name)} · week ${cw} · started ${P.startDate||"—"}</i></div></div>
+    <div class="hsets" style="margin-bottom:10px">Weeks count up from the start date and never reset. Every set to ${esc(P.weeks[0].rir)} RIR on hard weeks; a light week holds the weights and cuts the sets.</div>
+    <div class="planrow open head"><span class="wn"></span><span>When</span><span>Comp</span><span>Acc</span><span>RIR</span><span></span></div>
+    ${row("Hard",0,"")}${row("Light",1,"")}
+    <div class="setrow" style="padding:10px 0 0"><div class="lrtext"><b>Light week every</b><i>Next one is week ${nl}${nl===cw?" (this week)":""}</i></div>
+      <div class="stepper small"><button onclick="setOpenField('every',${P.every-1})" aria-label="Fewer weeks">−</button><input type="number" value="${P.every}" onchange="setOpenField('every',this.value)" aria-label="Weeks between light weeks"><button onclick="setOpenField('every',${P.every+1})" aria-label="More weeks">+</button></div><span class="sunit">wk</span></div>
+    <div class="libchips wrap" style="margin-top:12px">${Object.keys(PLAN_PRESETS).map(n=>`<button class="libchip" onclick="applyPreset('${n.replace(/'/g,"\\'")}')">Switch to ${n} blocks</button>`).join("")}</div>
+    <div class="hsets" style="margin-top:8px;color:var(--ink-faint)">Switching to fixed blocks archives everything logged under this plan and starts block ${db.block+1} at week 1.</div>
+  </div>`;
+}
 function planCardHTML(){
+  if(isOpen())return openPlanCardHTML();
   const rows=db.plan.weeks.map((k,i)=>{const w=i+1;
     return `<div class="planrow${weekHasLogs(w)?" logged":""}">
       <span class="wn">W${w}</span>
@@ -1647,11 +1798,12 @@ function renderProg(){
       html+=`<div class="progex" style="flex-wrap:wrap">
         <div style="flex:1 1 100%;min-width:0;display:flex;align-items:center;gap:8px">
           <div style="flex:1;min-width:0"><div class="pename">${esc(exName(d,i))}</div>
-          <div class="pemeta">${setsFor(db.selWeek,e[2])} sets in week ${db.selWeek}${isUni(exName(d,i))?" · per side":""}${slotHasLogs(d,i)?" · has history":""}</div></div>
+          <div class="pemeta">${slotSets(db.selWeek,d,i)} sets in week ${db.selWeek}${exOpt(e,"sets")?" (pinned)":""}${isUni(exName(d,i))?" · per side":""}${slotHasLogs(d,i)?" · has history":""}</div></div>
           <button class="miniBtn" onclick="removeEx('${d}',${i})" aria-label="Remove exercise"><svg viewBox="0 0 24 24" class="gico"><path d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"/></svg></button>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex:1 1 100%;margin-top:4px">
           <input class="perange" value="${esc(e[1])}" onchange="setRange('${d}',${i},this.value)" aria-label="Rep range">
+          <input class="perange sets" value="${exOpt(e,"sets")||""}" placeholder="${setsFor(db.selWeek,e[2])}×" inputmode="numeric" onchange="setSlotSets('${d}',${i},this.value)" aria-label="Sets (blank = plan default)">
           <button class="pill ${e[2]?"comp":""}" onclick="toggleComp('${d}',${i})">${e[2]?"COMPOUND":"ACCESSORY"}</button>
           ${ssCtl(d,i)}
           <div style="flex:1"></div>
@@ -1767,6 +1919,12 @@ function exportCSV(){
   download("atlas-"+new Date().toISOString().slice(0,10)+".csv",rows.map(r=>r.join(",")).join("\n"),"text/csv");
   toast(rows.length-1+" sets exported");
 }
+/* file the current block: history stays readable under the programme and plan it ran with */
+function archiveCurrent(){
+  db.archive.push({block:db.block,logs:db.logs,programme:clone(db.programme),
+    swaps:clone(db.swaps),plan:clone(db.plan),endedAt:Date.now()});
+  db.logs={};db.block++;db.selWeek=1;db.session=null;db.rest=null;db.autoWeekFor=null;
+}
 async function rollover(){
   if(!blockComplete()&&!await ask({title:`Week ${WEEKS()} isn't finished`,
     body:"You can still close the block out and start the next one.",ok:"Start anyway"}))return;
@@ -1775,9 +1933,7 @@ async function rollover(){
     ok:"Start block "+(db.block+1)}))return;
   /* archive keeps the programme + swaps this block ran under, so its history
      stays readable even after you edit the programme */
-  db.archive.push({block:db.block,logs:db.logs,programme:clone(db.programme),
-    swaps:clone(db.swaps),plan:clone(db.plan),endedAt:Date.now()});
-  db.logs={};db.block++;db.selWeek=1;db.session=null;db.rest=null;
+  archiveCurrent();
   save();show("home");
   if(driveOn())driveSync({quiet:true});
   toast("Block "+db.block+" — previous block archived");
@@ -1812,7 +1968,7 @@ async function init(){
   try{history.scrollRestoration="manual"}catch(e){}   /* we restore scroll ourselves */
   applyTheme();
   /* swipe between weeks on Plan and Progression */
-  onSwipe($("scr-home"),dir=>{const w=Math.min(WEEKS(),Math.max(1,db.selWeek+dir));if(w!==db.selWeek){haptic("select");db.selWeek=w;save();renderHome()}});
+  onSwipe($("scr-home"),dir=>{const w=Math.min(WEEKS(),Math.max(1,db.selWeek+dir));db.autoWeekFor=todayISO();if(w!==db.selWeek){haptic("select");db.selWeek=w;save();renderHome()}});
   onSwipe($("scr-progress"),dir=>{const w=Math.min(WEEKS(),Math.max(1,(PG.week||db.selWeek)+dir));if(w!==PG.week){haptic("select");PG.week=w;renderProgress()}});
   /* hold a logged set to delete it; hold a library lift to add it to a day */
   onLongPress($("done-list"),".setchip",async el=>{

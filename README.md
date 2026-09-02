@@ -74,8 +74,8 @@ Key fields:
 
 | Field | Purpose |
 |---|---|
-| `plan` | the block: `{name, weeks:[{phase, comp, acc, rir}]}`; 2 to 12 weeks, presets for 4, 5, 6 and 8 |
-| `programme` | editable copy of the default days; each exercise is `[name, repRange, isCompound, options?]` |
+| `plan` | a block: `{name, weeks:[{phase, comp, acc, rir}]}` with 2 to 12 weeks; or open-ended: `{name, open:true, every, lightOffset, startDate, weeks:[hard, light]}` where weeks count up from `startDate` (Monday-based calendar weeks) forever |
+| `programme` | editable copy of the default days; each exercise is `[name, repRange, isCompound, options?]` with options `{ss:1}` (superset with next) and `{sets:n}` (pinned set count) |
 | `logs` | keyed `"week-day"`, each with `ex[slotIndex] = [sets]`; a set is `{kg, reps, t, name, uni?, timed?}` (for timed sets `reps` holds seconds) |
 | `swaps` | per-slot substitutions for the current block |
 | `archive` | previous blocks, each carrying its own programme, swaps and plan |
@@ -87,7 +87,29 @@ Key fields:
 
 Every set is stamped with the lift name (plus `uni: 1` when per side and `timed: 1` when measured in seconds) at the moment it is logged, so later swaps, programme edits or settings changes never rewrite history.
 
+## Giving it to other people
+
+The app is a public static site: anyone with the link gets their own independent copy. Their log lives in their browser and, if they connect it, their own Google Drive. Nothing is shared between users and nothing is stored on a server.
+
+- **Android**: open the link in Chrome → menu → Install app.
+- **iPhone**: open the link in Safari → Share → Add to Home Screen. iOS never prompts, so this step is manual.
+- On first run they choose a starting point: ATLAS full body (3 days), Upper / Lower (4), Push / Pull / Legs (6), or Build my own. Settings → Start from a template switches later.
+- Drive sync needs their Google account added under Test users on the OAuth consent screen while it is in Testing.
+
 ## Changelog
+
+### 6.6
+
+- **Open-ended plans.** A plan can be `open`: weeks are calendar weeks from a start date and never reset. A light week (weights held, sets cut) lands every N weeks and can be postponed from the Plan screen. Strips and charts show a rolling eight-week window; today's session leads the Home screen; past undone days show as missed. No rollover, no block end.
+- **ATLAS Physique template.** Six days, Mon to Sat, push / pull / legs twice through, biased to chest, shoulders, arms and back, every set 0 to 1 RIR, light week every sixth week. Built from the current evidence on volume, proximity to failure and long-muscle-length training.
+- **Pinned set counts per slot** (`{sets:n}` in the programme editor), so a lift can run 4 sets while the plan default is 3. Light weeks scale pinned counts to about 60 percent.
+- Switching between an open plan and fixed blocks, or between templates with logs present, archives the current block first so history stays intact.
+
+### 6.5
+
+- **Template chooser on first run**: ATLAS full body, Upper / Lower, Push / Pull / Legs, or an empty programme that opens the editor. Settings → Programme → Start from a template switches later, with a warning if the current block already has sets logged.
+- Home copy reflects the loaded programme and day count instead of the fixed ATLAS description. Days D to H get their own accent colours.
+- Empty programmes are handled: the hero points to the editor, empty days say "No lifts yet", and a week with no lifts is never marked complete.
 
 ### 6.4
 
