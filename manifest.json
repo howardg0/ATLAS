@@ -1,37 +1,19 @@
 {
-  "name": "Block Log \u2014 6-Week Hypertrophy",
-  "short_name": "Block Log",
-  "description": "Personal training log: 6-week hypertrophy blocks, lift encyclopedia, progression coach.",
+  "name": "ATLAS — Training Log",
+  "short_name": "ATLAS",
+  "description": "Strength training log: periodised blocks, a 65-lift encyclopedia with muscle maps, week-by-week progression and coaching.",
   "id": "./",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0A0B0F",
   "theme_color": "#0A0B0F",
+  "categories": ["health", "fitness", "sports"],
   "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
