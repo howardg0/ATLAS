@@ -98,6 +98,9 @@ The app is a public static site: anyone with the link gets their own independent
 
 ## Changelog
 
+### 7.1.1
+- Viewport scale locked again (`maximum-scale=1, user-scalable=no`): unlocking it in 7.1 let the page creep into a slight zoom on Android, which shrank the fixed dock. `touch-action: manipulation` stays.
+
 ### 7.1
 - Plate bar is interactive: tap a plate size to add one to each side, tap a loaded plate to take it off. Plates carry IPF colours.
 - Guide and Swap moved from the top-right of the lift header into the dock, in thumb reach.
@@ -106,7 +109,6 @@ The app is a public static site: anyone with the link gets their own independent
 - Week swipes ignore the outer 32 px so the Android back gesture no longer flips the week.
 - Sheets dismiss with a swipe down from the handle area.
 - Tap targets: editor mini buttons and pills extend to 44 px+ hit areas without changing size; pips are 9 px.
-- Pinch zoom re-enabled (viewport no longer locks scale); double-tap zoom is prevented with `touch-action: manipulation`.
 - Appearance: True black option for OLED screens (`settings.oled`).
 
 ### 7.0
