@@ -98,6 +98,9 @@ The app is a public static site: anyone with the link gets their own independent
 
 ## Changelog
 
+### 7.1.2
+- Fix: Progression screen threw on open (the 7.0 rename of its local summary variable missed the `weekTips` call).
+
 ### 7.1.1
 - Viewport scale locked again (`maximum-scale=1, user-scalable=no`): unlocking it in 7.1 let the page creep into a slight zoom on Android, which shrank the fixed dock. `touch-action: manipulation` stays.
 

@@ -6,7 +6,7 @@
    address of every logged set on the device. */
 const KEY="block-log-v2";
 /* Keep in step with CACHE in sw.js and the ?v= stamps in index.html (tests/version.test.js checks) */
-const APP_VERSION="7.1.1";
+const APP_VERSION="7.1.2";
 let restEnd=0,restTick=null,restDur=1,restLabel="",restHintTxt="";
 let S=null;
 const migrateDb=d=>migrate(d,DEFAULT_DAYS,DEFAULT_SETTINGS,DEFAULT_PLAN,PHASES);
@@ -1796,7 +1796,7 @@ function renderProgress(){
       ${pgDelta(r)}</button>`).join("")||`<div class="emptymsg">No lifts in this group.</div>`;
   }
 
-  const tips=weekTips(S,WK);
+  const tips=weekTips(SM,WK);
   if(tips.length){
     html+=`<div class="sectlabel">Coaching</div>`;
     html+=tips.map(t=>`<div class="tip ${t.k}">
