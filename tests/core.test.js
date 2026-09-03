@@ -328,3 +328,81 @@ test("migrate folds the legacy single-slot prev into the archive",()=>{
   assert.equal(d.archive[0].block,2);
   assert.deepEqual(d.archive[0].swaps,{"A-0":"X"});
 });
+
+test("bulkRange sets one range on the chosen slots only",()=>{
+  const p={A:{title:"a",ex:[["Squat","3–5",1],["Curl","10–15",0]]},B:{title:"b",ex:[["Row","8–12",0]]}};
+  assert.equal(C.bulkRange(p,["A-1","B-0"],"8-12"),1);       /* B-0 already 8–12 */
+  assert.equal(p.A.ex[0][1],"3–5");assert.equal(p.A.ex[1][1],"8–12");assert.equal(p.B.ex[0][1],"8–12");
+  assert.equal(C.bulkRange(p,["A-0"],"junk"),0);assert.equal(p.A.ex[0][1],"3–5");
+  assert.equal(C.bulkRange(p,["Z-9","A-7"],"6–8"),0);
+});
+
+test("sameMuscleLifts shares a primary muscle, same pattern then exact match first",()=>{
+  const db={
+    "Back Squat":{g:"Quads",pat:"Squat",pri:["quads","glutes"]},
+    "Hack Squat":{g:"Quads",pat:"Squat",pri:["quads","glutes"]},
+    "Leg Extension":{g:"Quads",pat:"Isolation",pri:["quads"]},
+    "Bulgarian Split Squat":{g:"Quads",pat:"Lunge",pri:["quads","glutes"]},
+    "Seated Leg Curl":{g:"Hamstrings",pat:"Isolation",pri:["hamstrings"]},
+    "Calf Raise":{g:"Quads",pat:"Isolation",pri:["calves"]},
+  };
+  assert.deepEqual(C.sameMuscleLifts(db,"Back Squat"),["Hack Squat","Bulgarian Split Squat","Leg Extension"]);
+  assert.deepEqual(C.sameMuscleLifts(db,"Back Squat",{"Back Squat":["Leg Extension"]}),["Leg Extension","Hack Squat","Bulgarian Split Squat"]);
+  assert.deepEqual(C.sameMuscleLifts(db,"Nope"),[]);
+});
+
+test("trimForTime drops accessories from the end, never compounds or started slots",()=>{
+  const slots=[{i:0,comp:true,min:13.6},{i:1,comp:false,min:6.9},{i:2,comp:false,min:6.9,locked:true},{i:3,comp:false,min:6.9},{i:4,comp:true,min:10.2}];
+  const r=C.trimForTime(slots,35,6);
+  assert.deepEqual(r.skip,[1,3]);                 /* 50.5 -> drop 3 (43.6) -> skip locked 2 -> drop 1 (36.7) */
+  assert.equal(r.min,37);
+  assert.deepEqual(C.trimForTime(slots,60,6).skip,[]);
+  assert.deepEqual(C.trimForTime(slots,10,6).skip,[1,3]);   /* compounds alone still over budget, but never dropped */
+});
+
+test("nutritionTargets: Mifflin-St Jeor plus activity and goal shift",()=>{
+  const t=C.nutritionTargets({kg:75,cm:182,age:24,sex:"m",steps:"low",days:3,goal:"gain"});
+  assert.equal(t.bmr,1773);                        /* 750+1137.5-120+5 */
+  assert.equal(t.maint,2450);                      /* 1772.5*1.3+150 = 2454 -> 2450 */
+  assert.equal(t.kcal,2700);                       /* +250 */
+  assert.equal(t.protein,150);assert.equal(t.fat,68);
+  assert.equal(t.carbs,Math.round((2700-600-612)/4));
+  const c=C.nutritionTargets({kg:75,cm:182,age:24,sex:"m",steps:"low",days:6,goal:"cut"});
+  assert.equal(c.protein,165);assert.ok(c.kcal<c.maint-250);
+  assert.equal(C.nutritionTargets({kg:0,cm:180,age:30}),null);
+});
+
+test("betterSet: heavier wins, then more reps; anything beats nothing",()=>{
+  assert.equal(C.betterSet({kg:100,reps:5},{kg:95,reps:12}),true);
+  assert.equal(C.betterSet({kg:100,reps:6},{kg:100,reps:5}),true);
+  assert.equal(C.betterSet({kg:100,reps:5},{kg:100,reps:5}),false);
+  assert.equal(C.betterSet({kg:60,reps:8},null),true);
+});
+
+test("sessionDuration spans first to last set, zero for one set",()=>{
+  assert.equal(C.sessionDuration({ex:{0:[{kg:1,reps:1,t:60000}],2:[null,{kg:1,reps:1,t:26*60000}]}}),25);
+  assert.equal(C.sessionDuration({ex:{0:[{kg:1,reps:1,t:5}]}}),0);
+  assert.equal(C.sessionDuration(null),0);
+});
+
+test("remapSlots carries today-only swaps and time skips with their slot",()=>{
+  const logs={"1-A":{ex:{0:[{kg:1,reps:1}],2:[{kg:2,reps:2}]},once:{2:"Leg Press"},skip:[1]}};
+  const swaps={};
+  C.remapSlots(logs,swaps,"A",3,a=>{a.splice(0,1);return a},1);   /* remove slot 0 */
+  assert.deepEqual(logs["1-A"].once,{1:"Leg Press"});
+  assert.deepEqual(logs["1-A"].skip,[0]);
+  C.remapSlots(logs,swaps,"A",2,a=>{a.splice(0,1);return a},1);   /* remove the skipped slot: skip list disappears */
+  assert.equal(logs["1-A"].skip,undefined);
+  assert.deepEqual(logs["1-A"].once,{0:"Leg Press"});
+});
+
+test("migrate repairs garbage shapes instead of throwing",()=>{
+  const days={A:{title:"a",ex:[["Squat","5",1]]}};
+  const d=C.migrate({logs:[],archive:[null,7,{logs:{}}],programme:{A:{title:"ok",ex:[["Squat","5",1],"junk",null]},B:null,C:"nope"}},days,{bar:20,plates:[20],rest:{comp:1,acc:1,super:1},theme:"dark"},null,null);
+  assert.deepEqual(d.logs,{});
+  assert.equal(d.archive.length,1);
+  assert.deepEqual(Object.keys(d.programme),["A"]);
+  assert.equal(d.programme.A.ex.length,1);
+  const e=C.migrate({programme:{A:"bad"}},days,{bar:20,plates:[20],rest:{comp:1,acc:1,super:1},theme:"dark"},null,null);
+  assert.deepEqual(e.programme,days);
+});

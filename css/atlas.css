@@ -23,6 +23,7 @@
   --anat-skin:#151923; --anat-skin-hi:#222838; --anat-mus-hi:#343B4C;
   color-scheme:dark;
 }
+html[data-theme=dark][data-oled="1"]{--bg:#000000;--bg-2:#000000;--surface:#0C0E14;--surface2:#151923;--surface3:#1E2331;--line:#1F2533;--line-2:#161B27}
 html[data-theme=light]{
   --bg:#F3F4F8; --bg-2:#FFFFFF;
   --surface:#FFFFFF; --surface2:#EEF0F5; --surface3:#E2E5EE;
@@ -52,6 +53,7 @@ html[data-theme=light] .sheet .panel{border-top-color:var(--line)}
 html[data-theme=light] .musghost{background:#CDD3E0}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{overscroll-behavior-y:contain}
+body{touch-action:manipulation}
 html{font-size:16px}   /* no text-size-adjust lock: honour the Android font-size setting */
 body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);
   font-feature-settings:"cv05","cv08","ss01";letter-spacing:-.006em;
@@ -225,7 +227,7 @@ h1,h2,h3,.dp{font-family:var(--f-dp);letter-spacing:-.028em}
   font-weight:700;color:var(--blue);text-decoration:none}
 
 .pips{display:flex;gap:6px;margin:18px 0}
-.pip{flex:1;height:6px;border-radius:3px;background:var(--surface2);transition:background .3s}
+.pip{flex:1;height:9px;border-radius:5px;background:var(--surface2);transition:background .3s}
 .pip.done{background:var(--green)}
 .pip.cur{background:var(--ink);box-shadow:0 0 12px rgba(243,245,250,.35)}
 
@@ -249,6 +251,18 @@ h1,h2,h3,.dp{font-family:var(--f-dp);letter-spacing:-.028em}
 .stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .platebar{margin-top:14px;font-size:.78rem;color:var(--ink-dim);text-align:center;min-height:1.1em}
 .platebar b{color:var(--ink);font-weight:650}
+.plates{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;margin-top:8px}
+.plates .plabel{font-size:.66rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-right:2px}
+.pchip{min-height:34px;padding:0 11px;border-radius:9px;font-size:.78rem;font-weight:750;font-family:var(--f-dp);
+  background:var(--surface3);border:1px solid var(--line);border-left-width:4px;color:var(--ink);position:relative}
+.pchip::after{content:"";position:absolute;inset:-6px}   /* 46 px hit area */
+.pchip[data-p="25"]{border-left-color:#E0413E}.pchip[data-p="20"]{border-left-color:#3D6FE0}.pchip[data-p="15"]{border-left-color:#E8C33A}
+.pchip[data-p="10"]{border-left-color:#2F9E5B}.pchip[data-p="5"]{border-left-color:#F3F5FA}.pchip[data-p="2.5"]{border-left-color:#8A93A8}.pchip[data-p="1.25"]{border-left-color:#606A80}
+.pchip.add{background:none;border-style:dashed;border-left-width:1px;color:var(--ink-dim);font-weight:650}
+.pchip.add:active,.pchip:active{background:var(--surface2)}
+.plates .pdiv{width:1px;height:22px;background:var(--line);margin:0 4px}
+.dockacts{display:flex;align-items:center;gap:6px;min-height:30px;margin-bottom:2px}
+.dockacts .swapbtn{padding:6px 10px;border-radius:9px;background:var(--surface2);border:1px solid var(--line)}
 
 .bigbtn{width:100%;padding:17px;border-radius:var(--radius);font-family:var(--f-dp);font-weight:700;
   font-size:1rem;text-align:center;letter-spacing:-.02em;transition:transform .12s ease,opacity .15s}
@@ -287,12 +301,56 @@ h1,h2,h3,.dp{font-family:var(--f-dp);letter-spacing:-.028em}
 .ringwrap .rtime{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-family:var(--f-dp);font-size:clamp(2.6rem,12vw,3.4rem);font-weight:700;letter-spacing:-.045em}
 .restveil .rnext{font-size:.9rem;color:var(--ink-dim);text-align:center;max-width:320px;line-height:1.5}
+.restveil .rtarget{font-family:var(--f-dp);font-size:clamp(1.9rem,9vw,2.5rem);font-weight:800;letter-spacing:-.04em;margin-top:6px;min-height:1.1em}
+.restveil .rtarget small{font-size:.5em;font-weight:700;color:var(--ink-dim);letter-spacing:0;margin-left:6px}
+.restveil .rpeek{margin-top:18px;font-size:.8rem;font-weight:700;color:var(--ink-faint);padding:12px 18px}
+/* peek: the veil collapses to a thin bar at the top so the cues, notes and map are readable while the clock runs */
+.restveil.peek{inset:0 0 auto 0;height:auto;flex-direction:row;justify-content:flex-start;gap:12px;padding:calc(8px + env(safe-area-inset-top)) 14px 8px;
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line);animation:none}
+.restveil.peek .rlabel,.restveil.peek .rnext,.restveil.peek .rhint,.restveil.peek .rbtns,.restveil.peek .rpeek{display:none}
+.restveil.peek .ringwrap{width:44px;height:44px;margin:0;flex-shrink:0}
+.restveil.peek .ringwrap .rtime{font-size:0}   /* the time moves to the target line */
+.restveil.peek .rtarget{font-size:1.05rem;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.restveil.peek .rtarget small{font-size:.8em}
+.restveil.peek .rskip{margin:0;padding:10px 14px;font-size:.82rem;width:auto;flex-shrink:0}
+body.in-session.peeking{padding-top:64px}
 .restveil .rbtns{display:flex;gap:10px;margin-top:26px;width:100%;max-width:340px}
 .restveil .rbtns button{flex:1;padding:15px 0;border-radius:14px;background:rgba(255,255,255,.07);
   border:1px solid rgba(255,255,255,.12);font-weight:700;font-size:.9rem;backdrop-filter:blur(8px)}
 .restveil .rbtns button:active{background:rgba(255,255,255,.13)}
 .restveil .rbtns .skip{background:var(--btn-grad);color:var(--btn-ink);border:none;
   box-shadow:0 10px 24px -12px var(--btn-glow)}
+
+/* bulk rep-range checklist */
+.bulkrow{display:flex;align-items:center;gap:11px;padding:12px 13px;margin-bottom:6px}
+.bulkrow .bchk{width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;color:var(--btn-ink)}
+.bulkrow.current .bchk{background:var(--blue);border-color:var(--blue);color:#fff}
+#bulk-apply:disabled{opacity:.45}
+.tag.once{color:var(--gold);background:rgba(242,180,65,.14)}
+#swaplist{max-height:52vh;overflow-y:auto;margin-bottom:8px}
+
+/* time budget on the preview */
+.timebox{display:flex;align-items:center;gap:8px;margin:-8px 0 16px;flex-wrap:wrap}
+.timebox .tlabel{font-size:.72rem;font-weight:700;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.12em;flex-shrink:0}
+.timebox .libchips{margin:0;padding:0;flex:1}
+.rstep.skipped .rname{text-decoration:line-through;color:var(--ink-faint)}
+.rstep.skipped .rnode{background:none;border:1px dashed var(--line);color:var(--ink-faint)}
+.rstate.skip{color:var(--ink-faint);font-size:.66rem;font-weight:700;letter-spacing:.06em}
+.upchip.skip{opacity:.45;text-decoration:line-through}
+/* nutrition */
+.ncalc{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;box-shadow:var(--hair)}
+.ncalc .nrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-2)}
+.ncalc .nrow:last-of-type{border-bottom:none}
+.ncalc .nrow .lrtext b{font-size:.86rem}
+.ncalc .nrow .sunit{white-space:nowrap}
+.ncalc input.nin{width:74px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:9px 0;text-align:center;
+  font-family:var(--f-dp);font-weight:700;font-size:.95rem;color:var(--ink)}
+.nout{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0 6px}
+.nout .pvstat .v{font-size:1.05rem}
+.nout .pvstat.main{border-color:rgba(242,180,65,.45);background:rgba(242,180,65,.08)}
+.nnote{font-size:.78rem;color:var(--ink-dim);line-height:1.5;margin-top:8px}
+.nsect{font-size:.68rem;font-weight:800;letter-spacing:.24em;text-transform:uppercase;color:var(--gold);margin:22px 0 8px}
 
 /* ================= SHEETS ================= */
 .sheet{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(7px);
@@ -535,6 +593,8 @@ html[data-theme=light] .anat .mus path.cut{stroke:rgba(15,19,32,.16)}
 .miniBtn{width:32px;height:32px;border-radius:9px;background:var(--surface2);border:1px solid var(--line);
   color:var(--ink-dim);flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:var(--hair)}
 .miniBtn:active{background:var(--surface3)}
+.miniBtn,.pill{position:relative}
+.miniBtn::after,.pill::after{content:"";position:absolute;inset:-8px -6px}   /* ≥44 px touch target */
 .miniBtn.danger{color:var(--ember)}
 .miniBtn .gico{width:15px;height:15px;vertical-align:0}
 .pill{font-size:.6rem;font-weight:800;letter-spacing:.09em;padding:5px 9px;border-radius:7px;
@@ -569,9 +629,11 @@ html[data-theme=light] .anat .mus path.cut{stroke:rgba(15,19,32,.16)}
 .toast{position:fixed;bottom:104px;left:50%;transform:translateX(-50%) translateY(10px);
   background:var(--btn-grad);color:var(--btn-ink);padding:12px 22px;border-radius:999px;
   font-weight:700;font-size:.85rem;opacity:0;transition:opacity .28s,transform .28s;pointer-events:none;
-  z-index:60;max-width:90vw;white-space:nowrap;box-shadow:0 14px 34px -14px rgba(0,0,0,.85)}
+  z-index:60;max-width:90vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 14px 34px -14px rgba(0,0,0,.85)}
 .toast.show{opacity:1;transform:translateX(-50%);pointer-events:auto}
-.toast button{font-weight:800;text-decoration:underline;margin-left:11px;color:inherit;font-size:.85rem}
+.toast button{font-weight:800;text-decoration:underline;margin-left:11px;color:inherit;font-size:.85rem;pointer-events:none}
+.toast.act{cursor:pointer;padding:14px 24px}
+.toast.act:active{filter:brightness(.92)}
 .updatepill{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
   background:var(--btn-grad);color:var(--btn-ink);font-weight:700;font-size:.8rem;
   padding:11px 19px;border-radius:999px;z-index:70;display:none;align-items:center;gap:8px;
@@ -633,6 +695,8 @@ body.in-session .nav{display:none}
 .tonline #ss-ton{color:var(--ink);font-family:var(--f-dp);font-weight:700;font-size:.86rem}
 body.in-session{padding-bottom:calc(var(--dock-h,300px) + 12px)}
 body.in-session .toast{bottom:calc(var(--dock-h,300px) + 14px)}
+/* while the rest veil is up the toast sits below "I'm ready" instead of across the ±15 s row */
+body.in-session.resting .toast{bottom:calc(18px + env(safe-area-inset-bottom));z-index:52}
 @keyframes pipPop{0%{transform:scaleY(1)}40%{transform:scaleY(2.4)}100%{transform:scaleY(1)}}
 .pip.just{animation:pipPop .45s cubic-bezier(.2,.8,.3,1)}
 .coach.anim{animation:rise .32s cubic-bezier(.2,.8,.3,1)}

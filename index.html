@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0A0B0F">
 <meta name="color-scheme" content="dark light">
 <link rel="manifest" href="manifest.json">
@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="ATLAS">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="css/atlas.css?v=6.9">
+<link rel="stylesheet" href="css/atlas.css?v=7.1">
 <title>ATLAS — Training Log</title>
 <script>
 if ("serviceWorker" in navigator && location.protocol === "https:")
@@ -27,9 +27,9 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </head>
 <body>
 
-<script src="js/config.js?v=6.9"></script>
-<script src="js/data.js?v=6.9"></script>
-<script src="js/core.js?v=6.9"></script>
+<script src="js/config.js?v=7.1"></script>
+<script src="js/data.js?v=7.1"></script>
+<script src="js/core.js?v=7.1"></script>
 
 <!-- ================= SCREENS ================= -->
 <div class="screen active" id="scr-home">
@@ -67,6 +67,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
     <div><h1 id="pv-title"></h1><div class="sub" id="pv-sub"></div></div>
   </div>
   <div class="pvstats" id="pv-stats"></div>
+  <div class="timebox" id="pv-time"></div>
   <div id="pv-route"></div>
   <button class="bigbtn primary" id="pv-start" style="margin-top:16px" onclick="startSession(PV.w,PV.d)"></button>
 </div>
@@ -81,7 +82,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
   <div class="tonline"><span id="ss-ton">0</span> kg today · <span id="ss-setcount"></span></div>
   <div class="exhead">
     <div class="exnum" id="ss-exnum"></div>
-    <div class="exrow"><h2 id="ss-exname"></h2><div style="display:flex;gap:6px;flex-shrink:0"><button class="swapbtn" onclick="openLiftFromSession()"><svg viewBox="0 0 24 24" class="gico"><circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5M12 7.7v.5"/></svg> Guide</button><button class="swapbtn" onclick="openSwap()"><svg viewBox="0 0 24 24" class="gico"><path d="M4 8.5h13l-3.4-3.4M20 15.5H7l3.4 3.4"/></svg> Swap</button></div></div>
+    <div class="exrow"><h2 id="ss-exname"></h2></div>
     <div class="extags" id="ss-tags"></div>
   </div>
   <div class="coach" id="ss-coach"><span class="cico" id="ss-coachico"></span><span id="ss-coachtxt"></span></div>
@@ -99,6 +100,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
   <button class="quietbtn" onclick="endEarly()">End session early</button>
   </div>
   <div class="setdock" id="setdock">
+    <div class="dockacts"><button class="swapbtn" onclick="openLiftFromSession()"><svg viewBox="0 0 24 24" class="gico"><circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5M12 7.7v.5"/></svg> Guide</button><button class="swapbtn" onclick="openSwap()"><svg viewBox="0 0 24 24" class="gico"><path d="M4 8.5h13l-3.4-3.4M20 15.5H7l3.4 3.4"/></svg> Swap</button><span style="flex:1"></span><button class="swapbtn" id="rest-peekbtn" onclick="peekRest(false)" style="display:none">⏱ <span id="rest-mini">0:00</span></button></div>
     <div class="pips" id="ss-pips"></div>
     <div class="setcard">
       <div class="setlabel"><span class="s" id="ss-setlabel"></span><span class="last" id="ss-last"></span></div>
@@ -163,7 +165,8 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
   </div>
 
   <div class="sectlabel">Appearance</div>
-  <div class="segrow" id="set-theme" style="margin-bottom:0"></div>
+  <div class="segrow" id="set-theme" style="margin-bottom:8px"></div>
+  <div class="listgroup" id="set-oled"></div>
 
   <div class="sectlabel">Training</div>
   <div class="listgroup" id="set-train"></div>
@@ -205,6 +208,10 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 
   <div class="sectlabel">Help</div>
   <div class="listgroup">
+    <button class="listrow" onclick="show('nutri')">
+      <span class="lrico"><svg viewBox="0 0 24 24" class="gico"><path d="M6 3.5v17M6 3.5c3.2 0 5 2.2 5 5.5s-1.8 5-5 5M14.5 3.5c0 4 0 8 0 8 0 1.8 1.4 3 3.5 3s3.5-1.2 3.5-3v-8M18 14.5v6"/></svg></span>
+      <span class="lrtext"><b>Nutrition guide</b><i>Calories and protein for your goal, and how to adjust</i></span>
+      <svg viewBox="0 0 24 24" class="chev"><path d="M9.6 5.4 16.2 12l-6.6 6.6"/></svg></button>
     <button class="listrow" onclick="reportProblem()">
       <span class="lrico"><svg viewBox="0 0 24 24" class="gico"><circle cx="12" cy="12" r="8.6"/><path d="M12 8v4.5M12 15.5v.5"/></svg></span>
       <span class="lrtext"><b>Report a problem</b><i>Shares the app version, phone and recent errors</i></span>
@@ -237,6 +244,12 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
     <div id="picklist" style="max-height:42vh;overflow-y:auto"></div>
     <button class="bigbtn ghost" onclick="closePick()">Cancel</button>
   </div>
+</div>
+
+<div class="screen" id="scr-nutri">
+  <div class="topbar"><button class="backbtn" onclick="history.back()" aria-label="Back"><svg viewBox="0 0 24 24" class="gico"><path d="M15 4.5 8 12l7 7.5"/></svg></button>
+    <div><h1>Nutrition</h1><div class="sub">Eat to match the training, then let the scale decide</div></div></div>
+  <div id="nutri-body"></div>
 </div>
 
 <div class="screen" id="scr-lib">
@@ -457,14 +470,35 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
     <div class="rtime" id="rest-time">2:30</div>
   </div>
   <div class="rnext" id="rest-next"></div>
+  <div class="rtarget" id="rest-target"></div>
   <div class="rhint" id="rest-hint"></div>
   <div class="rbtns"><button onclick="addRest(-15)">−15 s</button><button onclick="addRest(15)">+15 s</button><button onclick="addRest(30)">+30 s</button></div>
   <button class="bigbtn primary rskip" onclick="endRest()">I'm ready</button>
+  <button class="rpeek" onclick="peekRest(true)">Peek at the cues ▾</button>
+</div>
+
+<div class="sheet" id="bulksheet" onclick="if(event.target===this)closeBulk()">
+  <div class="panel">
+    <h3>Set reps for several lifts</h3>
+    <div class="shint">Type a rep range, tick the lifts it should apply to, then apply. Sets and everything else stay as they are.</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <input class="perange" id="bulk-range" value="8–12" inputmode="numeric" aria-label="Rep range" style="width:90px;flex-shrink:0;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 0;text-align:center;font-weight:700">
+      <div class="libchips wrap" style="flex:1">
+        <button class="libchip" onclick="bulkPick('all')">All</button>
+        <button class="libchip" onclick="bulkPick('comp')">Compounds</button>
+        <button class="libchip" onclick="bulkPick('acc')">Accessories</button>
+        <button class="libchip" onclick="bulkPick('none')">None</button>
+      </div>
+    </div>
+    <div id="bulklist" style="max-height:44vh;overflow-y:auto;margin-bottom:12px"></div>
+    <button class="bigbtn primary" id="bulk-apply" onclick="applyBulk()">Apply</button>
+  </div>
 </div>
 
 <div class="sheet" id="swapsheet" onclick="if(event.target===this)closeSwap()">
   <div class="panel">
     <h3>Swap exercise</h3>
+    <div class="segrow" style="margin-bottom:12px"><button class="seg sel" id="swap-once" onclick="setSwapMode('once')">Just today</button><button class="seg" id="swap-perm" onclick="setSwapMode('perm')">Permanently</button></div>
     <div class="shint" id="swap-hint">Same movement pattern, different tool. The swap sticks for this whole block so your progression stays comparable.</div>
     <div id="swaplist"></div>
     <button class="bigbtn ghost" onclick="closeSwap()">Cancel</button>
@@ -477,9 +511,9 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
     <div class="shint" id="ed-sub"></div>
     <div class="inrow">
       <div class="infield"><div class="flabel">Weight kg</div>
-        <div class="stepper"><button onclick="bumpEl('in-ed-kg',-2.5)">−</button><input id="in-ed-kg" type="number" inputmode="decimal" step="0.5"><button onclick="bumpEl('in-ed-kg',2.5)">+</button></div></div>
+        <div class="stepper"><button onclick="bumpEl('in-ed-kg',-2.5)" aria-label="Decrease weight">−</button><input id="in-ed-kg" type="number" inputmode="decimal" step="0.5" aria-label="Weight kg"><button onclick="bumpEl('in-ed-kg',2.5)" aria-label="Increase weight">+</button></div></div>
       <div class="infield"><div class="flabel">Reps</div>
-        <div class="stepper"><button onclick="bumpEl('in-ed-reps',-1)">−</button><input id="in-ed-reps" type="number" inputmode="numeric" step="1"><button onclick="bumpEl('in-ed-reps',1)">+</button></div></div>
+        <div class="stepper"><button onclick="bumpEl('in-ed-reps',-1)" aria-label="Decrease reps">−</button><input id="in-ed-reps" type="number" inputmode="numeric" step="1" aria-label="Reps"><button onclick="bumpEl('in-ed-reps',1)" aria-label="Increase reps">+</button></div></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="bigbtn ghost" style="margin:0;flex:1;color:var(--plate-red)" onclick="deleteEditSet()">Delete</button>
@@ -540,8 +574,8 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/share.js?v=6.9"></script>
-<script src="js/drive.js?v=6.9"></script>
-<script src="js/app.js?v=6.9"></script>
+<script src="js/share.js?v=7.1"></script>
+<script src="js/drive.js?v=7.1"></script>
+<script src="js/app.js?v=7.1"></script>
 </body>
 </html>

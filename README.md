@@ -98,6 +98,37 @@ The app is a public static site: anyone with the link gets their own independent
 
 ## Changelog
 
+### 7.1
+- Plate bar is interactive: tap a plate size to add one to each side, tap a loaded plate to take it off. Plates carry IPF colours.
+- Guide and Swap moved from the top-right of the lift header into the dock, in thumb reach.
+- Rest veil shows the next set's target weight and reps large, offers "Peek at the cues" (or swipe down) which collapses it to a bar at the top with the clock; tap the bar or swipe up to expand, "I'm ready" still ends it.
+- Toast: the whole pill triggers Undo, and a finger resting on it keeps it visible.
+- Week swipes ignore the outer 32 px so the Android back gesture no longer flips the week.
+- Sheets dismiss with a swipe down from the handle area.
+- Tap targets: editor mini buttons and pills extend to 44 px+ hit areas without changing size; pips are 9 px.
+- Pinch zoom re-enabled (viewport no longer locks scale); double-tap zoom is prevented with `touch-action: manipulation`.
+- Appearance: True black option for OLED screens (`settings.oled`).
+
+### 7.0
+- Time-boxed sessions: on the session preview, "Short on time?" offers 30 / 45 / 60 minute budgets. Accessories are skipped from the end of the session backwards; compounds and lifts you have already started are never dropped. Skips live on that day's log entry (`logs[key].skip`), show struck through in the preview and session map, can be tapped to bring back, and the done screen lists them separately from "Not done".
+- Nutrition guide (Settings → Help): a calculator (Mifflin-St Jeor, step-count activity, per-training-day allowance, goal shift) giving calories, protein, carbs and fat, plus plain-English guidance on rate of change, protein, carbs and fat, gaining, cutting and the basics. Inputs persist in `settings.nutri`.
+- Fix: `migrate()` rebuilt `settings` from a fixed list of keys, so the reminder time was lost on every reload. Unknown settings keys are now preserved.
+- Review fixes (data): deleting a set now splices it out instead of leaving a null hole that the next logged set overwrote; leaving a session with the system back gesture clears the live session (Drive downloads were deferred forever and the wake lock re-acquired on every foreground); the IndexedDB mirror is adopted when it is newer than localStorage, not only when localStorage is empty; a corrupt save no longer blanks the app (it is stashed under a sibling key and the app boots clean with a toast); `migrate()` repairs malformed programme/archive/logs shapes; `remapSlots` moves today-only swaps and time skips with their slot.
+- Review fixes (logic): previous-session lookup falls back to the lift by name on any slot or day, so a template switch or reorder no longer resets the coach; open-plan streaks ignore the days before a mid-week start; block-plan streaks no longer change when you browse the week strip; next-set and Skip never land on a finished or time-skipped slot; log dates and the "new PR" window use local dates; the week strip clamps the selected week before drawing; coaching tip no longer prints "-Infinity kg" for empty slots.
+- Service worker: page fetch races a 3 s timeout before serving the cached shell, page and precache fetches bypass the HTTP cache, and a failed asset fetch returns a network error rather than HTML.
+- Drive: the file list is ordered newest-first and the file we last wrote is preferred; a deferred download no longer stamps "synced just now".
+- Performance: `save()` serialises once and mirrors to IndexedDB at most every 0.8 s (flushed on hide/pagehide).
+- Polish: long-press tolerates 8 px of finger movement; edit-set steppers have labels; long toasts truncate; day titles are escaped everywhere; Nutrition lights the Plan tab; `betterSet` and `sessionDuration` moved to core with tests.
+
+### 6.11
+- Swap sheet now has "Just today" (default) and "Permanently". A just-today swap lives on that session's log entry (`logs[key].once[exIdx]`), lists lifts sharing the same primary muscles, and leaves the plan and permanent swaps untouched. Sets are stamped with the lift actually done, as before.
+
+### 6.10
+- Programme editor: "Set reps for several lifts" applies one rep range to any selection of lifts (All / Compounds / Accessories shortcuts). Sets and other options are untouched.
+
+### 6.9.1
+- Fix: the "Logged / New PR" toast no longer overlaps the rest timer's ±15 s buttons; it drops to the bottom edge while the rest veil is showing.
+
 ### 6.9
 
 - **Streaks** under the Home hero: session streak, week streak and percentage of planned sessions kept. Calendar-aware on open plans, so a session later today doesn't break the run.

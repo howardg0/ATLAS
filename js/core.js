@@ -23,6 +23,73 @@ function normaliseRange(v){
   return /^\d+(–\d+)?$/.test(v)?v:null;
 }
 
+/* Sets one rep range on several programme slots. slots is a list of "D-i" keys; returns how many changed. */
+function bulkRange(programme,slots,range){
+  const r=normaliseRange(range);if(!r)return 0;
+  let n=0;
+  for(const key of slots){
+    const [d,i]=key.split("-");const ex=programme[d]&&programme[d].ex[+i];
+    if(ex&&ex[1]!==r){ex[1]=r;n++}
+  }
+  return n;
+}
+
+/* Alternatives for a one-off swap: same group and at least one shared primary muscle.
+   Curated swaps first, then same movement pattern, then exact primary-muscle match, then the rest. */
+function sameMuscleLifts(exdb,name,subs){
+  const e=exdb[name];if(!e)return[];
+  const key=[...e.pri].sort().join(),cur=(subs&&subs[name])||[];
+  const score=n=>{const x=exdb[n];return (cur.includes(n)?0:4)+(x.pat===e.pat?0:2)+([...x.pri].sort().join()===key?0:1)};
+  return Object.keys(exdb).filter(n=>n!==name&&exdb[n].g===e.g&&exdb[n].pri.some(m=>e.pri.includes(m)))
+    .sort((a,b)=>score(a)-score(b)||a.localeCompare(b));
+}
+
+/* ---------- sets ---------- */
+/* Does set a beat set b? Heavier wins; same weight, more reps wins. */
+function betterSet(a,b){return !b||a.kg>b.kg||(a.kg===b.kg&&a.reps>b.reps)}
+/* Minutes from the first logged set to the last in one session's log entry */
+function sessionDuration(L){
+  const ts=[];for(const ex of Object.values((L&&L.ex)||{}))for(const s of ex||[])if(s&&s.t)ts.push(s.t);
+  return ts.length>1?Math.round((Math.max(...ts)-Math.min(...ts))/60000):0;
+}
+
+/* ---------- time budget ---------- */
+/* Rough minutes a slot takes: sets × (work + rest), compounds rest longer */
+function slotMinutes(sets,isComp){return sets*(isComp?3.4:2.3)}
+/* Trim a session to a time budget. slots: [{i,comp,min,locked}] in programme order.
+   Accessories go first, from the end of the session backwards; compounds and
+   locked slots (already started) are never dropped. Returns the slot indices to skip. */
+function trimForTime(slots,budgetMin,baseMin){
+  let total=(baseMin||0)+slots.reduce((a,s)=>a+s.min,0);
+  const skip=[];
+  for(let k=slots.length-1;k>=0&&total>budgetMin;k--){
+    const s=slots[k];if(s.comp||s.locked||!s.min)continue;
+    skip.push(s.i);total-=s.min;
+  }
+  return{skip:skip.sort((a,b)=>a-b),min:Math.round(total)};
+}
+
+/* ---------- nutrition ---------- */
+/* Mifflin-St Jeor BMR, a step-count activity factor, plus an allowance per training
+   day spread over the week. Goal shifts the target; protein and fat are set per kg
+   of bodyweight and carbs take the remainder. Numbers are a starting point: the
+   scale over two to three weeks is the real answer. */
+const STEP_FACTOR={low:1.3,mid:1.4,high:1.55};
+function nutritionTargets(p){
+  const kg=+p.kg||0,cm=+p.cm||0,age=+p.age||0,days=Math.min(7,Math.max(0,+p.days||0));
+  if(kg<30||cm<100||age<10)return null;
+  const bmr=10*kg+6.25*cm-5*age+(p.sex==="f"?-161:5);
+  const maint=bmr*(STEP_FACTOR[p.steps]||1.3)+days*350/7;
+  const shift=p.goal==="cut"?-Math.min(500,Math.max(300,maint*0.15)):p.goal==="gain"?250:0;
+  const kcal=Math.round((maint+shift)/25)*25;
+  const protein=Math.round(kg*(p.goal==="cut"?2.2:2.0));
+  const fat=Math.round(kg*0.9);
+  const carbs=Math.max(0,Math.round((kcal-protein*4-fat*9)/4));
+  const rate=p.goal==="cut"?"0.5 to 1% of bodyweight down per week":p.goal==="gain"?"0.25 to 0.5% of bodyweight up per week":"weight steady over a month";
+  return{bmr:Math.round(bmr),maint:Math.round(maint/25)*25,kcal,protein,fat,carbs,rate,
+    lo:kcal-100,hi:kcal+100,kgLo:Math.round(kg*(p.goal==="cut"?0.005:0.0025)*10)/10,kgHi:Math.round(kg*(p.goal==="cut"?0.01:0.005)*10)/10};
+}
+
 /* ---------- numbers ---------- */
 /* 62.5 -> "62.5", 60 -> "60", 41.25 -> "41.25": no trailing zeros, at most 2 dp */
 function fmtKg(v){return String(Math.round(v*100)/100)}
@@ -218,6 +285,11 @@ function remapSlots(logs,swaps,d,n,transform,nWeeks){
     const out=transform(arr);
     const ex={};out.forEach((v,i)=>{if(v&&v.length)ex[i]=v});
     L.ex=ex;
+    /* today-only swaps and time skips are slot-indexed too */
+    if(L.once){const o=[];for(let i=0;i<n;i++)o.push(L.once[i]||null);const oo=transform(o);
+      L.once={};oo.forEach((v,i)=>{if(v)L.once[i]=v});if(!Object.keys(L.once).length)delete L.once}
+    if(L.skip){const k=[];for(let i=0;i<n;i++)k.push(L.skip.includes(i)?1:null);const kk=transform(k);
+      L.skip=[];kk.forEach((v,i)=>{if(v)L.skip.push(i)});if(!L.skip.length)delete L.skip}
   }
   const sw=[];for(let i=0;i<n;i++)sw.push(swaps[d+"-"+i]||null);
   const swOut=transform(sw);
@@ -249,18 +321,30 @@ function migrate(d,defaultDays,defaultSettings,defaultPlan,phases){
   d.swaps=d.swaps||{};
   d.notes=d.notes||{};
   d.metrics=d.metrics||[];
-  d.archive=d.archive||[];
+  d.archive=(Array.isArray(d.archive)?d.archive:[]).filter(b=>b&&typeof b==="object"&&b.logs&&typeof b.logs==="object");
   d.lastBackup=d.lastBackup||null;
   d.session=d.session||null;
   d.rest=d.rest||null;
-  if(!d.programme)d.programme=clone(defaultDays);
+  if(typeof d.logs!=="object"||Array.isArray(d.logs))d.logs={};
+  /* a programme must be an object of days, each with an array of [name,range,isComp] tuples */
+  if(!d.programme||typeof d.programme!=="object")d.programme=clone(defaultDays);
+  for(const k of Object.keys(d.programme)){
+    const day=d.programme[k];
+    if(!day||typeof day!=="object"||!Array.isArray(day.ex)){delete d.programme[k];continue}
+    day.ex=day.ex.filter(e=>Array.isArray(e)&&typeof e[0]==="string");
+    day.title=String(day.title||"Day "+k);
+  }
+  if(!Object.keys(d.programme).length)d.programme=clone(defaultDays);
   /* 6.1: adjustable bar, plates and rests, plus per-lift overrides */
   const ds=defaultSettings,s=d.settings||{};
   d.settings={
+    ...s,
     bar:s.bar>0?s.bar:ds.bar,
     plates:Array.isArray(s.plates)&&s.plates.length?s.plates:clone(ds.plates),
     rest:Object.assign(clone(ds.rest),s.rest||{}),
-    theme:["dark","light","auto"].includes(s.theme)?s.theme:ds.theme
+    theme:["dark","light","auto"].includes(s.theme)?s.theme:ds.theme,
+    oled:!!s.oled,
+    nutri:Object.assign(clone(ds.nutri||{kg:80,cm:180,age:30,sex:"m",steps:"low",goal:"maintain"}),s.nutri||{})
   };
   d.lifts=d.lifts||{};
   /* 6.4: configurable block plan; archived blocks carry theirs. Sync bookkeeping. */
@@ -284,4 +368,4 @@ function migrate(d,defaultDays,defaultSettings,defaultPlan,phases){
 
 if(typeof module!=="undefined"&&module.exports)module.exports={clone,logKey,parseRange,repTop,repBottom,normaliseRange,fmtKg,snapStep,
   e1rm,setScore,setTonnage,fmtSet,validatePlan,planWeeks,planWeek,isDeload,isLightWeek,isRampWeek,rampSets,nextLightWeek,isoDate,mondayOf,calendarWeek,maxLoggedWeek,historyOrder,sessionStreak,adherence,buildICS,syncDecision,exNameIn,setName,incrementFor,restFor,isUnilateral,plateBreakdown,
-  exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate};
+  exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate,bulkRange,sameMuscleLifts,slotMinutes,trimForTime,nutritionTargets,betterSet,sessionDuration};

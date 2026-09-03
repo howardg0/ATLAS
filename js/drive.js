@@ -49,8 +49,10 @@ async function dfetch(url,opts={},interactive){
 }
 async function driveFind(){
   const q=encodeURIComponent(`name='${DRIVE_FILE}' and trashed=false`);
-  const r=await dfetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id,modifiedTime,size)`);
-  const j=await r.json();return (j.files&&j.files[0])||null;
+  const r=await dfetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&orderBy=modifiedTime%20desc&fields=files(id,modifiedTime,size)`);
+  const j=await r.json(),files=j.files||[];
+  /* two devices may each have created a file; stick with the one we wrote last, else the newest */
+  return files.find(f=>f.id===db.sync.fileId)||files[0]||null;
 }
 async function driveRead(id){return (await dfetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).json()}
 async function driveWrite(id,obj){
@@ -89,7 +91,8 @@ async function driveSync(opts={}){
     if(dec==="download"&&S)dec="deferred";          /* never swap the log out from under a live session */
     if(dec==="download"&&remote)adoptRemote(remote);
     else if(dec==="upload"){db.sync.fileId=await driveWrite(f?f.id:null,drivePayload());db.lastBackup=Date.now()}
-    db.sync.lastSync=Date.now();db.sync.error=null;save({quiet:true});
+    if(dec!=="deferred")db.sync.lastSync=Date.now();   /* deferred = not actually in sync yet */
+    db.sync.error=null;save({quiet:true});
     if(!opts.quiet)toast(dec==="download"?"Updated from Google Drive":dec==="upload"?"Saved to Google Drive":dec==="deferred"?"Drive has newer data — will update after this session":"Drive is up to date");
   }catch(e){
     db.sync.error=e.message;save({quiet:true});

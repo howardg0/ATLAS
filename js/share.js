@@ -39,8 +39,7 @@ async function drawSessionCard(w,d){
   c.fillText(date,pad,y);
   /* stats */
   y+=54;
-  let ts=[];for(const ex of Object.values(L.ex||{}))for(const s of ex)if(s&&s.t)ts.push(s.t);
-  const dur=ts.length>1?Math.round((Math.max(...ts)-Math.min(...ts))/60000):0;
+  const dur=sessionDuration(L);
   const stats=[[sessionTonnage(w,d).toLocaleString(),"TONNAGE KG"],[String(loggedSets(w,d)),"SETS"],[dur?String(dur):"—","MINUTES"]];
   const sw=(W-pad*2-2*20)/3,sh=150;
   stats.forEach(([v,k],i)=>{const x=pad+i*(sw+20);
@@ -54,8 +53,8 @@ async function drawSessionCard(w,d){
     const sets=(L.ex[i]||[]).filter(s=>s&&s.kg!=null);if(!sets.length)return null;
     const name=setName(sets[0],blockCtx(),d,i);
     const prev=liftStats(name,k);
-    const best=sets.reduce((a,s)=>!a||s.kg>a.kg||(s.kg===a.kg&&s.reps>a.reps)?s:a,null);
-    const pr=!!prev&&(best.kg>prev.best.kg||(best.kg===prev.best.kg&&best.reps>prev.best.reps));
+    const best=sets.reduce((a,s)=>betterSet(s,a)?s:a,null);
+    const pr=!!prev&&betterSet(best,prev.best);
     return{name,sets,pr};
   }).filter(Boolean);
   const footerY=H-pad-10;

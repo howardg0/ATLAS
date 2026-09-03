@@ -6,11 +6,16 @@
    address of every logged set on the device. */
 const KEY="block-log-v2";
 /* Keep in step with CACHE in sw.js and the ?v= stamps in index.html (tests/version.test.js checks) */
-const APP_VERSION="6.9";
+const APP_VERSION="7.1";
 let restEnd=0,restTick=null,restDur=1,restLabel="",restHintTxt="";
 let S=null;
 const migrateDb=d=>migrate(d,DEFAULT_DAYS,DEFAULT_SETTINGS,DEFAULT_PLAN,PHASES);
-let db=migrateDb(load());
+let db,BOOT_ERR=null;
+try{db=migrateDb(load())}
+catch(e){   /* a corrupt save must never brick the app: stash it beside the live key and boot clean */
+  BOOT_ERR=e;try{localStorage.setItem(KEY+"-broken-"+Date.now(),localStorage.getItem(KEY)||"")}catch(_){}
+  db=migrateDb({});
+}
 /* The live programme is db.programme (editable); DAYS points at it after init. */
 let DAYS=DEFAULT_DAYS;
 const dayIds=()=>Object.keys(DAYS);
@@ -41,9 +46,12 @@ const todayIdx=()=>(new Date().getDay()+6)%7;
 /* rough pacing: compounds are slower than accessories */
 function estMinutes(w,d){
   let m=6;
-  DAYS[d].ex.forEach((e,i)=>{m+=slotSets(w,d,i)*(e[2]?3.4:2.3)});
+  DAYS[d].ex.forEach((e,i)=>{m+=slotMinutes(slotSets(w,d,i),e[2])});
   return Math.round(m/5)*5;
 }
+/* Slots skipped for time in one session live on that day's log entry, like today-only swaps */
+function skipList(w,d){const L=db.logs[logKey(w,d)];return (L&&L.skip)||[]}
+function isSkipped(w,d,i){return skipList(w,d).includes(i)}
 function load(){
   try{
     const d=JSON.parse(localStorage.getItem(KEY));
@@ -84,9 +92,15 @@ function save(opts){
   db.session=S?{w:S.w,d:S.d,exIdx:S.exIdx,setIdx:S.setIdx,t:Date.now()}:null;
   db.rest=(restEnd>Date.now())
     ?{end:restEnd,label:restLabel,dur:restDur,hint:restHintTxt}:null;
-  try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast("Storage unavailable — back up now")}
-  IDB.set("db",clone(db));
+  const json=JSON.stringify(db);
+  try{localStorage.setItem(KEY,json)}catch(e){toast("Storage unavailable — back up now")}
+  /* the IndexedDB mirror stores the same string, written at most once a second */
+  MIRROR_JSON=json;clearTimeout(MIRROR_T);MIRROR_T=setTimeout(flushMirror,800);
 }
+let MIRROR_JSON=null,MIRROR_T=null;
+function flushMirror(){clearTimeout(MIRROR_T);MIRROR_T=null;if(MIRROR_JSON!=null){IDB.set("db",MIRROR_JSON);MIRROR_JSON=null}}
+document.addEventListener("visibilitychange",()=>{if(document.hidden)flushMirror()});
+addEventListener("pagehide",flushMirror);
 
 /* ================= HELPERS ================= */
 /* keep the last few runtime errors so a problem report carries something useful */
@@ -98,10 +112,13 @@ addEventListener("unhandledrejection",e=>logErr("promise: "+((e.reason&&e.reason
 const $=id=>document.getElementById(id);
 function toast(m,actionLabel,actionFn){
   const t=$("toast");
-  t.innerHTML=m+(actionLabel?` <button id="toast-act">${actionLabel}</button>`:"");
-  if(actionLabel)$("toast-act").onclick=()=>{t.classList.remove("show");actionFn()};
-  t.classList.add("show");clearTimeout(t._h);
-  t._h=setTimeout(()=>t.classList.remove("show"),actionLabel?4500:2000);
+  t.innerHTML=m+(actionLabel?` <button id="toast-act" tabindex="-1">${actionLabel}</button>`:"");
+  t.classList.toggle("act",!!actionLabel);
+  const hide=()=>t.classList.remove("show");
+  t.onclick=actionLabel?()=>{hide();actionFn()}:null;
+  const arm=ms=>{clearTimeout(t._h);t._h=setTimeout(hide,ms)};
+  t.onpointerdown=()=>clearTimeout(t._h);t.onpointerup=t.onpointercancel=()=>arm(1500);
+  t.classList.add("show");arm(actionLabel?4500:2000);
 }
 function bumpEl(id,step){
   const el=$(id);let v=parseFloat(el.value)||0;
@@ -111,22 +128,27 @@ function bumpEl(id,step){
 }
 function setsFor(w,isComp){return isComp?wk(w).comp:wk(w).acc}
 /* a slot can pin its own set count ({sets:n}); light weeks scale it to about 60% */
-function slotSets(w,d,i){
+function plannedSets(w,d,i){
   const e=DAYS[d].ex[i];const o=exOpt(e,"sets");
   const n=o?(deloadWeek(w)?Math.max(1,Math.round(o*0.6)):o):setsFor(w,e[2]);
   return rampWeek(w)?rampSets(n):n;
 }
+/* what this session actually asks for: the plan, unless the slot was skipped for time today */
+function slotSets(w,d,i){return isSkipped(w,d,i)?0:plannedSets(w,d,i)}
 function totalSets(w,d){return DAYS[d].ex.reduce((a,e,i)=>a+slotSets(w,d,i),0)}
 function loggedSets(w,d,logs){logs=logs||db.logs;const L=logs[logKey(w,d)];if(!L)return 0;let n=0;for(const ex of Object.values(L.ex||{}))n+=ex.filter(s=>s&&s.kg!=null).length;return n}
 function sessionTonnage(w,d,logs){logs=logs||db.logs;const L=logs[logKey(w,d)];if(!L)return 0;let t=0;for(const ex of Object.values(L.ex||{}))for(const s of ex)if(s&&s.kg!=null)t+=setTonnage(s);return Math.round(t)}
 function ytLink(name){return "https://www.youtube.com/results?search_query="+encodeURIComponent(name+" proper form")}
 function exName(d,i){return (db.swaps&&db.swaps[d+"-"+i])||(DAYS[d].ex[i]||["—"])[0]}
+/* Name in a specific session: a "just today" swap on that day's log wins over the programme/permanent swap */
+function onceName(w,d,i){const L=db.logs[logKey(w,d)];return (L&&L.once&&L.once[i])||null}
+function sessName(w,d,i){return onceName(w,d,i)||exName(d,i)}
 /* ---------- per-lift settings (Lift screen) over global defaults (Settings) ---------- */
 function increment(name){return incrementFor(name,db.lifts,BIG_INC)}
 function isUni(name){return isUnilateral(name,db.lifts,EXDB)}
 /* seconds instead of reps: encyclopedia default, per-lift override wins */
 function isTimed(name){const o=db.lifts[name];if(o&&o.timed!=null)return !!o.timed;return !!(EXDB[name]&&EXDB[name].timed)}
-function restSecs(d,i){const e=DAYS[d].ex[i];return restFor(exName(d,i),e[2],db.lifts,db.settings.rest)}
+function restSecs(w,d,i){const e=DAYS[d].ex[i];return restFor(sessName(w,d,i),e[2],db.lifts,db.settings.rest)}
 function liftOpt(name){return db.lifts[name]||{}}
 /* v===null clears the override; an explicit 0 is kept (e.g. uni:0 = "not per side") */
 function setLiftOpt(name,k,v){
@@ -184,7 +206,7 @@ function showNow(name,dir){
   void el.offsetWidth;                       /* restart the animation */
   el.classList.add(dir==="back"?"in-back":"in-fwd");
   document.body.classList.toggle("in-session",name==="session");   /* no nav mid-set: fewer mis-taps, more room */
-  $("nav-home").classList.toggle("active",name==="home"||name==="preview"||name==="settings"||name==="prog");
+  $("nav-home").classList.toggle("active",name==="home"||name==="preview"||name==="settings"||name==="prog"||name==="nutri");
   $("nav-lib").classList.toggle("active",name==="lib"||name==="lift");
   $("nav-stats").classList.toggle("active",name==="stats");
   $("nav-progress").classList.toggle("active",name==="progress");
@@ -195,6 +217,7 @@ function showNow(name,dir){
   if(name==="progress")renderProgress();
   if(name==="settings")renderSettings();
   if(name==="prog")renderProg();
+  if(name==="nutri")renderNutri();
   if(name==="session")measureDock();   /* the dock only has a height once the screen is displayed */
   /* coming back should land where you left, going forward starts at the top.
      Wait a frame: the screen was just re-rendered, so scrollTo would otherwise
@@ -212,12 +235,15 @@ addEventListener("popstate",e=>{
   const cf=$("cfsheet").classList.contains("active");
   const pd=$("padsheet").classList.contains("active");
   const ch=$("choosesheet").classList.contains("active");
-  if(veil||sw||ed||pk||cf||pd||ch){
-    if(veil)endRest();if(sw)closeSwap();if(ed)closeEdit();if(pk)closePick();if(cf)closeAsk(false);if(pd)closePad();if(ch)closeChoose();
+  const bk=$("bulksheet").classList.contains("active");
+  if(veil||sw||ed||pk||cf||pd||ch||bk){
+    if(veil)endRest();if(sw)closeSwap();if(ed)closeEdit();if(pk)closePick();if(cf)closeAsk(false);if(pd)closePad();if(ch)closeChoose();if(bk)closeBulk();
     history.pushState({scr:document.querySelector(".screen.active").id.slice(4)},"");
     return;
   }
   let scr=(e.state&&e.state.scr)||"home";
+  const leavingSession=document.querySelector(".screen.active").id==="scr-session"&&scr!=="session";
+  if(leavingSession&&S){S=null;unlockScreen();save()}   /* same as the back button in the session topbar */
   if(scr==="session"&&!S)scr=PV?"preview":"home";
   if(scr==="preview"&&!PV)scr="home";
   show(scr,false,"back");
@@ -251,8 +277,8 @@ function renderHero(){
     const mins=Math.round((Date.now()-q.t)/60000);
     $("hero").innerHTML=`<button class="hero d${q.d}" onclick="resumeSession()">
       <div class="hinfo"><div class="hkick" style="color:var(--plate-yellow)">Session in progress</div>
-      <div class="hname">Day ${q.d} · ${DAYS[q.d].title}</div>
-      <div class="hmeta">Left off at ${exName(q.d,Math.min(q.exIdx,DAYS[q.d].ex.length-1))} · ${mins<60?mins+" min":Math.round(mins/60)+" h"} ago</div></div>
+      <div class="hname">Day ${q.d} · ${esc(DAYS[q.d].title)}</div>
+      <div class="hmeta">Left off at ${sessName(q.w,q.d,Math.min(q.exIdx,DAYS[q.d].ex.length-1))} · ${mins<60?mins+" min":Math.round(mins/60)+" h"} ago</div></div>
       <div class="hring">${ringSVG(sessDone,totalSess)}</div></button>`;
     return;
   }
@@ -270,13 +296,13 @@ function renderHero(){
   if(!nd)for(const d of dayIds())if(totalSets(w,d)>0&&loggedSets(w,d)<totalSets(w,d)){nd=d;break}
   if(nd){
     const started=loggedSets(w,nd)>0;
-    const first=exName(nd,0),h0=prevSession(w,nd,0);
+    const first=sessName(w,nd,0),h0=prevSession(w,nd,0);
     const firstTxt=DAYS[nd].ex.length
       ?`Starts with <b>${first}</b>${h0?` · last <b>${fmtSet(h0.sets[0])}</b>`:""}`
       :"No lifts on this day yet";
     $("hero").innerHTML=`<button class="hero d${nd}" onclick="shareTitle(this.querySelector('.hname'));showPreview(${w},'${nd}')">
       <div class="hinfo"><div class="hkick">${started?"Continue":(isOpen()&&w===curWeek()&&dayIds()[todayIdx()]===nd?"Today":"Next up")} · Week ${w}${isOpen()&&deloadWeek(w)?" · light":""}</div>
-      <div class="hname">${dayWeekday(nd)?dayWeekday(nd)+" · ":"Day "+nd+" · "}${DAYS[nd].title}</div>
+      <div class="hname">${dayWeekday(nd)?dayWeekday(nd)+" · ":"Day "+nd+" · "}${esc(DAYS[nd].title)}</div>
       <div class="hmeta">${started?loggedSets(w,nd)+"/"+totalSets(w,nd)+" sets logged — pick it back up":firstTxt}</div>
       <div class="hmeta2">${DAYS[nd].ex.length} lifts · ${totalSets(w,nd)} sets · ~${estMinutes(w,nd)} min</div></div>
       <div class="hring">${ringSVG(sessDone,totalSess)}</div></button>`;
@@ -308,7 +334,7 @@ function applyTemplate(id){
   DAYS=db.programme;for(const d of dayIds())normaliseSupersets(DAYS[d].ex);
   if(t.plan){
     db.plan=validatePlan(clone(t.plan),DEFAULT_PLAN,PHASES);
-    if(db.plan.open){db.plan.startDate=isoDate(mondayOf(todayISO()));db.autoWeekFor=null}   /* this calendar week is week 1 */
+    if(db.plan.open){db.plan.startDate=isoDate(mondayOf(todayISO()));db.startedOn=todayISO();db.autoWeekFor=null}   /* this calendar week is week 1 */
   }else if(isOpen())db.plan=clone(DEFAULT_PLAN);   /* a block template replaces an open plan with the default block */
   db.selWeek=isOpen()?curWeek():1;
   save();
@@ -373,13 +399,15 @@ function backupNudgeHTML(minDays){
 /* every planned session up to now, in order, with whether it is done and whether it was due */
 function sessionList(){
   const out=[];
-  const cw=isOpen()?curWeek():Math.max(db.selWeek,maxLoggedWeek(db.logs));
+  const cw=isOpen()?curWeek():Math.max(1,maxLoggedWeek(db.logs));   /* block plans: browsing the strip must not change the streak */
   const ti=todayIdx();
+  /* an open plan started mid-week: the days before the start were never due */
+  const startIdx=isOpen()&&db.startedOn&&calendarWeek(db.plan.startDate,db.startedOn)===1?(new Date(db.startedOn+"T12:00:00").getDay()+6)%7:0;
   for(let w=1;w<=cw;w++)dayIds().forEach((d,i)=>{
     const total=totalSets(w,d);if(!total)return;
     const done=loggedSets(w,d)>=total;
     let due;
-    if(isOpen())due=w<cw||i<ti||done;            /* today counts only once it's finished */
+    if(isOpen())due=(w<cw||i<ti||done)&&!(w===1&&i<startIdx&&!done);   /* today counts only once it's finished */
     else due=done||w<cw;                           /* block plans have no calendar: earlier weeks are due */
     out.push({done,due,w,d});
   });
@@ -388,7 +416,7 @@ function sessionList(){
   return out;
 }
 function weekStreak(){
-  let n=0;const last=isOpen()?curWeek()-1:Math.max(db.selWeek,maxLoggedWeek(db.logs));
+  let n=0;const last=isOpen()?curWeek()-1:Math.max(1,maxLoggedWeek(db.logs));
   for(let w=last;w>=1;w--){if(weekComplete(w))n++;else if(isOpen()||w<last)break;}
   return n;
 }
@@ -413,6 +441,7 @@ function renderHome(){
   /* the wordmark earns its space once, then gets out of the way */
   const training=Object.keys(db.logs).length>0||db.archive.length>0;
   $("brand").classList.toggle("compact",training);
+  if(db.selWeek>WEEKS()){db.selWeek=WEEKS();save()}
   renderHero();
   const wr=$("weekrow");wr.innerHTML="";
   const ws=weekWindow(db.selWeek);
@@ -430,7 +459,6 @@ function renderHome(){
     c.onclick=()=>{tap(6);db.selWeek=w;save();renderHome()};
     wr.appendChild(c);
   }
-  if(db.selWeek>WEEKS()){db.selWeek=WEEKS();save()}
   const w=db.selWeek;
   const nl=isOpen()?nextLightWeek(db.plan,curWeek()):0;
   const canPostpone=isOpen()&&!weekHasLogs(nl)&&(w===curWeek()||(deloadWeek(w)&&w>=curWeek()));
@@ -454,7 +482,7 @@ function renderHome(){
     else state=total+" sets";
     const pct=total?Math.round(100*done/total):0;
     card.innerHTML=`<div class="dayrow"><div class="dayletter">${d}</div>
-      <div class="dayinfo"><div class="dtitle">${DAYS[d].title}</div>
+      <div class="dayinfo"><div class="dtitle">${esc(DAYS[d].title)}</div>
       <div class="dsub">${dayWeekday(d)?dayWeekday(d)+" · ":""}${DAYS[d].ex.length} exercises · ~${estMinutes(w,d)} min</div></div>
       <div class="daystate ${cls}">${state}</div></div>
       <div class="dayprog"><i class="${cls}" style="width:${pct}%"></i></div>`;
@@ -482,25 +510,28 @@ function renderPreview(){
      <div class="pvstat"><div class="v">${total}</div><div class="k">Sets</div></div>
      <div class="pvstat"><div class="v">~${estMinutes(w,d)}</div><div class="k">Min</div></div>
      <div class="pvstat"><div class="v">${rirOf(w)}</div><div class="k">RIR</div></div>`;
+  renderTimebox(w,d);
   const L=(db.logs[logKey(w,d)]||{}).ex||{};
   let nextFound=false,html="";
   DAYS[d].ex.forEach((e,i)=>{
     const [,range,isComp]=e;
-    const name=exName(d,i);
-    const need=slotSets(w,d,i);
+    const name=sessName(w,d,i);
+    const skipped=isSkipped(w,d,i);
+    const need=skipped?plannedSets(w,d,i):slotSets(w,d,i);
     const have=(L[i]||[]).filter(s=>s&&s.kg!=null).length;
-    const isDone=have>=need;
-    const isNext=!isDone&&!nextFound;
+    const isDone=!skipped&&have>=need;
+    const isNext=!skipped&&!isDone&&!nextFound;
     if(isNext)nextFound=true;
     const hist=prevSession(w,d,i);
     const todaySets=(L[i]||[]).filter(s=>s&&s.kg!=null);
     const lastTxt=todaySets.length?fmtKg(Math.max(...todaySets.map(s=>s.kg)))+" kg today"
       :hist?"last "+fmtSet(hist.sets[0]):"find weight";
-    const state=isDone?`<span class="rstate done">✓</span>`
+    const state=skipped?`<span class="rstate skip">SKIPPED</span>`
+      :isDone?`<span class="rstate done">✓</span>`
       :have>0?`<span class="rstate part">${have}/${need}</span>`
       :`<span class="rstate">›</span>`;
-    html+=`<button class="rstep${isDone?" done":""}${isNext?" next":""}${i===DAYS[d].ex.length-1?" last":""}"
-      onclick="openLift('${name.replace(/'/g,"\\'")}','preview')">
+    html+=`<button class="rstep${isDone?" done":""}${isNext?" next":""}${skipped?" skipped":""}${i===DAYS[d].ex.length-1?" last":""}"
+      onclick="${skipped?`unskipSlot(${w},'${d}',${i})`:`openLift('${name.replace(/'/g,"\\'")}','preview')`}">
       <div class="rrail"><div class="rnode">${isDone?"✓":i+1}</div><div class="rline"></div></div>
       <div class="rbody"><div class="rinfo">
         ${isNext&&done>0?'<div class="nextlabel">Up next</div>':""}
@@ -512,10 +543,43 @@ function renderPreview(){
   $("pv-start").textContent=done>0?`Continue — ${done}/${total} sets done →`:"Start session →";
 }
 
+function unskipHere(j){const {w,d}=S;unskipSlot(w,d,j);renderSet()}
+/* ---------- time budget ---------- */
+const TIME_BUDGETS=[30,45,60];
+function renderTimebox(w,d){
+  const skip=skipList(w,d),est=estMinutes(w,d);
+  const full=!skip.length;
+  const hasAcc=DAYS[d].ex.some((e,i)=>!e[2]&&!isSkipped(w,d,i));
+  const budgets=TIME_BUDGETS.filter(b=>b<est||skip.length);
+  if(!budgets.length&&full){$("pv-time").innerHTML="";return}
+  $("pv-time").innerHTML=`<span class="tlabel">Short on time?</span><div class="libchips">
+    <button class="libchip ${full?"sel":""}" onclick="setTimeBudget(${w},'${d}',0)">Full session</button>
+    ${budgets.map(b=>`<button class="libchip" onclick="setTimeBudget(${w},'${d}',${b})">${b} min</button>`).join("")}</div>
+    ${skip.length?`<div class="nnote" style="flex:1 1 100%;margin:0">${skip.length} lift${skip.length>1?"s":""} skipped for today · ~${est} min. Tap a skipped lift to bring it back.</div>`:""}`;
+}
+function setTimeBudget(w,d,budget){
+  const k=logKey(w,d);
+  if(!db.logs[k])db.logs[k]={date:todayISO(),ex:{}};
+  const L=db.logs[k];
+  delete L.skip;
+  if(!budget){save();renderPreview();toast("Full session restored");return}
+  const slots=DAYS[d].ex.map((e,i)=>({i,comp:!!e[2],min:slotMinutes(plannedSets(w,d,i),e[2]),
+    locked:((L.ex[i])||[]).some(s=>s&&s.kg!=null)}));
+  const r=trimForTime(slots,budget,6);
+  if(!r.skip.length){save();renderPreview();toast("Nothing to trim — the compounds alone need ~"+Math.round(r.min/5)*5+" min");return}
+  L.skip=r.skip;save();haptic("select");renderPreview();
+  toast(`${r.skip.length} accessor${r.skip.length>1?"ies":"y"} skipped · ~${Math.round(r.min/5)*5} min${r.min>budget+2?" (compounds alone run over)":""}`);
+}
+function unskipSlot(w,d,i){
+  const L=db.logs[logKey(w,d)];if(!L||!L.skip)return;
+  L.skip=L.skip.filter(x=>x!==i);if(!L.skip.length)delete L.skip;
+  save();haptic("select");renderPreview();toast(sessName(w,d,i)+" is back in");
+}
+
 /* ================= SESSION ================= */
 function startSession(w,d){
   const k=logKey(w,d);
-  if(!db.logs[k])db.logs[k]={date:new Date().toISOString().slice(0,10),ex:{}};
+  if(!db.logs[k])db.logs[k]={date:todayISO(),ex:{}};
   let exIdx=0,setIdx=0,found=false;
   const exs=DAYS[d].ex;
   for(let i=0;i<exs.length&&!found;i++){
@@ -533,7 +597,7 @@ function resumeSession(){
   const q=db.session;
   if(!q||!DAYS[q.d]){toast("That session is no longer in the plan");db.session=null;save();renderHome();return}
   const k=logKey(q.w,q.d);
-  if(!db.logs[k])db.logs[k]={date:new Date().toISOString().slice(0,10),ex:{}};
+  if(!db.logs[k])db.logs[k]={date:todayISO(),ex:{}};
   S={w:q.w,d:q.d,exIdx:Math.min(q.exIdx,DAYS[q.d].ex.length-1),setIdx:0};
   S.setIdx=Math.min(q.setIdx,firstOpenSet());
   lockScreen();TON_SHOWN=0;LAST_EX=null;renderSet();show("session");
@@ -547,22 +611,30 @@ function resumeSession(){
    Matches on the LIFT, not the slot — so swapping an exercise no longer makes
    the coach compare your hack squats against your back squats. */
 function prevSession(w,d,exIdx){
-  const target=exName(d,exIdx);
-  const pick=(L,ctx)=>{
-    if(!L||!L.ex[exIdx])return null;
-    const sets=L.ex[exIdx].filter(s=>s&&s.kg!=null);
-    if(!sets.length)return null;
-    return setName(sets[0],ctx,d,exIdx)===target?sets:null;
+  const target=sessName(w,d,exIdx);
+  /* same slot first (the common case), then any slot on that day, then any other day —
+     so a template switch or a reorder doesn't reset the coach to "first time on this lift" */
+  const pick=(logs,pw,ctx)=>{
+    const days=Object.keys(ctx.programme||{});
+    for(const dd of [d,...days.filter(x=>x!==d)]){
+      const L=logs[logKey(pw,dd)];if(!L||!L.ex)continue;
+      const idxs=dd===d?[exIdx,...Object.keys(L.ex).map(Number).filter(i=>i!==exIdx)]:Object.keys(L.ex).map(Number);
+      for(const i of idxs){
+        const sets=(L.ex[i]||[]).filter(s=>s&&s.kg!=null);
+        if(sets.length&&setName(sets[0],ctx,dd,i)===target)return sets;
+      }
+    }
+    return null;
   };
   const cur=blockCtx();
   for(let pw=w-1;pw>=1;pw--){
-    const sets=pick(db.logs[logKey(pw,d)],cur);
+    const sets=pick(db.logs,pw,cur);
     if(sets)return{w:pw,block:db.block,sets};
   }
   for(let a=db.archive.length-1;a>=0;a--){
     const B=db.archive[a];
     for(const pw of historyOrder(B.plan||DEFAULT_PLAN,B.logs)){
-      const sets=pick(B.logs[logKey(pw,d)],B);
+      const sets=pick(B.logs,pw,B);
       if(sets)return{w:pw,block:B.block,sets};
     }
   }
@@ -578,7 +650,7 @@ const CO={
 };
 function coachAdvice(w,d,exIdx){
   const [,range,isComp]=DAYS[d].ex[exIdx];
-  const name=exName(d,exIdx);
+  const name=sessName(w,d,exIdx);
   const hist=prevSession(w,d,exIdx);
   const timed=isTimed(name),unit=timed?"seconds":"reps",u=timed?" s":"";
   if(deloadWeek(w))return{cls:"hold",ico:CO.deload,txt:`<b>Deload.</b> Same weights as last week, fewer sets, ${rirOf(w)} RIR. Leave the gym feeling fresh.`};
@@ -598,7 +670,7 @@ function coachAdvice(w,d,exIdx){
 function renderSet(){
   const {w,d,exIdx,setIdx}=S;
   const [,reps,isComp]=DAYS[d].ex[exIdx];
-  const name=exName(d,exIdx);
+  const name=sessName(w,d,exIdx);
   const nsets=slotSets(w,d,exIdx);
   $("ss-title").textContent=(dayWeekday(d)?dayWeekday(d)+" · ":"")+"Day "+d+" · Week "+w;
   $("ss-sub").textContent=DAYS[d].title+" · "+phaseLabel(w);
@@ -610,7 +682,8 @@ function renderSet(){
   $("ss-timer").style.display=timed?"":"none";
   $("ss-tags").innerHTML=`<span class="tag ${isComp?"comp":"acc"}">${isComp?"Compound":"Accessory"}</span>
     <span class="tag">${reps}${timed?" s":" reps"}${uni?" / side":""}</span><span class="tag">${rirOf(w)} RIR</span>`
-    +(pair>=0?`<span class="tag ss">⇄ Superset · ${exName(d,pair)}</span>`:"");
+    +(pair>=0?`<span class="tag ss">⇄ Superset · ${sessName(w,d,pair)}</span>`:"")
+    +(onceName(w,d,exIdx)?`<span class="tag once">Today only</span>`:"");
   const adv=coachAdvice(w,d,exIdx);
   const co=$("ss-coach");co.className="coach "+adv.cls;
   $("ss-coachico").innerHTML=adv.ico;$("ss-coachtxt").innerHTML=adv.txt;
@@ -651,9 +724,9 @@ function renderSet(){
   $("ss-upnext").innerHTML=DAYS[d].ex.map((e2,j)=>{
     const need2=slotSets(w,d,j);
     const have2=((db.logs[logKey(w,d)].ex[j])||[]).filter(s=>s&&s.kg!=null).length;
-    const st=have2>=need2?"done":j===exIdx?"cur":"";
+    const st=isSkipped(w,d,j)?"skip":have2>=need2?"done":j===exIdx?"cur":"";
     const link=j>0&&exOpt(DAYS[d].ex[j-1],"ss")?"⇄ ":"";
-    return `<button class="upchip ${st}" onclick="${st==="done"?"editLift("+j+")":"jumpTo("+j+")"}" aria-label="${st==="done"?"Edit sets for ":""}${exName(d,j)}">${st==="done"?"✓ ":(j+1)+". "}${link}${exName(d,j)}</button>`;
+    return `<button class="upchip ${st}" onclick="${st==="done"?"editLift("+j+")":st==="skip"?"unskipHere("+j+")":"jumpTo("+j+")"}" aria-label="${st==="done"?"Edit sets for ":st==="skip"?"Skipped for time, tap to add back: ":""}${sessName(w,d,j)}">${st==="done"?"✓ ":(j+1)+". "}${link}${sessName(w,d,j)}</button>`;
   }).join("");
   renderPlates();
   renderWarmup();
@@ -691,7 +764,7 @@ function editLift(j){
   const {w,d}=S;const arr=db.logs[logKey(w,d)].ex[j]||[];
   const opts=arr.map((s,si)=>s&&s.kg!=null?{label:`Set ${si+1} · ${fmtSet(s)}`,value:si}:null).filter(Boolean);
   if(!opts.length){jumpTo(j);return}
-  chooseSheet(exName(d,j),"Tap a set to change or delete it.",opts,si=>openEdit(w,d,j,si,"session"));
+  chooseSheet(sessName(w,d,j),"Tap a set to change or delete it.",opts,si=>openEdit(w,d,j,si,"session"));
 }
 async function endEarly(){
   const {w,d}=S;
@@ -707,7 +780,7 @@ function renderWarmup(){
   if(!S||S.exIdx!==0||S.setIdx!==0){box.style.display="none";return}
   const kg=parseFloat($("in-kg").value);
   if(isNaN(kg)||kg<=0){box.style.display="none";return}
-  const name=exName(S.d,0);
+  const name=sessName(S.w,S.d,0);
   const isBar=isBarbellLift(name),bar=db.settings.bar;
   const round=v=>Math.max(isBar?bar:2.5,Math.round(v/2.5)*2.5);
   const steps=isBar
@@ -722,19 +795,36 @@ function renderWarmup(){
 function renderPlates(){
   const bar=$("platebar");
   if(!S){bar.textContent="";return}
-  const name=exName(S.d,S.exIdx);
+  const name=sessName(S.w,S.d,S.exIdx);
   if(!isBarbellLift(name)){bar.textContent="";return}
-  const kg=parseFloat($("in-kg").value),barKg=db.settings.bar;
+  const kg=parseFloat($("in-kg").value)||0,barKg=db.settings.bar;
   const r=plateBreakdown(kg,barKg,db.settings.plates);
-  if(r.belowBar){bar.innerHTML=kg?`Below bar weight (${barKg} kg)`:"";return}
-  if(!r.ok){bar.innerHTML=`No clean load for ${kg} kg — nearest: <b>${r.nearest} kg</b>`;return}
-  bar.innerHTML=r.perSide.length?`Per side: <b>${r.perSide.join(" + ")}</b> (${barKg} kg bar)`:`Empty bar (${barKg} kg)`;
+  const avail=[...db.settings.plates].sort((a,b)=>b-a);
+  const addRow=avail.map(p=>`<button class="pchip add" onclick="addPlate(${p})" aria-label="Add a ${p} kg plate each side">+${p}</button>`).join("");
+  let head;
+  if(kg<barKg)head=kg?`Below bar weight (${barKg} kg) · tap a plate to load`:`Tap plates to load the ${barKg} kg bar`;
+  else if(!r.ok)head=`No clean load for ${fmtKg(kg)} kg — nearest <b>${fmtKg(r.nearest)} kg</b>`;
+  else head=r.perSide.length?`Per side · ${barKg} kg bar · tap a plate to take it off`:`Empty bar (${barKg} kg)`;
+  const loaded=(kg>=barKg?r.perSide:[]).map((p,i)=>`<button class="pchip" data-p="${p}" onclick="removePlate(${i})" aria-label="Remove the ${p} kg plate">${p}</button>`).join("");
+  bar.innerHTML=`${head}<div class="plates">${loaded}${loaded?`<span class="pdiv"></span>`:""}${addRow}</div>`;
   measureDock();
+}
+/* one plate on each side */
+function addPlate(p){
+  const el=$("in-kg"),barKg=db.settings.bar;
+  let kg=parseFloat(el.value)||0;if(kg<barKg)kg=barKg;
+  el.value=fmtKg(kg+2*p);haptic("select");renderPlates();renderWarmup();
+}
+function removePlate(i){
+  const el=$("in-kg"),barKg=db.settings.bar;
+  const r=plateBreakdown(parseFloat(el.value)||0,barKg,db.settings.plates);
+  const p=r.perSide[i];if(p==null)return;
+  el.value=fmtKg(Math.max(barKg,(parseFloat(el.value)||0)-2*p));haptic("select");renderPlates();renderWarmup();
 }
 
 function bump(f,dir){
   const el=f==="kg"?$("in-kg"):$("in-reps");
-  const step=f==="kg"?increment(exName(S.d,S.exIdx)):1;
+  const step=f==="kg"?increment(sessName(S.w,S.d,S.exIdx)):1;
   let v=parseFloat(el.value)||0;
   v=Math.max(0,snapStep(v+dir*step,step));
   el.value=f==="kg"?fmtKg(v):Math.round(v);
@@ -746,10 +836,10 @@ function logSet(){
   if(TIMER)stopTimer();
   const kg=parseFloat($("in-kg").value),reps=parseInt($("in-reps").value);
   const {w,d,exIdx,setIdx}=S;
-  const timed=isTimed(exName(d,exIdx));
+  const timed=isTimed(sessName(w,d,exIdx));
   if(isNaN(kg)||isNaN(reps)||reps<=0){haptic("error");toast(timed?"Enter weight and seconds":"Enter weight and reps");return}
   const k=logKey(w,d);
-  const name=exName(d,exIdx);
+  const name=sessName(w,d,exIdx);
   const prevBest=liftStats(name,k);   /* best before today's session */
   if(!db.logs[k].ex[exIdx])db.logs[k].ex[exIdx]=[];
   const set={kg,reps,t:Date.now(),name};
@@ -758,7 +848,7 @@ function logSet(){
   db.logs[k].ex[exIdx][setIdx]=set;
   save();
   const pos={w,d,exIdx,setIdx};
-  const isPR=prevBest&&(kg>prevBest.best.kg||(kg===prevBest.best.kg&&reps>prevBest.best.reps));
+  const isPR=!!prevBest&&betterSet(set,prevBest.best);
   FX={ex:exIdx,pip:setIdx};
   const b=$("logbtn");b.classList.add("pressed");setTimeout(()=>b.classList.remove("pressed"),140);
   if(isPR){haptic("pr");const f=$("prflash");f.classList.remove("go");void f.offsetWidth;f.classList.add("go")}
@@ -777,7 +867,9 @@ function undoSet(pos){
 }
 function skipExercise(){
   const {w,d,exIdx}=S;
-  if(exIdx+1<DAYS[d].ex.length){S.exIdx++;S.setIdx=firstOpenSet();renderSet();save()}
+  const open=j=>(db.logs[logKey(w,d)].ex[j]||[]).filter(s=>s&&s.kg!=null).length;
+  let j=exIdx+1;while(j<DAYS[d].ex.length&&open(j)>=slotSets(w,d,j))j++;   /* past finished and time-skipped slots */
+  if(j<DAYS[d].ex.length){S.exIdx=j;S.setIdx=open(j);renderSet();save()}
   else showDone(w,d);
 }
 function firstOpenSet(){
@@ -796,25 +888,26 @@ function nextTarget(){
     const first=Math.min(pair,exIdx),second=Math.max(pair,exIdx);
     for(const j of [pair,exIdx]){
       if(open(j)<slotSets(w,d,j))
-        return{exIdx:j,setIdx:open(j),rest:(exIdx===first&&j===second)?db.settings.rest.super:restSecs(d,exIdx)};
+        return{exIdx:j,setIdx:open(j),rest:(exIdx===first&&j===second)?db.settings.rest.super:restSecs(w,d,exIdx)};
     }
     after=second+1;
   }else{
-    if(setIdx+1<slotSets(w,d,exIdx))return{exIdx,setIdx:setIdx+1,rest:restSecs(d,exIdx)};
+    if(setIdx+1<slotSets(w,d,exIdx))return{exIdx,setIdx:setIdx+1,rest:restSecs(w,d,exIdx)};
     after=exIdx+1;
   }
-  if(after<exs.length)return{exIdx:after,setIdx:open(after),rest:restSecs(d,exIdx)};
+  while(after<exs.length&&open(after)>=slotSets(w,d,after))after++;   /* skipped for time, or already finished */
+  if(after<exs.length)return{exIdx:after,setIdx:open(after),rest:restSecs(w,d,exIdx)};
   return null;
 }
 function advance(withRest){
   const {w,d,exIdx}=S;
   const nx=nextTarget();
   if(!nx){showDone(w,d);return}
-  const nextLabel=nx.exIdx===exIdx?"Next: set "+(nx.setIdx+1)+" — "+exName(d,exIdx):"Next: "+exName(d,nx.exIdx);
+  const nextLabel=nx.exIdx===exIdx?"Next: set "+(nx.setIdx+1)+" — "+sessName(w,d,exIdx):"Next: "+sessName(w,d,nx.exIdx);
   const hint=restHint(nx);
   S.exIdx=nx.exIdx;S.setIdx=nx.setIdx;
-  if(withRest&&nx.rest>0)startRest(nx.rest,nextLabel,hint);
   renderSet();save();
+  if(withRest&&nx.rest>0)startRest(nx.rest,nextLabel,hint);   /* after renderSet: the veil reads the prefilled target */
 }
 /* what to load while resting: today's previous set on that lift, else last session's */
 function restHint(nx){
@@ -833,9 +926,9 @@ function openPad(f){
   if(!S)return;
   const el=$(f==="kg"?"in-kg":"in-reps");
   PAD={f,val:String(el.value||""),fresh:true};
-  $("pad-label").textContent=f==="kg"?"Weight kg":(isTimed(exName(S.d,S.exIdx))?"Seconds":"Reps");
+  $("pad-label").textContent=f==="kg"?"Weight kg":(isTimed(sessName(S.w,S.d,S.exIdx))?"Seconds":"Reps");
   $("pad-dot").style.visibility=f==="kg"?"visible":"hidden";
-  const {w,d,exIdx,setIdx}=S,name=exName(d,exIdx);
+  const {w,d,exIdx,setIdx}=S,name=sessName(w,d,exIdx);
   const L=db.logs[logKey(w,d)].ex[exIdx]||[],prev=setIdx>0?L[setIdx-1]:null,hist=prevSession(w,d,exIdx);
   const ref=prev||(hist?hist.sets[Math.min(setIdx,hist.sets.length-1)]:null);
   const q=[];
@@ -893,15 +986,16 @@ function onSwipe(el,fn){
   let x0=0,y0=0,t0=0;
   el.addEventListener("touchstart",e=>{const t=e.touches[0];x0=t.clientX;y0=t.clientY;t0=Date.now()},{passive:true});
   el.addEventListener("touchend",e=>{const t=e.changedTouches[0],dx=t.clientX-x0,dy=t.clientY-y0;
+    if(x0<32||x0>innerWidth-32)return;   /* edge swipes belong to the system back gesture */
     if(Date.now()-t0<600&&Math.abs(dx)>70&&Math.abs(dy)<45)fn(dx<0?1:-1)},{passive:true});
 }
 /* long-press on any descendant matching `selector`; the follow-up click is swallowed */
 function onLongPress(container,selector,fn){
-  let timer=null,target=null;
+  let timer=null,target=null,x0=0,y0=0;
   const cancel=()=>{if(timer){clearTimeout(timer);timer=null}};
-  container.addEventListener("pointerdown",e=>{target=e.target.closest(selector);if(!target)return;
+  container.addEventListener("pointerdown",e=>{target=e.target.closest(selector);if(!target)return;x0=e.clientX;y0=e.clientY;
     timer=setTimeout(()=>{timer=null;haptic("log");target.dataset.lp="1";fn(target)},480)});
-  container.addEventListener("pointermove",cancel);
+  container.addEventListener("pointermove",e=>{if(Math.hypot(e.clientX-x0,e.clientY-y0)>8)cancel()});   /* finger jitter must not cancel the hold */
   container.addEventListener("pointerup",cancel);
   container.addEventListener("pointercancel",cancel);
   container.addEventListener("click",e=>{const t=e.target.closest(selector);if(t&&t.dataset.lp){delete t.dataset.lp;e.stopPropagation();e.preventDefault()}},true);
@@ -909,22 +1003,42 @@ function onLongPress(container,selector,fn){
 }
 
 /* ================= SWAP ================= */
-function openSwap(){
-  const {d,exIdx}=S;
-  const orig=DAYS[d].ex[exIdx][0];
-  const cur=exName(d,exIdx);
-  const opts=[orig,...similarLifts(orig)];
-  $("swaplist").innerHTML=opts.map(o=>
-    `<button class="subopt ${o===cur?"current":""}" onclick="doSwap('${o.replace(/'/g,"\\'")}')">${o}${o===orig?" <span style='color:var(--ink-faint);font-weight:400'>(programme default)</span>":""}</button>`).join("");
-  $("swap-hint").textContent=isOpen()?"Same movement pattern, different tool. The swap sticks until you change it back, so your progression stays comparable.":"Same movement pattern, different tool. The swap sticks for this whole block so your progression stays comparable.";
-  $("swapsheet").classList.add("active");
+let SWAP_MODE="once";
+function openSwap(){SWAP_MODE="once";renderSwap();$("swapsheet").classList.add("active")}
+function setSwapMode(m){SWAP_MODE=m;haptic("select");renderSwap()}
+function renderSwap(){
+  const {w,d,exIdx}=S;
+  const orig=DAYS[d].ex[exIdx][0],planned=exName(d,exIdx),cur=sessName(w,d,exIdx);
+  $("swap-once").classList.toggle("sel",SWAP_MODE==="once");$("swap-perm").classList.toggle("sel",SWAP_MODE==="perm");
+  const q=s=>s.replace(/'/g,"\\'");
+  const meta=n=>{const e=EXDB[n];return e?`<span class="pemeta" style="flex-shrink:0">${e.eq} · ${e.pri.map(m=>MUSCLE_NAMES[m]).join(", ")}</span>`:""};
+  const row=(n,fn,note)=>`<button class="subopt bulkrow ${n===cur?"current":""}" onclick="${fn}('${q(n)}')"><span style="flex:1;min-width:0">${n}${note?` <span style='color:var(--ink-faint);font-weight:400'>${note}</span>`:""}</span>${meta(n)}</button>`;
+  let html;
+  if(SWAP_MODE==="once"){
+    $("swap-hint").textContent="Machine busy? Pick something that works the same muscles for this session only. Your plan and progression on "+planned+" are untouched.";
+    html=row(planned,"doSwapOnce","(planned)")+sameMuscleLifts(EXDB,planned,SUBS).map(n=>row(n,"doSwapOnce")).join("");
+  }else{
+    $("swap-hint").textContent=isOpen()?"Same movement pattern, different tool. The swap sticks until you change it back, so your progression stays comparable.":"Same movement pattern, different tool. The swap sticks for this whole block so your progression stays comparable.";
+    html=[orig,...similarLifts(orig)].map(o=>row(o,"doSwap",o===orig?"(programme default)":"")).join("");
+  }
+  $("swaplist").innerHTML=html;
+}
+function doSwapOnce(name){
+  const {w,d,exIdx}=S,k=logKey(w,d);
+  if(!db.logs[k])db.logs[k]={date:todayISO(),ex:{}};
+  const L=db.logs[k];if(!L.once)L.once={};
+  if(name===exName(d,exIdx))delete L.once[exIdx];else L.once[exIdx]=name;
+  if(!Object.keys(L.once).length)delete L.once;
+  save();closeSwap();renderSet();
+  toast(L.once&&L.once[exIdx]?name+" for today only":"Back to "+exName(d,exIdx));
 }
 function doSwap(name){
-  const {d,exIdx}=S;
+  const {w,d,exIdx}=S;
   const orig=DAYS[d].ex[exIdx][0];
   if(!db.swaps)db.swaps={};
   if(name===orig)delete db.swaps[d+"-"+exIdx];
   else db.swaps[d+"-"+exIdx]=name;
+  const L=db.logs[logKey(w,d)];if(L&&L.once){delete L.once[exIdx];if(!Object.keys(L.once).length)delete L.once}
   save();closeSwap();renderSet();
   toast(name===orig?"Back to default":"Swapped to "+name);
 }
@@ -1099,7 +1213,7 @@ function anatBind(){
   };
   host.addEventListener("pointerup",end);host.addEventListener("pointercancel",end);
 }
-function openLiftFromSession(){if(S)openLift(exName(S.d,S.exIdx),"session")}
+function openLiftFromSession(){if(S)openLift(sessName(S.w,S.d,S.exIdx),"session")}
 function saveNote(val){
   clearTimeout(window._noteT);
   window._noteT=setTimeout(()=>{
@@ -1123,7 +1237,7 @@ function liftStats(name,excludeKey){
           if(setName(s,B,d,i)!==name)continue;
           count++;
           const rec={kg:s.kg,reps:s.reps,timed:s.timed,uni:s.uni,date:L.date,block:B.block,e:setScore(s)};
-          if(!best||s.kg>best.kg||(s.kg===best.kg&&s.reps>best.reps))best=rec;
+          if(betterSet(s,best))best=rec;
           if(!bestE||rec.e>bestE.e)bestE=rec;
           if(!last||(s.t||0)>(last.t||0))last=Object.assign({t:s.t||0},rec);
         }
@@ -1139,13 +1253,35 @@ function startRest(sec,nextLabel,hint){
   restEnd=Date.now()+sec*1000;restDur=sec;restLabel=nextLabel;restHintTxt=hint||"";
   $("rest-next").textContent=nextLabel;
   $("rest-hint").innerHTML=restHintTxt;
-  $("restveil").classList.add("active");
+  restTarget();
+  peekRest(false,true);
+  $("restveil").classList.add("active");document.body.classList.add("resting");
   if(window.Notification&&Notification.permission==="default")try{Notification.requestPermission()}catch(e){}
   tickRest();restTick=setInterval(tickRest,250);
 }
+/* what the next set is going to be, big enough to read from the bench */
+function restTarget(){
+  const el=$("rest-target");if(!S){el.textContent="";return}
+  const kg=parseFloat($("in-kg").value)||0,reps=parseInt($("in-reps").value)||0;
+  const timed=isTimed(sessName(S.w,S.d,S.exIdx)),uni=isUni(sessName(S.w,S.d,S.exIdx));
+  el.innerHTML=kg?`${fmtKg(kg)} kg × ${reps||"?"}${timed?" s":""}<small>${uni?"per side":"target"}</small>`:"";
+}
+/* peek: collapse the veil to a bar at the top so cues and the map are readable while resting */
+function peekRest(on,silent){
+  const v=$("restveil"),was=v.classList.contains("peek");
+  v.classList.toggle("peek",!!on);
+  document.body.classList.toggle("peeking",!!on);
+  document.body.classList.toggle("resting",!on&&restEnd>Date.now());
+  if(on&&!was&&!silent)haptic("select");
+  tickRest();
+}
 function tickRest(){
   const left=Math.max(0,Math.ceil((restEnd-Date.now())/1000));
-  $("rest-time").textContent=Math.floor(left/60)+":"+String(left%60).padStart(2,"0");
+  const txt=Math.floor(left/60)+":"+String(left%60).padStart(2,"0");
+  $("rest-time").textContent=txt;
+  const peek=$("restveil").classList.contains("peek");
+  if(peek){const t=$("rest-target");if(!t.dataset.base)t.dataset.base=t.innerHTML;t.innerHTML=`${txt}<small>${restLabel.replace(/^Next: /,"")}</small>`}
+  else{const t=$("rest-target");if(t.dataset.base){t.innerHTML=t.dataset.base;delete t.dataset.base}}
   $("rest-ring").style.strokeDashoffset=(RING_C*(1-Math.min(1,left/restDur))).toFixed(1);
   if(left<=0){
     endRest();
@@ -1161,15 +1297,14 @@ function notifyRestDone(){
   }catch(e){}
 }
 function addRest(s){restEnd+=s*1000;restDur=Math.max(5,restDur+s);tickRest()}
-function endRest(){clearInterval(restTick);$("restveil").classList.remove("active")}
+function endRest(){clearInterval(restTick);$("restveil").classList.remove("active","peek");document.body.classList.remove("resting","peeking");const t=$("rest-target");if(t.dataset.base){t.innerHTML=t.dataset.base;delete t.dataset.base}}
 
 /* ================= DONE ================= */
 function showDone(w,d){
   S=null;unlockScreen();save();
   $("done-sub").textContent="Day "+d+" · Week "+w+" · "+DAYS[d].title;
   const L=db.logs[logKey(w,d)];
-  let ts=[];for(const ex of Object.values(L.ex||{}))for(const s of ex)if(s&&s.t)ts.push(s.t);
-  const dur=ts.length>1?Math.round((Math.max(...ts)-Math.min(...ts))/60000):0;
+  const dur=sessionDuration(L);
   $("done-tonnage").textContent=sessionTonnage(w,d).toLocaleString();
   $("done-sets").textContent=loggedSets(w,d);
   $("done-dur").textContent=dur||"—";
@@ -1180,9 +1315,10 @@ function showDone(w,d){
     if(!chips)return "";
     return `<div class="histrow"><div class="hname">${setName(arr.find(x=>x&&x.kg!=null),blockCtx(),d,i)}</div><div class="setchips">${chips}</div></div>`;
   }).join("");
-  const skipped=DAYS[d].ex.map((e,i)=>({n:exName(d,i),has:(L.ex[i]||[]).some(s=>s&&s.kg!=null)}))
-    .filter(x=>!x.has).map(x=>x.n);
-  if(skipped.length)html+=`<div class="hsets" style="padding:10px 4px;color:var(--ink-faint)">Not done: ${skipped.join(", ")}</div>`;
+  const undone=DAYS[d].ex.map((e,i)=>({n:sessName(w,d,i),has:(L.ex[i]||[]).some(s=>s&&s.kg!=null),skip:isSkipped(w,d,i)})).filter(x=>!x.has);
+  const forTime=undone.filter(x=>x.skip).map(x=>x.n),notDone=undone.filter(x=>!x.skip).map(x=>x.n);
+  if(forTime.length)html+=`<div class="hsets" style="padding:10px 4px 0;color:var(--ink-faint)">Skipped for time: ${forTime.join(", ")}</div>`;
+  if(notDone.length)html+=`<div class="hsets" style="padding:10px 4px;color:var(--ink-faint)">Not done: ${notDone.join(", ")}</div>`;
   html+=`<div class="hsets" style="padding:2px 4px;color:var(--ink-faint)">Tap a set to edit it, hold to delete.</div>`;
   $("done-list").innerHTML=html;
   $("done-nudge").innerHTML=backupNudgeHTML(7);
@@ -1196,7 +1332,7 @@ let ED=null;
 function openEdit(w,d,ex,si,src){
   ED={w,d,ex,si,src};
   const s=db.logs[logKey(w,d)].ex[ex][si];
-  $("ed-sub").textContent=exName(d,ex)+" · set "+(si+1);
+  $("ed-sub").textContent=sessName(w,d,ex)+" · set "+(si+1);
   $("in-ed-kg").value=s.kg;$("in-ed-reps").value=s.reps;
   $("editsheet").classList.add("active");
 }
@@ -1215,7 +1351,7 @@ function editReturn(){
 }
 function deleteEditSet(){
   const arr=db.logs[logKey(ED.w,ED.d)].ex[ED.ex];
-  arr[ED.si]=null;while(arr.length&&!arr[arr.length-1])arr.pop();
+  arr.splice(ED.si,1);   /* a null hole here would be overwritten by the next logged set */
   save();
   closeEdit();editReturn();toast("Set deleted");
 }
@@ -1286,7 +1422,7 @@ function muscleVolume(w){
   for(const d of dayIds()){
     const L=db.logs[logKey(w,d)];
     DAYS[d].ex.forEach((e,i)=>{
-      bump(exName(d,i),slotSets(w,d,i),"planned");
+      bump(sessName(w,d,i),slotSets(w,d,i),"planned");
       const done=((L&&L.ex[i])||[]).filter(s=>s&&s.kg!=null);
       if(!done.length)return;
       const byName={};
@@ -1347,7 +1483,7 @@ function allRecords(){
       const n=setName(s,B,d,i),e=setScore(s);
       const r=map[n]||(map[n]={name:n,sets:0,best:null,bestE:null,timed:!!s.timed});
       r.sets++;
-      if(!r.best||s.kg>r.best.kg||(s.kg===r.best.kg&&s.reps>r.best.reps))r.best={kg:s.kg,reps:s.reps,timed:s.timed,uni:s.uni,date:L.date,block:B.block};
+      if(betterSet(s,r.best))r.best={kg:s.kg,reps:s.reps,timed:s.timed,uni:s.uni,date:L.date,block:B.block};
       if(!r.bestE||e>r.bestE.e)r.bestE={e,kg:s.kg,reps:s.reps,date:L.date,block:B.block};
     }
   }
@@ -1356,7 +1492,7 @@ function allRecords(){
 function recordsHTML(){
   const recs=allRecords();
   if(!recs.length)return `<div class="emptymsg">No records yet.<br>Log your first session and this fills up.</div>`;
-  const weekAgo=new Date(Date.now()-7*86400e3).toISOString().slice(0,10);
+  const weekAgo=isoDate(new Date(Date.now()-7*86400e3));
   const byG={};recs.forEach(r=>{const g=(EXDB[r.name]||{}).g||"Other";(byG[g]=byG[g]||[]).push(r)});
   const row=r=>`<button class="recrow" onclick="openLift('${r.name.replace(/'/g,"\\'")}','stats')">
       <div class="rinfo2"><div class="rn">${r.name}${r.best.date&&r.best.date>=weekAgo?'<span class="prbadge">NEW PR</span>':""}</div>
@@ -1494,10 +1630,10 @@ function readyToAddLoad(w){
     const L=db.logs[logKey(w,d)];if(!L)continue;
     DAYS[d].ex.forEach((e,i)=>{
       const done=(L.ex[i]||[]).filter(s=>s&&s.kg!=null);
-      if(done.length<slotSets(w,d,i))return;
+      if(!done.length||done.length<slotSets(w,d,i))return;
       const top=repTop(e[1]);
       if(!isNaN(top)&&done.every(s=>s.reps>=top)){
-        const name=exName(d,i);
+        const name=sessName(w,d,i);
         out.push({name,kg:Math.max(...done.map(s=>s.kg)),inc:increment(name),low:repBottom(e[1])});
       }
     });
@@ -1620,38 +1756,38 @@ function renderProgress(){
     c.onclick=()=>{tap(6);PG.week=x;renderProgress()};
     wr.appendChild(c);
   }
-  const S=weekSummary(w,WK);
-  const V=weekVerdict(S);
+  const SM=weekSummary(w,WK);
+  const V=weekVerdict(SM);
   let html=`<div class="verdict ${V.tone}">
-    <div class="vkick">Week ${w} · ${phaseLabel(w)}${S.base?" vs "+S.base.label:""}</div>
+    <div class="vkick">Week ${w} · ${phaseLabel(w)}${SM.base?" vs "+SM.base.label:""}</div>
     <h2>${V.title}</h2><p>${V.body}</p></div>`;
 
-  if(S.cur.size){
-    const loadTxt=S.avgPct==null?"—":(S.avgPct>=0?"+":"")+Math.round(S.avgPct*10)/10+"%";
-    const volTxt=S.baseTon?((S.ton-S.baseTon)>=0?"+":"")+Math.round(100*(S.ton-S.baseTon)/S.baseTon)+"%":S.ton.toLocaleString();
+  if(SM.cur.size){
+    const loadTxt=SM.avgPct==null?"—":(SM.avgPct>=0?"+":"")+Math.round(SM.avgPct*10)/10+"%";
+    const volTxt=SM.baseTon?((SM.ton-SM.baseTon)>=0?"+":"")+Math.round(100*(SM.ton-SM.baseTon)/SM.baseTon)+"%":SM.ton.toLocaleString();
     html+=`<div class="statgrid three">
-      <div class="stat"><div class="v" style="color:${S.avgPct==null?"var(--ink)":S.avgPct>=0?"var(--plate-green)":"var(--plate-yellow)"}">${loadTxt}</div><div class="k">Load</div></div>
-      <div class="stat"><div class="v">${volTxt}</div><div class="k">${S.baseTon?"Volume":"Tonnage"}</div></div>
-      <div class="stat"><div class="v">${S.doneSets}/${S.planSets}</div><div class="k">Sets</div></div>
+      <div class="stat"><div class="v" style="color:${SM.avgPct==null?"var(--ink)":SM.avgPct>=0?"var(--plate-green)":"var(--plate-yellow)"}">${loadTxt}</div><div class="k">Load</div></div>
+      <div class="stat"><div class="v">${volTxt}</div><div class="k">${SM.baseTon?"Volume":"Tonnage"}</div></div>
+      <div class="stat"><div class="v">${SM.doneSets}/${SM.planSets}</div><div class="k">Sets</div></div>
     </div>`;
     /* load and volume can move opposite ways for good reasons — say which */
-    if(S.baseTon&&S.avgPct!=null){
-      const volPct=100*(S.ton-S.baseTon)/S.baseTon;
+    if(SM.baseTon&&SM.avgPct!=null){
+      const volPct=100*(SM.ton-SM.baseTon)/SM.baseTon;
       let note="";
-      if(S.avgPct>0.8&&volPct<-8)
+      if(SM.avgPct>0.8&&volPct<-8)
         note=`Volume is down because you logged fewer sets, not because you lifted lighter — the weights went <b>up</b>.`;
-      else if(S.avgPct<-0.8&&volPct>8)
-        note=`More total work than ${S.base.label}, but at lighter loads. Fine for a pump week; watch it doesn't become the pattern.`;
+      else if(SM.avgPct<-0.8&&volPct>8)
+        note=`More total work than ${SM.base.label}, but at lighter loads. Fine for a pump week; watch it doesn't become the pattern.`;
       else if(deloadWeek(w)&&volPct<-15)
         note=`Volume down <b>${Math.abs(Math.round(volPct))}%</b> on half the sets — that's the deload working as intended.`;
       if(note)html+=`<div class="pgnote">${note}</div>`;
     }
 
     html+=`<div class="sectlabel">Lift by lift</div>`;
-    const cnt={up:S.up,hold:S.hold,down:S.down,new:S.rows.filter(r=>r.status==="new").length};
+    const cnt={up:SM.up,hold:SM.hold,down:SM.down,new:SM.rows.filter(r=>r.status==="new").length};
     html+=`<div class="pgsum">${[["up","▲","up"],["hold","●","held"],["down","▼","down"],["new","+","new"]].map(([k,g,l])=>
       `<button class="${k}${PG.filter===k?" sel":""}" aria-pressed="${PG.filter===k}" onclick="PG.filter=PG.filter==='${k}'?null:'${k}';renderProgress()"><b>${g} ${cnt[k]}</b>${l}</button>`).join("")}</div>`;
-    const rows=PG.filter?S.rows.filter(r=>r.status===PG.filter):S.rows;
+    const rows=PG.filter?SM.rows.filter(r=>r.status===PG.filter):SM.rows;
     html+=rows.map(r=>`<button class="pgrow" onclick="openLift('${r.name.replace(/'/g,"\\'")}','progress')">
       <span class="pgbar ${r.status}"></span>
       <div class="pginfo"><div class="pgname">${r.name}</div>
@@ -1690,6 +1826,7 @@ function renderSettings(){
     ?`Week ${WEEKS()} complete — ready to roll over`
     :`Week ${WEEKS()} isn't finished yet`;
   renderTrainSettings();renderDrive();renderReminders();
+  renderOled();
   $("set-theme").innerHTML=[["auto","Auto"],["dark","Dark"],["light","Light"]].map(([k,l])=>
     `<button class="seg ${db.settings.theme===k?"sel":""}" aria-pressed="${db.settings.theme===k}" onclick="setTheme('${k}')">${l}</button>`).join("");
 }
@@ -1743,9 +1880,16 @@ function applyTheme(){
   const pref=db.settings.theme||"dark";
   const light=pref==="light"||(pref==="auto"&&matchMedia("(prefers-color-scheme: light)").matches);
   document.documentElement.dataset.theme=light?"light":"dark";
-  const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=light?"#F3F4F8":"#0A0B0F";
+  document.documentElement.dataset.oled=(!light&&db.settings.oled)?"1":"0";
+  const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=light?"#F3F4F8":(db.settings.oled?"#000000":"#0A0B0F");
 }
 function setTheme(k){db.settings.theme=k;save();applyTheme();renderSettings();tap(6)}
+function setOled(on){db.settings.oled=!!on;save();applyTheme();renderSettings();tap(6)}
+function renderOled(){
+  const on=!!db.settings.oled;
+  $("set-oled").innerHTML=`<div class="setrow"><div class="lrtext"><b>True black</b><i>Pure black background in the dark theme. Saves battery on OLED screens.</i></div>
+    <button class="pill ${on?"ss":""}" role="switch" aria-checked="${on}" aria-label="True black" onclick="setOled(${!on})">${on?"ON":"OFF"}</button></div>`;
+}
 matchMedia("(prefers-color-scheme: light)").addEventListener("change",()=>{if(db.settings.theme==="auto")applyTheme()});
 /* ---------- bar, plates and rest defaults ---------- */
 function renderTrainSettings(){
@@ -1774,6 +1918,67 @@ function togglePlate(p){
   if(pl.includes(p)){if(pl.length===1){toast("Keep at least one plate");return}pl.splice(pl.indexOf(p),1)}
   else pl.push(p);
   pl.sort((a,b)=>b-a);save();renderTrainSettings();
+}
+
+/* ================= NUTRITION GUIDE ================= */
+function setNutri(k,v){
+  const n=db.settings.nutri;
+  if(["kg","cm","age"].includes(k)){const x=parseFloat(v);if(isNaN(x))return renderNutri();n[k]=Math.round(x*10)/10}
+  else n[k]=v;
+  save();haptic("select");renderNutri();
+}
+function renderNutri(){
+  const n=db.settings.nutri,days=dayIds().length;
+  const t=nutritionTargets(Object.assign({days},n));
+  const chip=(k,v,label)=>`<button class="libchip ${n[k]===v?"sel":""}" aria-pressed="${n[k]===v}" onclick="setNutri('${k}','${v}')">${label}</button>`;
+  const num=(k,label,sub,unit)=>`<div class="nrow"><div class="lrtext"><b>${label}</b><i>${sub}</i></div><div style="display:flex;align-items:center;gap:6px"><input class="nin" type="number" inputmode="decimal" value="${n[k]}" onchange="setNutri('${k}',this.value)" aria-label="${label}"><span class="sunit">${unit}</span></div></div>`;
+  const goalTxt={cut:"Lose fat, keep muscle",maintain:"Hold weight, build slowly",gain:"Lean gain"}[n.goal];
+  let html=`<div class="ncalc">
+    ${num("kg","Bodyweight","Weigh in the morning, after the loo, before food","kg")}
+    ${num("cm","Height","","cm")}
+    ${num("age","Age","","yrs")}
+    <div class="nrow"><div class="lrtext"><b>Sex</b><i>Changes the resting estimate</i></div><div class="libchips wrap">${chip("sex","m","Male")}${chip("sex","f","Female")}</div></div>
+    <div class="nrow"><div class="lrtext"><b>Daily steps</b><i>Outside the gym</i></div><div class="libchips wrap">${chip("steps","low","Under 5k")}${chip("steps","mid","5 to 8k")}${chip("steps","high","8k+")}</div></div>
+    <div class="nrow"><div class="lrtext"><b>Training days</b><i>From your programme</i></div><span class="sunit" style="font-weight:700;color:var(--ink)">${days} / week</span></div>
+    <div class="nrow"><div class="lrtext"><b>Goal</b><i>${goalTxt}</i></div><div class="libchips wrap">${chip("goal","cut","Cut")}${chip("goal","maintain","Maintain")}${chip("goal","gain","Gain")}</div></div>`;
+  if(t){
+    html+=`<div class="nout">
+      <div class="pvstat main"><div class="v">${t.kcal}</div><div class="k">kcal / day</div></div>
+      <div class="pvstat"><div class="v">${t.protein}g</div><div class="k">Protein</div></div>
+      <div class="pvstat"><div class="v">${t.carbs}g</div><div class="k">Carbs</div></div>
+      <div class="pvstat"><div class="v">${t.fat}g</div><div class="k">Fat</div></div></div>
+    <div class="nnote">Estimated maintenance <b>~${t.maint} kcal</b>. Aim for ${t.lo} to ${t.hi} and expect <b>${t.rate}</b>${n.goal==="maintain"?"":` (about ${t.kgLo} to ${t.kgHi} kg a week)`}. Hit the protein every day; carbs and fat can flex around it.</div>`;
+  }else html+=`<div class="nnote">Fill in weight, height and age to get numbers.</div>`;
+  html+=`</div>`;
+  const sect=(title,items)=>`<div class="nsect">${title}</div><div class="formcard"><ul>${items.map(i=>"<li>"+i+"</li>").join("")}</ul></div>`;
+  html+=sect("How to use the number",[
+    "Treat it as a starting point, not a verdict. Formulas are typically within 10% of reality, which is 250 kcal either way.",
+    "Weigh yourself most mornings and compare <b>weekly averages</b>, never single days. Water, salt and carbs swing the scale by a kilo overnight.",
+    "Give a number two full weeks. If the weekly average is moving the wrong way or too fast, change intake by 100 to 150 kcal and wait another two weeks.",
+    "Training six days a week burns more than three. If your programme changes, come back and check the estimate."]);
+  html+=sect("Protein",[
+    "1.6 to 2.2 g per kg of bodyweight a day covers everyone who lifts. More than that has no measurable benefit for muscle.",
+    "Spread it over three or four meals of 30 to 50 g. Timing around the session matters far less than the daily total.",
+    "Cheapest reliable sources: chicken thigh, eggs, Greek yoghurt, skimmed milk, tinned tuna, lean mince, whey."]);
+  html+=sect("Carbs and fat",[
+    "Fat at roughly 0.8 to 1 g per kg keeps hormones and joints happy. Below about 50 g a day most people feel it.",
+    "Carbs fill the rest and fuel hard sets. On a 0 to 1 RIR programme, under-eating carbs shows up as reps dropping set to set.",
+    "A meal with carbs one to three hours before training is worth more than anything you eat after."]);
+  html+=sect("Gaining muscle",[
+    "A surplus of 200 to 300 kcal is enough. Bigger surpluses build fat faster than muscle once you are past the beginner stage.",
+    "0.25 to 0.5% of bodyweight a week is the target rate. For 75 kg that is 0.2 to 0.4 kg a week, 1 to 1.5 kg a month.",
+    "If the scale is flat for three weeks and your lifts are stalling, eat more. If it is moving faster than the range, pull 100 kcal."]);
+  html+=sect("Cutting",[
+    "0.5 to 1% of bodyweight a week. Faster than that and strength drops and muscle goes with the fat.",
+    "Keep protein at the top of the range and keep the heavy lifting in. Cardio is optional; steps are the easiest lever.",
+    "Take a week at maintenance every 6 to 8 weeks of dieting. It lines up nicely with the programme's light week."]);
+  html+=sect("Small things that help",[
+    "Creatine monohydrate, 3 to 5 g every day, is the only supplement with strong evidence for strength and size. Everything else is optional.",
+    "Two to three litres of fluid a day. Add salt if you sweat a lot; cramping in long sessions is usually salt, not water.",
+    "Sleep is the anabolic you are not taking. Seven hours plus, and it shows up in the log within a fortnight.",
+    "The light week is a good time to eat at maintenance whatever your goal."]);
+  html+=`<div class="hsets" style="padding:14px 4px 6px;color:var(--ink-faint)">General guidance for healthy adults, not medical advice. If you have a medical condition or are pregnant, get personal advice.</div>`;
+  $("nutri-body").innerHTML=html;
 }
 
 /* ================= PROGRAMME EDITOR ================= */
@@ -1943,6 +2148,7 @@ function planCardHTML(){
 function renderProg(){
   let html=`<div class="nudge" style="border-left-color:var(--plate-blue)">Edits apply to the current block onward. Archived blocks keep the programme and block structure they were run under, so old history stays readable.</div>`;
   html+=planCardHTML();
+  html+=`<button class="bigbtn ghost" style="margin:0 0 14px" onclick="openBulk()">Set reps for several lifts</button>`;
   for(const d of dayIds()){
     const day=DAYS[d];
     html+=`<div class="progday">
@@ -1953,7 +2159,7 @@ function renderProg(){
       html+=`<div class="progex" style="flex-wrap:wrap">
         <div style="flex:1 1 100%;min-width:0;display:flex;align-items:center;gap:8px">
           <div style="flex:1;min-width:0"><div class="pename">${esc(exName(d,i))}</div>
-          <div class="pemeta">${slotSets(db.selWeek,d,i)} sets in week ${db.selWeek}${exOpt(e,"sets")?" (pinned)":""}${isUni(exName(d,i))?" · per side":""}${slotHasLogs(d,i)?" · has history":""}</div></div>
+          <div class="pemeta">${plannedSets(db.selWeek,d,i)} sets in week ${db.selWeek}${exOpt(e,"sets")?" (pinned)":""}${isUni(exName(d,i))?" · per side":""}${slotHasLogs(d,i)?" · has history":""}</div></div>
           <button class="miniBtn" onclick="removeEx('${d}',${i})" aria-label="Remove exercise"><svg viewBox="0 0 24 24" class="gico"><path d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"/></svg></button>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex:1 1 100%;margin-top:4px">
@@ -1971,6 +2177,41 @@ function renderProg(){
   }
   html+=`<button class="bigbtn ghost" onclick="addDay()">+ Add a training day</button>`;
   $("prog-body").innerHTML=html;
+}
+/* ---------- bulk rep range ---------- */
+let BULK=new Set();
+function openBulk(){
+  if(!dayIds().some(d=>DAYS[d].ex.length)){toast("Add some lifts first");return}
+  BULK=new Set();renderBulk();$("bulksheet").classList.add("active");
+}
+function closeBulk(){$("bulksheet").classList.remove("active")}
+function bulkPick(mode){
+  BULK=new Set();
+  if(mode!=="none")for(const d of dayIds())DAYS[d].ex.forEach((e,i)=>{if(mode==="all"||(mode==="comp"?e[2]:!e[2]))BULK.add(d+"-"+i)});
+  renderBulk();haptic("select");
+}
+function bulkToggle(key){if(BULK.has(key))BULK.delete(key);else BULK.add(key);renderBulk()}
+function renderBulk(){
+  let html="";
+  for(const d of dayIds()){
+    if(!DAYS[d].ex.length)continue;
+    html+=`<div class="hsets" style="font-weight:700;margin:6px 0 6px;color:var(--ink-faint)">${d} · ${esc(DAYS[d].title)}</div>`;
+    DAYS[d].ex.forEach((e,i)=>{const k=d+"-"+i,on=BULK.has(k);
+      html+=`<button class="subopt bulkrow ${on?"current":""}" role="checkbox" aria-checked="${on}" onclick="bulkToggle('${k}')">
+        <span class="bchk">${on?"✓":""}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(exName(d,i))}</span>
+        <span class="pemeta" style="flex-shrink:0">${esc(e[1])} · ${e[2]?"comp":"acc"}</span></button>`});
+  }
+  $("bulklist").innerHTML=html;
+  $("bulk-apply").textContent=BULK.size?`Apply to ${BULK.size} lift${BULK.size>1?"s":""}`:"Apply";
+  $("bulk-apply").disabled=!BULK.size;
+}
+function applyBulk(){
+  const r=normaliseRange($("bulk-range").value);
+  if(!r){toast("Use a range like 8–12");return}
+  if(!BULK.size){toast("Tick at least one lift");return}
+  const n=bulkRange(DAYS,[...BULK],r);
+  closeBulk();progChanged();haptic("log");
+  toast(n?`${r} reps set on ${n} lift${n>1?"s":""}`:"Those lifts already use "+r);
 }
 /* ---------- exercise picker ---------- */
 let PICK=null,PICK_EQ="All";
@@ -2107,14 +2348,16 @@ async function wipeData(){
 async function init(){
   if(!db.notes)db.notes={};
   if(!db.metrics)db.metrics=[];
-  /* localStorage gone (eviction / new browser profile)? Recover from the IndexedDB mirror. */
-  if(!localStorage.getItem(KEY)){
-    const m=await IDB.get("db");
-    if(m&&m.logs&&(Object.keys(m.logs).length||(m.archive||[]).length)){
+  /* localStorage gone (eviction / new profile) or a write failed there? The IndexedDB
+     mirror may hold the newer copy: take whichever updatedAt is later. */
+  try{
+    let m=await IDB.get("db");if(typeof m==="string")m=JSON.parse(m);
+    if(m&&m.logs&&(Object.keys(m.logs).length||(m.archive||[]).length)&&(m.updatedAt||0)>(db.updatedAt||0)){
       db=migrateDb(m);DAYS=db.programme;
       save();toast("Log restored from device mirror");
     }
-  }
+  }catch(e){logErr(e)}
+  if(BOOT_ERR){logErr(BOOT_ERR);toast("Saved data couldn't be read — a copy was kept. Restore a backup.")}
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
   db=migrateDb(db);
   DAYS=db.programme;
@@ -2130,13 +2373,26 @@ async function init(){
   /* hold a logged set to delete it; hold a library lift to add it to a day */
   onLongPress($("done-list"),".setchip",async el=>{
     const {w,d,ex,si}=el.dataset;const arr=db.logs[logKey(w,d)].ex[ex];const st=arr&&arr[si];if(!st)return;
-    if(!await ask({title:"Delete this set?",body:`<b>${fmtSet(st)}</b> on ${exName(d,+ex)} will be removed from your history.`,ok:"Delete",danger:1}))return;
-    arr[si]=null;while(arr.length&&!arr[arr.length-1])arr.pop();save();showDone(+w,d);toast("Set deleted");
+    if(!await ask({title:"Delete this set?",body:`<b>${fmtSet(st)}</b> on ${st.name||exName(d,+ex)} will be removed from your history.`,ok:"Delete",danger:1}))return;
+    arr.splice(+si,1);save();showDone(+w,d);toast("Set deleted");
   });
   onLongPress($("liblist"),".librow",el=>{
     const name=el.dataset.name;if(!name)return;
     chooseSheet("Add "+name,"Which training day should it go on?",dayIds().map(d=>({label:"Day "+d+" · "+DAYS[d].title,value:d})),d=>{PICK=d;pickAdd(name)});
   });
+  /* swipe down from the top of any sheet to dismiss it; swipe down on the rest veil to peek */
+  const closers={swapsheet:closeSwap,editsheet:closeEdit,picksheet:closePick,cfsheet:()=>closeAsk(false),padsheet:closePad,choosesheet:closeChoose,bulksheet:closeBulk};
+  for(const [id,fn] of Object.entries(closers)){
+    const panel=document.querySelector("#"+id+" .panel");if(!panel)continue;
+    let y0=null;
+    panel.addEventListener("touchstart",e=>{const r=panel.getBoundingClientRect();y0=e.touches[0].clientY-r.top<56?e.touches[0].clientY:null},{passive:true});
+    panel.addEventListener("touchend",e=>{if(y0!=null&&e.changedTouches[0].clientY-y0>70){haptic("select");fn()}y0=null},{passive:true});
+  }
+  {const v=$("restveil");let y0=0;
+    v.addEventListener("touchstart",e=>{y0=e.touches[0].clientY},{passive:true});
+    v.addEventListener("touchend",e=>{const dy=e.changedTouches[0].clientY-y0;if(!v.classList.contains("peek")&&dy>80)peekRest(true);else if(v.classList.contains("peek")&&dy<-40)peekRest(false)},{passive:true});
+    $("rest-time").parentElement.addEventListener("click",()=>{if(v.classList.contains("peek"))peekRest(false)});
+  }
   history.replaceState({scr:"home"},"");
   renderHome();
   if(driveOn())setTimeout(()=>driveSync({quiet:true}),1200);

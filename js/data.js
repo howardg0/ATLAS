@@ -25,6 +25,8 @@ const DEFAULT_SETTINGS={
   bar:20,                                   /* kg, the bar the plate calculator loads */
   plates:[25,20,15,10,5,2.5,1.25],          /* kg per plate, what the gym actually has */
   rest:{comp:150,acc:90,super:30},          /* seconds: compounds, accessories, between paired lifts */
+  nutri:{kg:80,cm:180,age:30,sex:"m",steps:"low",goal:"maintain"},   /* nutrition guide calculator inputs */
+  oled:false,                               /* true-black background in the dark theme */
   theme:"dark"                              /* "dark" | "light" | "auto" (follow the system) */
 };
 const PLATE_OPTIONS=[25,20,15,10,5,2.5,1.25,1,0.5];
