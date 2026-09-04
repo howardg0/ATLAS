@@ -98,6 +98,12 @@ The app is a public static site: anyone with the link gets their own independent
 
 ## Changelog
 
+### 7.2
+- Plan migration. Settings → Start from a template now shows what carries over (how many of the new plan's lifts already have history) and, for open-ended plans, offers **Start on Monday**: the current plan runs until Sunday, a card on Home shows the scheduled switch (Switch now / Cancel), and the first open on or after that Monday archives the old block, applies the template with that Monday as week 1, and counts any days already missed. Stored as `db.pending = {template, startOn}`.
+- Streaks carry across a switch (`db.streakCarry = {s, w}`): the carried value is added until the new plan has a missed session (session streak) or an incomplete past week (week streak), after which it is dropped for good.
+- Records, progression charts, previous-session lookups (by lift name, 7.0) and per-lift settings already carried across; this release makes the switch itself seamless.
+- ATLAS Physique template tuned for size over strength: Incline Barbell Press, Overhead Press and Romanian Deadlift move to 8–12; Pendlay Row becomes T-Bar Row 8–12 (less lower-back load two days after RDLs); Friday's Weighted Sit-Up removed (abs 12 direct sets over 4 days). Weekly total 140 sets.
+
 ### 7.1.2
 - Fix: Progression screen threw on open (the 7.0 rename of its local summary variable missed the `weekTips` call).
 

@@ -406,3 +406,16 @@ test("migrate repairs garbage shapes instead of throwing",()=>{
   const e=C.migrate({programme:{A:"bad"}},days,{bar:20,plates:[20],rest:{comp:1,acc:1,super:1},theme:"dark"},null,null);
   assert.deepEqual(e.programme,days);
 });
+
+test("nextMonday is strictly after today",()=>{
+  assert.equal(C.nextMonday("2026-09-04"),"2026-09-07");   /* Friday -> next Monday */
+  assert.equal(C.nextMonday("2026-09-07"),"2026-09-14");   /* Monday -> the one after */
+  assert.equal(C.nextMonday("2026-09-13"),"2026-09-14");   /* Sunday -> tomorrow */
+});
+
+test("carriedStreak adds the carry only while the new plan is unbroken",()=>{
+  assert.equal(C.carriedStreak(3,12,false),15);
+  assert.equal(C.carriedStreak(3,12,true),3);
+  assert.equal(C.carriedStreak(3,null,false),3);
+  assert.equal(C.carriedStreak(0,0,false),0);
+});

@@ -53,6 +53,13 @@ function sessionDuration(L){
   return ts.length>1?Math.round((Math.max(...ts)-Math.min(...ts))/60000):0;
 }
 
+/* ---------- plan switching ---------- */
+/* The first Monday strictly after `today` (ISO date) */
+function nextMonday(today){const d=mondayOf(today);d.setDate(d.getDate()+7);return isoDate(d)}
+/* Streak carried over a plan switch: it survives until the new plan has a missed session /
+   an incomplete past week, then it is gone for good. */
+function carriedStreak(base,carry,broken){return base+((carry&&!broken)?carry:0)}
+
 /* ---------- time budget ---------- */
 /* Rough minutes a slot takes: sets × (work + rest), compounds rest longer */
 function slotMinutes(sets,isComp){return sets*(isComp?3.4:2.3)}
@@ -368,4 +375,4 @@ function migrate(d,defaultDays,defaultSettings,defaultPlan,phases){
 
 if(typeof module!=="undefined"&&module.exports)module.exports={clone,logKey,parseRange,repTop,repBottom,normaliseRange,fmtKg,snapStep,
   e1rm,setScore,setTonnage,fmtSet,validatePlan,planWeeks,planWeek,isDeload,isLightWeek,isRampWeek,rampSets,nextLightWeek,isoDate,mondayOf,calendarWeek,maxLoggedWeek,historyOrder,sessionStreak,adherence,buildICS,syncDecision,exNameIn,setName,incrementFor,restFor,isUnilateral,plateBreakdown,
-  exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate,bulkRange,sameMuscleLifts,slotMinutes,trimForTime,nutritionTargets,betterSet,sessionDuration};
+  exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate,bulkRange,sameMuscleLifts,slotMinutes,trimForTime,nutritionTargets,betterSet,sessionDuration,nextMonday,carriedStreak};

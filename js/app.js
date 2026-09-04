@@ -6,7 +6,7 @@
    address of every logged set on the device. */
 const KEY="block-log-v2";
 /* Keep in step with CACHE in sw.js and the ?v= stamps in index.html (tests/version.test.js checks) */
-const APP_VERSION="7.1.2";
+const APP_VERSION="7.2";
 let restEnd=0,restTick=null,restDur=1,restLabel="",restHintTxt="";
 let S=null;
 const migrateDb=d=>migrate(d,DEFAULT_DAYS,DEFAULT_SETTINGS,DEFAULT_PLAN,PHASES);
@@ -350,16 +350,45 @@ async function pickTemplate(){
   chooseSheet("Start from a template","Replaces every day and lift in the programme. Sets you've logged stay in your history and records.",
     PROGRAMME_TEMPLATES.map(t=>({label:`${t.name} · ${t.tag}`,value:t.id})),async id=>{
       const t=PROGRAMME_TEMPLATES.find(x=>x.id===id);
-      if(Object.keys(db.logs).length){
-        if(!await ask({title:"Archive this block and switch?",
-          body:`Everything logged so far is filed in the archive (kept for records, progression and history). <b>${esc(t.name)}</b> then starts fresh${t.plan&&t.plan.open?" with this calendar week as week 1":" at week 1"}.`,
-          ok:"Archive and switch"}))return;
-        archiveCurrent();
-      }
-      applyTemplate(id);renderSettings();toast(db.programmeName+" loaded");
-      if(id==="blank")go("prog");
+      const hasLogs=Object.keys(db.logs).length>0;
+      if(!hasLogs&&!db.archive.length){applyTemplate(id);renderSettings();toast(db.programmeName+" loaded");if(id==="blank")go("prog");return}
+      /* what carries over: every lift in the new plan that already has history */
+      const names=[...new Set(Object.values(t.programme||{}).flatMap(day=>day.ex.map(e=>e[0])))];
+      const known=names.filter(n=>liftStats(n,null));
+      const carry=names.length?`<b>${known.length} of ${names.length}</b> lifts in ${esc(t.name)} already have history, so the coach suggests your last weights from day one${known.length<names.length?"; the rest get a find-your-weight first session":""}. Records, progression charts, streaks and per-lift settings all carry across.`:"";
+      const mon=nextMonday(todayISO()),monTxt=new Date(mon+"T12:00:00").toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"short"});
+      const opts=[];
+      if(t.plan&&t.plan.open)opts.push({label:`Start on ${monTxt}`,value:"monday"});
+      opts.push({label:hasLogs?"Switch now (archive this block)":"Switch now",value:"now"});
+      chooseSheet("Switch to "+t.name,carry+(t.plan&&t.plan.open?" Starting on a Monday keeps calendar weeks clean: you finish this week on the current plan and the app switches itself that morning.":""),opts,async when=>{
+        if(when==="monday"){db.pending={template:id,startOn:mon};save();renderSettings();renderHome();toast(t.name+" starts "+monTxt);return}
+        performSwitch(id,null);renderSettings();toast(db.programmeName+" loaded");
+        if(id==="blank")go("prog");
+      });
     });
 }
+/* Archive the current block (if anything is logged), carry the streaks, apply the template.
+   startOn: the Monday a scheduled switch was due (so days missed since then count), or null for now. */
+function performSwitch(id,startOn){
+  const list=sessionList();
+  const carry={s:sessionStreakNow(list),w:weekStreakNow()};
+  if(Object.keys(db.logs).length)archiveCurrent();
+  applyTemplate(id);
+  if(isOpen()&&startOn){db.plan.startDate=isoDate(mondayOf(startOn));db.startedOn=startOn;db.selWeek=curWeek()}
+  db.streakCarry=(carry.s||carry.w)?carry:null;
+  db.pending=null;save();
+}
+/* a scheduled switch fires the first time the app opens on or after its Monday */
+function checkPending(){
+  const p=db.pending;if(!p||todayISO()<p.startOn)return false;
+  const t=PROGRAMME_TEMPLATES.find(x=>x.id===p.template);
+  if(!t){db.pending=null;save();return false}
+  performSwitch(p.template,p.startOn);
+  toast(t.name+" has started — week 1");
+  return true;
+}
+function switchNow(){const p=db.pending;if(!p)return;const t=PROGRAMME_TEMPLATES.find(x=>x.id===p.template);performSwitch(p.template,null);renderHome();toast((t?t.name:"Plan")+" loaded")}
+function cancelPending(){db.pending=null;save();renderHome();toast("Scheduled switch cancelled")}
 function homeCards(){
   let html="";
   const fresh=!Object.keys(db.logs).length&&!db.archive.length;
@@ -377,6 +406,13 @@ function homeCards(){
       <div class="introstep"><span class="n">2</span><div><b>RIR is your effort dial</b><p>Reps in reserve. ${isOpen()?"0 to 1 RIR means every set ends at, or one rep before, failure. Stop a heavy compound at 1 when form goes, not muscle.":"3 RIR means stop three reps short of failure. The target tightens as the block goes on."}</p></div></div>
       <div class="introstep"><span class="n">3</span><div><b>The coach picks the weight</b><p>Hit the top of the rep range on every set and it tells you to add load. Miss it and you chase reps at the same weight.</p></div></div>
       <button class="bigbtn ghost" onclick="db.seenIntro=1;save();renderHome()">Got it</button></div>`;
+  if(db.pending){
+    const t=PROGRAMME_TEMPLATES.find(x=>x.id===db.pending.template);
+    const when=new Date(db.pending.startOn+"T12:00:00").toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"short"});
+    html+=`<div class="nudge" style="border-left-color:var(--blue)"><svg viewBox="0 0 24 24" class="gico" style="color:var(--blue)"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      <div style="flex:1"><b>${esc(t?t.name:"New plan")}</b> starts ${when}. Carry on with the current plan until then; the app switches itself that morning and your streaks carry over.
+      <div class="libchips wrap" style="margin-top:10px"><button class="libchip" onclick="switchNow()">Switch now</button><button class="libchip" onclick="cancelPending()">Cancel</button></div></div></div>`;
+  }
   if(INSTALL.prompt&&!db.hideInstall&&!isStandalone())
     html+=`<button class="nudge tap install" onclick="installApp()"><svg viewBox="0 0 24 24" class="gico"><path d="M12 3.5v11M7.5 10.5 12 15l4.5-4.5M4 16.5v2.2a1.8 1.8 0 0 0 1.8 1.8h12.4a1.8 1.8 0 0 0 1.8-1.8v-2.2"/></svg>
       <span>Install ATLAS for a full-screen app that works offline. <b>Install</b></span></button>`;
@@ -420,16 +456,26 @@ function weekStreak(){
   for(let w=last;w>=1;w--){if(weekComplete(w))n++;else if(isOpen()||w<last)break;}
   return n;
 }
+/* streaks including anything carried over a plan switch */
+function sessionStreakNow(list){
+  list=list||sessionList();const c=db.streakCarry;
+  return carriedStreak(sessionStreak(list),c&&c.s,list.some(x=>x.due&&!x.done));
+}
+function weekStreakNow(){
+  const base=weekStreak(),c=db.streakCarry;
+  const unbroken=isOpen()?base>=curWeek()-1:true;   /* every past week of the new plan complete */
+  return carriedStreak(base,c&&c.w,!unbroken);
+}
 function renderStreaks(){
   const el=$("streaks");if(!el)return;
   const list=sessionList();
-  if(!list.some(x=>x.due)){el.innerHTML="";return}
-  const ss=sessionStreak(list),ws=weekStreak(),ad=adherence(list);
+  if(!list.some(x=>x.due)&&!db.streakCarry){el.innerHTML="";return}
+  const ss=sessionStreakNow(list),ws=weekStreakNow(),ad=adherence(list);
   const flame='<svg viewBox="0 0 24 24" class="gico"><path d="M12 3c1 3.5 4.5 5 4.5 9.2A4.6 4.6 0 0 1 12 17a4.6 4.6 0 0 1-4.5-4.8C7.5 9 10 8.5 9.5 5.5 11 6.4 11.6 7.6 12 9c.6-1.6.4-3.5 0-6z"/></svg>';
   el.innerHTML=`<div class="streaks">
     <div class="stk ${ss>=3?"hot":""}"><b>${flame}${ss}</b><span>session streak</span></div>
     <div class="stk"><b>${ws}</b><span>week streak</span></div>
-    <div class="stk"><b>${Math.round(ad*100)}%</b><span>sessions kept</span></div></div>`;
+    <div class="stk"><b>${ad==null?"—":Math.round(ad*100)+"%"}</b><span>sessions kept</span></div></div>`;
 }
 function renderHome(){
   /* open plan: follow the calendar once a day, but let a manual week choice stand for the rest of that day */
@@ -2393,6 +2439,8 @@ async function init(){
     v.addEventListener("touchend",e=>{const dy=e.changedTouches[0].clientY-y0;if(!v.classList.contains("peek")&&dy>80)peekRest(true);else if(v.classList.contains("peek")&&dy<-40)peekRest(false)},{passive:true});
     $("rest-time").parentElement.addEventListener("click",()=>{if(v.classList.contains("peek"))peekRest(false)});
   }
+  checkPending();
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!S&&checkPending())renderHome()});
   history.replaceState({scr:"home"},"");
   renderHome();
   if(driveOn())setTimeout(()=>driveSync({quiet:true}),1200);
