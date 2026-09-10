@@ -6,7 +6,7 @@
    address of every logged set on the device. */
 const KEY="block-log-v2";
 /* Keep in step with CACHE in sw.js and the ?v= stamps in index.html (tests/version.test.js checks) */
-const APP_VERSION="7.2";
+const APP_VERSION="7.3";
 let restEnd=0,restTick=null,restDur=1,restLabel="",restHintTxt="";
 let S=null;
 const migrateDb=d=>migrate(d,DEFAULT_DAYS,DEFAULT_SETTINGS,DEFAULT_PLAN,PHASES);
@@ -148,6 +148,13 @@ function increment(name){return incrementFor(name,db.lifts,BIG_INC)}
 function isUni(name){return isUnilateral(name,db.lifts,EXDB)}
 /* seconds instead of reps: encyclopedia default, per-lift override wins */
 function isTimed(name){const o=db.lifts[name];if(o&&o.timed!=null)return !!o.timed;return !!(EXDB[name]&&EXDB[name].timed)}
+/* The slot's rep range, unless the lift now in it is timed and the planned one wasn't (or vice versa):
+   "45–60" seconds makes no sense for Machine Crunch, so a swap across that line gets a default range. */
+function slotRange(w,d,i){
+  const e=DAYS[d].ex[i],name=sessName(w,d,i);
+  if(isTimed(name)!==isTimed(e[0]))return isTimed(name)?"30–45":"10–15";
+  return e[1];
+}
 function restSecs(w,d,i){const e=DAYS[d].ex[i];return restFor(sessName(w,d,i),e[2],db.lifts,db.settings.rest)}
 function liftOpt(name){return db.lifts[name]||{}}
 /* v===null clears the override; an explicit 0 is kept (e.g. uni:0 = "not per side") */
@@ -334,7 +341,11 @@ function applyTemplate(id){
   DAYS=db.programme;for(const d of dayIds())normaliseSupersets(DAYS[d].ex);
   if(t.plan){
     db.plan=validatePlan(clone(t.plan),DEFAULT_PLAN,PHASES);
-    if(db.plan.open){db.plan.startDate=isoDate(mondayOf(todayISO()));db.startedOn=todayISO();db.autoWeekFor=null}   /* this calendar week is week 1 */
+    if(db.plan.open){
+      const t0=todayISO(),sunday=new Date(t0+"T12:00:00").getDay()===0;
+      const from=sunday?nextMonday(t0):t0;   /* switching on a Sunday: tomorrow starts week 1, not the week ending today */
+      db.plan.startDate=isoDate(mondayOf(from));db.startedOn=from;db.autoWeekFor=null;
+    }
   }else if(isOpen())db.plan=clone(DEFAULT_PLAN);   /* a block template replaces an open plan with the default block */
   db.selWeek=isOpen()?curWeek():1;
   save();
@@ -435,6 +446,7 @@ function backupNudgeHTML(minDays){
 /* every planned session up to now, in order, with whether it is done and whether it was due */
 function sessionList(){
   const out=[];
+  if(isOpen()&&db.startedOn&&todayISO()<db.startedOn)return out;   /* scheduled to start later this week: nothing due yet */
   const cw=isOpen()?curWeek():Math.max(1,maxLoggedWeek(db.logs));   /* block plans: browsing the strip must not change the streak */
   const ti=todayIdx();
   /* an open plan started mid-week: the days before the start were never due */
@@ -560,7 +572,7 @@ function renderPreview(){
   const L=(db.logs[logKey(w,d)]||{}).ex||{};
   let nextFound=false,html="";
   DAYS[d].ex.forEach((e,i)=>{
-    const [,range,isComp]=e;
+    const [,,isComp]=e,range=slotRange(w,d,i);
     const name=sessName(w,d,i);
     const skipped=isSkipped(w,d,i);
     const need=skipped?plannedSets(w,d,i):slotSets(w,d,i);
@@ -587,6 +599,7 @@ function renderPreview(){
   });
   $("pv-route").innerHTML=html;
   $("pv-start").textContent=done>0?`Continue — ${done}/${total} sets done →`:"Start session →";
+  $("pv-move").style.display=done>0?"":"none";
 }
 
 function unskipHere(j){const {w,d}=S;unskipSlot(w,d,j);renderSet()}
@@ -695,7 +708,7 @@ const CO={
   fresh:'<svg viewBox="0 0 24 24" class="gico"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.1"/></svg>'
 };
 function coachAdvice(w,d,exIdx){
-  const [,range,isComp]=DAYS[d].ex[exIdx];
+  const [,,isComp]=DAYS[d].ex[exIdx],range=slotRange(w,d,exIdx);
   const name=sessName(w,d,exIdx);
   const hist=prevSession(w,d,exIdx);
   const timed=isTimed(name),unit=timed?"seconds":"reps",u=timed?" s":"";
@@ -715,7 +728,7 @@ function coachAdvice(w,d,exIdx){
 
 function renderSet(){
   const {w,d,exIdx,setIdx}=S;
-  const [,reps,isComp]=DAYS[d].ex[exIdx];
+  const [,,isComp]=DAYS[d].ex[exIdx],reps=slotRange(w,d,exIdx);
   const name=sessName(w,d,exIdx);
   const nsets=slotSets(w,d,exIdx);
   $("ss-title").textContent=(dayWeekday(d)?dayWeekday(d)+" · ":"")+"Day "+d+" · Week "+w;
@@ -1677,10 +1690,10 @@ function readyToAddLoad(w){
     DAYS[d].ex.forEach((e,i)=>{
       const done=(L.ex[i]||[]).filter(s=>s&&s.kg!=null);
       if(!done.length||done.length<slotSets(w,d,i))return;
-      const top=repTop(e[1]);
+      const rng=slotRange(w,d,i),top=repTop(rng);
       if(!isNaN(top)&&done.every(s=>s.reps>=top)){
         const name=sessName(w,d,i);
-        out.push({name,kg:Math.max(...done.map(s=>s.kg)),inc:increment(name),low:repBottom(e[1])});
+        out.push({name,kg:Math.max(...done.map(s=>s.kg)),inc:increment(name),low:repBottom(rng)});
       }
     });
   }
@@ -2108,6 +2121,26 @@ async function resetProgramme(){
   progChanged();toast("Programme reset");
 }
 /* ---------- block structure ---------- */
+function setStartDate(v){
+  if(!v||!/^\d{4}-\d{2}-\d{2}$/.test(v))return;
+  db.plan.startDate=isoDate(mondayOf(v));db.startedOn=v;db.autoWeekFor=null;
+  db.selWeek=curWeek();planChanged();toast("Week 1 starts "+db.plan.startDate+" · this is week "+curWeek());
+}
+/* move a logged session to another week (e.g. one that landed in the wrong week after a plan switch) */
+function moveSessionSheet(){
+  const {w,d}=PV;
+  const opts=[];
+  for(let t=1;t<=WEEKS();t++){if(t===w)continue;const L=db.logs[logKey(t,d)];if(L&&loggedSets(t,d))continue;opts.push({label:`Week ${t} · ${phaseLabel(t)}${isOpen()&&t===curWeek()?" · this week":""}`,value:String(t)})}
+  if(!opts.length){toast("Every other week already has a day "+d);return}
+  chooseSheet("Move this session","Day "+d+" of week "+w+" moves with all its sets. Weeks that already have a day "+d+" logged aren't offered.",opts,t=>moveSession(w,d,+t));
+}
+function moveSession(w,d,toW){
+  const from=logKey(w,d),to=logKey(toW,d);
+  if(!db.logs[from]||db.logs[to])return;
+  db.logs[to]=db.logs[from];delete db.logs[from];
+  if(db.session&&db.session.w===w&&db.session.d===d)db.session.w=toW;
+  PV={w:toW,d};db.selWeek=toW;save();haptic("log");renderPreview();toast("Moved to week "+toW);
+}
 function weekHasLogs(w){return dayIds().some(d=>loggedSets(w,d)>0)}
 function planChanged(){db.plan=validatePlan(db.plan,DEFAULT_PLAN,PHASES);if(db.selWeek>WEEKS())db.selWeek=WEEKS();save();renderProg()}
 async function applyPreset(n){
@@ -2158,7 +2191,9 @@ function openPlanCardHTML(){
       <input class="perange" value="${esc(P.weeks[i].rir)}" onchange="setOpenField('${i===0?"hard":"light"}',null,'rir',this.value)" aria-label="${label} RIR"><span></span></div>`;
   return `<div class="progday">
     <div class="pdhead"><div class="pdletter"><svg viewBox="0 0 24 24" class="gico"><path d="M4 12a8 8 0 0 1 14.2-5M20 12a8 8 0 0 1-14.2 5"/><path d="M18.5 3.5v3.7h-3.7M5.5 20.5v-3.7h3.7"/></svg></div>
-      <div class="lrtext"><b>Open-ended plan</b><i>${esc(P.name)} · week ${cw} · started ${P.startDate||"—"}</i></div></div>
+      <div class="lrtext"><b>Open-ended plan</b><i>${esc(P.name)} · week ${cw}</i></div></div>
+    <div class="setrow" style="padding:0 0 10px"><div class="lrtext"><b>Week 1 started</b><i>Monday of week 1. Change it if the weeks are labelled wrong; logged sessions keep their week numbers, so move any stray ones from their preview.</i></div>
+      <input type="date" class="searchbar" style="margin:0;width:150px;flex-shrink:0" value="${P.startDate||""}" onchange="setStartDate(this.value)" aria-label="Week 1 start date"></div>
     <div class="hsets" style="margin-bottom:10px">Weeks count up from the start date and never reset. Every set to ${esc(P.weeks[0].rir)} RIR on hard weeks; a light week holds the weights and cuts the sets.</div>
     <div class="planrow open head"><span class="wn"></span><span>When</span><span>Comp</span><span>Acc</span><span>RIR</span><span></span></div>
     ${row("Hard",0,"")}${row("Light",1,"")}
@@ -2209,7 +2244,7 @@ function renderProg(){
           <button class="miniBtn" onclick="removeEx('${d}',${i})" aria-label="Remove exercise"><svg viewBox="0 0 24 24" class="gico"><path d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"/></svg></button>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex:1 1 100%;margin-top:4px">
-          <input class="perange" value="${esc(e[1])}" onchange="setRange('${d}',${i},this.value)" aria-label="Rep range">
+          <input class="perange" value="${esc(slotRange(db.selWeek,d,i))}" onchange="setRange('${d}',${i},this.value)" aria-label="Rep range">
           <input class="perange sets" value="${exOpt(e,"sets")||""}" placeholder="${setsFor(db.selWeek,e[2])}×" inputmode="numeric" onchange="setSlotSets('${d}',${i},this.value)" aria-label="Sets (blank = plan default)">
           <button class="pill ${e[2]?"comp":""}" onclick="toggleComp('${d}',${i})">${e[2]?"COMPOUND":"ACCESSORY"}</button>
           ${ssCtl(d,i)}

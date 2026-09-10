@@ -98,6 +98,12 @@ The app is a public static site: anyone with the link gets their own independent
 
 ## Changelog
 
+### 7.3
+- Fix: swapping a timed slot for a reps lift (Plank → Machine Crunch) showed the seconds range as reps. The rep range now follows the lift actually in the slot: across the timed/reps line it falls back to 10–15 reps or 30–45 s (`slotRange`), everywhere the range is shown or used for coaching.
+- Fix: "Switch now" to an open plan on a Sunday made the week ending that day week 1 (so Monday was week 2 and week 1 read as missed). Sunday switches now start week 1 on the coming Monday, and nothing is due before the start date.
+- Programme → Open-ended plan has an editable **Week 1 started** date, for when the weeks are labelled wrong.
+- Session preview has **Move this session to another week…** (only for sessions with logged sets; target weeks that already have that day logged aren't offered).
+
 ### 7.2
 - Plan migration. Settings → Start from a template now shows what carries over (how many of the new plan's lifts already have history) and, for open-ended plans, offers **Start on Monday**: the current plan runs until Sunday, a card on Home shows the scheduled switch (Switch now / Cancel), and the first open on or after that Monday archives the old block, applies the template with that Monday as week 1, and counts any days already missed. Stored as `db.pending = {template, startOn}`.
 - Streaks carry across a switch (`db.streakCarry = {s, w}`): the carried value is added until the new plan has a missed session (session streak) or an incomplete past week (week streak), after which it is dropped for good.

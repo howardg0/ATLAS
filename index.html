@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="ATLAS">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="css/atlas.css?v=7.2">
+<link rel="stylesheet" href="css/atlas.css?v=7.3">
 <title>ATLAS — Training Log</title>
 <script>
 if ("serviceWorker" in navigator && location.protocol === "https:")
@@ -27,9 +27,9 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </head>
 <body>
 
-<script src="js/config.js?v=7.2"></script>
-<script src="js/data.js?v=7.2"></script>
-<script src="js/core.js?v=7.2"></script>
+<script src="js/config.js?v=7.3"></script>
+<script src="js/data.js?v=7.3"></script>
+<script src="js/core.js?v=7.3"></script>
 
 <!-- ================= SCREENS ================= -->
 <div class="screen active" id="scr-home">
@@ -70,6 +70,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
   <div class="timebox" id="pv-time"></div>
   <div id="pv-route"></div>
   <button class="bigbtn primary" id="pv-start" style="margin-top:16px" onclick="startSession(PV.w,PV.d)"></button>
+  <button class="quietbtn" id="pv-move" onclick="moveSessionSheet()" style="display:none">Move this session to another week…</button>
 </div>
 
 <div class="screen" id="scr-session">
@@ -574,8 +575,8 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/share.js?v=7.2"></script>
-<script src="js/drive.js?v=7.2"></script>
-<script src="js/app.js?v=7.2"></script>
+<script src="js/share.js?v=7.3"></script>
+<script src="js/drive.js?v=7.3"></script>
+<script src="js/app.js?v=7.3"></script>
 </body>
 </html>
