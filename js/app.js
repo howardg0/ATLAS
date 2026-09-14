@@ -6,7 +6,7 @@
    address of every logged set on the device. */
 const KEY="block-log-v2";
 /* Keep in step with CACHE in sw.js and the ?v= stamps in index.html (tests/version.test.js checks) */
-const APP_VERSION="7.3";
+const APP_VERSION="7.3.1";
 let restEnd=0,restTick=null,restDur=1,restLabel="",restHintTxt="";
 let S=null;
 const migrateDb=d=>migrate(d,DEFAULT_DAYS,DEFAULT_SETTINGS,DEFAULT_PLAN,PHASES);
@@ -1359,8 +1359,9 @@ function addRest(s){restEnd+=s*1000;restDur=Math.max(5,restDur+s);tickRest()}
 function endRest(){clearInterval(restTick);$("restveil").classList.remove("active","peek");document.body.classList.remove("resting","peeking");const t=$("rest-target");if(t.dataset.base){t.innerHTML=t.dataset.base;delete t.dataset.base}}
 
 /* ================= DONE ================= */
+let DONE={w:1,d:"A"};
 function showDone(w,d){
-  S=null;unlockScreen();save();
+  S=null;unlockScreen();save();DONE={w,d};
   $("done-sub").textContent="Day "+d+" · Week "+w+" · "+DAYS[d].title;
   const L=db.logs[logKey(w,d)];
   const dur=sessionDuration(L);
@@ -2127,8 +2128,7 @@ function setStartDate(v){
   db.selWeek=curWeek();planChanged();toast("Week 1 starts "+db.plan.startDate+" · this is week "+curWeek());
 }
 /* move a logged session to another week (e.g. one that landed in the wrong week after a plan switch) */
-function moveSessionSheet(){
-  const {w,d}=PV;
+function moveSessionSheet(w,d){
   const opts=[];
   for(let t=1;t<=WEEKS();t++){if(t===w)continue;const L=db.logs[logKey(t,d)];if(L&&loggedSets(t,d))continue;opts.push({label:`Week ${t} · ${phaseLabel(t)}${isOpen()&&t===curWeek()?" · this week":""}`,value:String(t)})}
   if(!opts.length){toast("Every other week already has a day "+d);return}
@@ -2139,7 +2139,9 @@ function moveSession(w,d,toW){
   if(!db.logs[from]||db.logs[to])return;
   db.logs[to]=db.logs[from];delete db.logs[from];
   if(db.session&&db.session.w===w&&db.session.d===d)db.session.w=toW;
-  PV={w:toW,d};db.selWeek=toW;save();haptic("log");renderPreview();toast("Moved to week "+toW);
+  PV={w:toW,d};db.selWeek=toW;save();haptic("log");
+  if(document.querySelector(".screen.active").id==="scr-done")showDone(toW,d);else renderPreview();
+  toast("Moved to week "+toW);
 }
 function weekHasLogs(w){return dayIds().some(d=>loggedSets(w,d)>0)}
 function planChanged(){db.plan=validatePlan(db.plan,DEFAULT_PLAN,PHASES);if(db.selWeek>WEEKS())db.selWeek=WEEKS();save();renderProg()}

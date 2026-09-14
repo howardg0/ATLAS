@@ -98,6 +98,9 @@ The app is a public static site: anyone with the link gets their own independent
 
 ## Changelog
 
+### 7.3.1
+- "Move this session to another week…" is also on the Done screen, which is where a finished session opens.
+
 ### 7.3
 - Fix: swapping a timed slot for a reps lift (Plank → Machine Crunch) showed the seconds range as reps. The rep range now follows the lift actually in the slot: across the timed/reps line it falls back to 10–15 reps or 30–45 s (`slotRange`), everywhere the range is shown or used for coaching.
 - Fix: "Switch now" to an open plan on a Sunday made the week ending that day week 1 (so Monday was week 2 and week 1 read as missed). Sunday switches now start week 1 on the coming Monday, and nothing is due before the start date.
