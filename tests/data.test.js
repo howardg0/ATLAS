@@ -100,3 +100,28 @@ test("isBarbellLift follows the equipment field",()=>{
   assert.equal(D.isBarbellLift("Leg Press"),false);
   assert.equal(D.isBarbellLift("Not A Lift"),false);
 });
+test("isBarbellLift excludes landmine and speciality-bar lifts from the symmetric plate calculator",()=>{
+  assert.equal(D.isBarbellLift("Back Squat"),true);
+  assert.equal(D.isBarbellLift("Barbell Row"),true);
+  for(const n of ["Landmine Press","Landmine Row","Landmine Squat","Safety Bar Squat","Trap Bar Deadlift","Trap Bar Shrug","T-Bar Row","Chest-Supported T-Bar Row"]){
+    assert.equal(D.isBarbellLift(n),false,n+" should not use the symmetric barbell plate calculator");
+  }
+});
+test("uni flag matches single-arm/single-leg language in the about or form text",()=>{
+  const SOLO=/\b(one arm|single-arm|single-leg|one leg|one side|per side|per leg|per arm)\b/i;
+  /* Lifts where the flag is correct but the wording deliberately doesn't
+     restate it (the name already says so, or the phrasing is oblique) go here. */
+  const EXCEPTIONS=new Set([]);
+  for(const [n,e] of Object.entries(D.EXDB)){
+    if(EXCEPTIONS.has(n))continue;
+    const saysSolo=SOLO.test(e.about+" "+e.form.join(" "));
+    assert.equal(!!e.uni,saysSolo,n+": uni is "+!!e.uni+" but the text "+(saysSolo?"reads":"doesn't read")+" as single-arm/single-leg");
+  }
+});
+test("every compound in the ul/ppl/physique templates has curated substitutions",()=>{
+  for(const t of D.PROGRAMME_TEMPLATES){
+    if(!["ul","ppl","physique"].includes(t.id))continue;
+    for(const day of Object.values(t.programme))for(const e of day.ex)if(e[2]===1)
+      assert.ok(e[0] in D.SUBS,t.id+": no substitutions for compound "+e[0]);
+  }
+});

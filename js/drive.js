@@ -38,6 +38,7 @@ async function driveToken(interactive){
       error_callback:e=>rej(new Error(e&&e.type==="popup_closed"?"cancelled":"auth"))
     });
     tc.requestAccessToken({prompt:interactive?"consent":""});
+    setTimeout(()=>rej(new Error("auth")),90e3);   /* a popup that never calls back must not wedge sync */
   });
 }
 async function dfetch(url,opts={},interactive){
@@ -73,8 +74,9 @@ function adoptRemote(remote){
   db.sync=Object.assign({},remote.sync||{},keep,{enabled:true});
   DAYS=db.programme;
   save({quiet:true});applyTheme();
-  const cur=document.querySelector(".screen.active");
-  if(cur)showNow(cur.id.slice(4));
+  PV=null;
+  const cur=document.querySelector(".screen.active"),name=cur?cur.id.slice(4):"home";
+  showNow(["preview","done","session"].includes(name)?"home":name);
 }
 
 /* opts.force: "upload" | "download"; opts.quiet: no toasts on success */
@@ -85,15 +87,26 @@ async function driveSync(opts={}){
   let dec="none";
   try{
     const f=await driveFind();
-    const remote=f?await driveRead(f.id).catch(()=>null):null;
-    const localEmpty=!Object.keys(db.logs).length&&!db.archive.length;
-    dec=opts.force||syncDecision(db.updatedAt||0,remote?(remote.updatedAt||0):0,!!remote,localEmpty);
-    if(dec==="download"&&S)dec="deferred";          /* never swap the log out from under a live session */
-    if(dec==="download"&&remote)adoptRemote(remote);
-    else if(dec==="upload"){db.sync.fileId=await driveWrite(f?f.id:null,drivePayload());db.lastBackup=Date.now()}
+    const lastSync=db.sync.lastSync||0,localChanged=(db.updatedAt||0)>lastSync;
+    /* quiet background sync with nothing new on either side: don't download and parse the whole log */
+    if(f&&opts.quiet&&!opts.force&&!localChanged&&f.modifiedTime&&f.modifiedTime===db.sync.remoteModified){dec="none"}
+    else{
+      const remote=f?await driveRead(f.id):null;   /* a failed read is an error — never "no remote file", which would upload over it */
+      const localEmpty=!Object.keys(db.logs).length&&!db.archive.length;
+      dec=opts.force||syncDecision(db.updatedAt||0,remote?(remote.updatedAt||0):0,!!remote,localEmpty);
+      /* both sides logged since the last sync (two devices, a deferred download, the app plus a browser tab):
+         merge the sets instead of letting the newer file win */
+      const remoteChanged=!!remote&&(remote.updatedAt||0)>lastSync;
+      if(remote&&!localEmpty&&!opts.force&&localChanged&&remoteChanged&&dec!=="none")dec="merge";
+      if((dec==="download"||dec==="merge")&&S)dec="deferred";          /* never swap the log out from under a live session */
+      if(dec==="download"&&remote)adoptRemote(remote);
+      else if(dec==="merge"){adoptRemote(mergeDb(db,remote));db.sync.fileId=await driveWrite(f.id,drivePayload());db.lastBackup=Date.now()}
+      else if(dec==="upload"){db.sync.fileId=await driveWrite(f?f.id:null,drivePayload());db.lastBackup=Date.now()}
+      if(dec!=="deferred"&&dec!=="none"){const g=await driveFind().catch(()=>null);if(g&&g.modifiedTime)db.sync.remoteModified=g.modifiedTime}
+    }
     if(dec!=="deferred")db.sync.lastSync=Date.now();   /* deferred = not actually in sync yet */
     db.sync.error=null;save({quiet:true});
-    if(!opts.quiet)toast(dec==="download"?"Updated from Google Drive":dec==="upload"?"Saved to Google Drive":dec==="deferred"?"Drive has newer data — will update after this session":"Drive is up to date");
+    if(!opts.quiet)toast(dec==="download"?"Updated from Google Drive":dec==="merge"?"Merged with Google Drive — sets from both kept":dec==="upload"?"Saved to Google Drive":dec==="deferred"?"Drive has newer data — will merge after this session":"Drive is up to date");
   }catch(e){
     db.sync.error=e.message;save({quiet:true});
     if(e.message==="cancelled"){/* user closed the popup */}
@@ -117,13 +130,15 @@ async function connectDrive(){
       if(localEmpty)force="download";
       else{
         const n=Object.keys(remote.logs||{}).length,when=remote.exportedAt?remote.exportedAt.slice(0,10):"unknown date";
-        force=await ask({title:"Drive already has a log",
-          body:`Saved <b>${when}</b> with ${n} session${n===1?"":"s"} in its current block.<br><br><b>Use Drive copy</b> replaces what's on this phone. <b>Cancel</b> keeps this phone's log and overwrites Drive instead.`,
-          ok:"Use Drive copy"})?"download":"upload";
+        const pick=await chooseAsync("Drive already has a log",`Saved ${when} with ${n} session${n===1?"":"s"} in its current block. Nothing is overwritten until you choose.`,
+          [{label:"Merge both · keep every set",value:"merge"},{label:"Use the Drive copy · replace this phone",value:"download"},{label:"Keep this phone's log · overwrite Drive",value:"upload"}]);
+        if(!pick){toast("Google Drive not connected");renderSettings();return}
+        force=pick;
       }
     }
     db.sync.enabled=true;save({quiet:true});
-    await driveSync({force});
+    if(force==="merge"){adoptRemote(mergeDb(db,remote));db.sync.fileId=await driveWrite(f.id,drivePayload());db.lastBackup=Date.now();db.sync.lastSync=Date.now();save({quiet:true});renderSyncStatus()}
+    else await driveSync({force});
     toast("Google Drive connected");
   }catch(e){
     if(e.message!=="cancelled")toast(e.message==="auth"?"Google sign-in didn't complete":"Couldn't connect: "+e.message);

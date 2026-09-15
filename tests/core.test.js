@@ -48,7 +48,7 @@ test("setTonnage doubles a per-side set and ignores timed sets",()=>{
 test("setScore: e1RM for reps, seconds (load-scaled) for timed sets",()=>{
   assert.equal(C.setScore({kg:100,reps:10}),133.3);
   assert.equal(C.setScore({kg:0,reps:60,timed:1}),60);
-  assert.equal(C.setScore({kg:10,reps:60,timed:1}),20);
+  assert.equal(C.setScore({kg:10,reps:60,timed:1}),120);
   assert.ok(C.setScore({kg:10,reps:90,timed:1})>C.setScore({kg:10,reps:60,timed:1}));
 });
 test("fmtSet reads naturally for every kind of set",()=>{
@@ -139,9 +139,9 @@ test("calendar weeks start on Monday and count from the start week",()=>{
 });
 test("maxLoggedWeek and historyOrder handle open plans",()=>{
   assert.equal(C.maxLoggedWeek({}),0);
-  assert.equal(C.maxLoggedWeek({"3-A":{},"11-C":{},"7-B":{}}),11);
+  const S1={ex:{0:[{kg:1,reps:1}]}};assert.equal(C.maxLoggedWeek({"3-A":S1,"11-C":S1,"7-B":S1,"12-A":{ex:{}}}),11,"entries without sets do not count");
   const P={open:true,every:6,lightOffset:0,weeks:[{phase:"Build"},{phase:"Deload"}]};
-  assert.deepEqual(C.historyOrder(P,{"7-A":{},"6-A":{},"5-A":{},"1-A":{}}),[7,5,4,3,2,1,6],"latest hard weeks first, light weeks last");
+  assert.deepEqual(C.historyOrder(P,{"7-A":S1,"6-A":S1,"5-A":S1,"1-A":S1}),[7,5,4,3,2,1,6],"latest hard weeks first, light weeks last");
   assert.deepEqual(C.historyOrder(D.DEFAULT_PLAN,{}),[5,4,3,2,1,6],"block plans ignore logs");
 });
 
@@ -418,4 +418,70 @@ test("carriedStreak adds the carry only while the new plan is unbroken",()=>{
   assert.equal(C.carriedStreak(3,12,true),3);
   assert.equal(C.carriedStreak(3,null,false),3);
   assert.equal(C.carriedStreak(0,0,false),0);
+});
+
+test("stepValue steps on the grid and lands on the grid from off it",()=>{
+  assert.equal(C.stepValue(60,5,1),65);
+  assert.equal(C.stepValue(62.5,5,1),65);     /* not 70 */
+  assert.equal(C.stepValue(62.5,5,-1),60);
+  assert.equal(C.stepValue(0,2.5,-1),0);
+  assert.equal(C.stepValue(41.25,1.25,1),42.5);
+});
+
+test("timed setScore rises with load and never collapses",()=>{
+  const bw=C.setScore({timed:1,kg:0,reps:60}),loaded=C.setScore({timed:1,kg:5,reps:60});
+  assert.equal(bw,60);assert.ok(loaded>bw);
+  assert.ok(C.setScore({timed:1,kg:10,reps:45})>C.setScore({timed:1,kg:0,reps:60}));
+});
+
+test("hitTop: all but one at the top counts, a set under the bottom does not",()=>{
+  assert.equal(C.hitTop([12,12,12,10],12,8),true);
+  assert.equal(C.hitTop([12,12,10,10],12,8),false);
+  assert.equal(C.hitTop([12,12,12,6],12,8),false);
+  assert.equal(C.hitTop([12],12,8),true);
+  assert.equal(C.hitTop([],12,8),false);
+  assert.equal(C.underRange([6,7,9],8),true);assert.equal(C.underRange([8,9,7],8),false);
+});
+
+test("maxLoggedWeek and hasSets ignore empty entries; sessionDone accepts 80%",()=>{
+  const logs={"3-A":{ex:{}},"2-B":{ex:{0:[{kg:50,reps:8}]}},"5-C":{ex:{0:[null]}}};
+  assert.equal(C.maxLoggedWeek(logs),2);
+  assert.equal(C.hasSets(logs["3-A"]),false);assert.equal(C.hasSets(logs["2-B"]),true);
+  assert.equal(C.sessionDone(null,11,12),true);assert.equal(C.sessionDone(null,9,12),false);
+  assert.equal(C.sessionDone({done:1},1,12),true);assert.equal(C.sessionDone(null,0,0),false);
+});
+
+test("stallStreak skips planned light weeks",()=>{
+  const m=e=>new Map([["Squat",{top:{e}}]]);
+  const WK={1:m(120),2:m(120),3:m(100),4:m(120)};   /* week 3 is a light week */
+  assert.equal(C.stallStreak("Squat",4,WK,w=>w===3),2);
+  assert.equal(C.stallStreak("Squat",4,WK),0);
+});
+
+test("buildICS UIDs are stable per weekday",()=>{
+  const a=C.buildICS([{weekday:0,title:"A"}],"17:30","2026-09-01",0),b=C.buildICS([{weekday:0,title:"A"}],"17:30","2026-10-01",0);
+  const uid=s=>s.match(/UID:([^\r\n]+)/)[1];
+  assert.equal(uid(a),uid(b));assert.equal(uid(a),"atlas-day-0@atlas");
+});
+
+test("mergeDb unions sets from both copies and keeps the newer structure",()=>{
+  const phone={block:1,updatedAt:200,programme:{A:{title:"p",ex:[["Squat","5",1]]}},logs:{"1-A":{date:"2026-09-01",ex:{0:[{kg:100,reps:5,t:1},{kg:100,reps:5,t:2}]}}},archive:[],lifts:{Squat:{inc:5}},notes:{}};
+  const drive={block:1,updatedAt:100,programme:{A:{title:"d",ex:[["Squat","5",1]]}},logs:{"1-A":{date:"2026-09-01",ex:{0:[{kg:100,reps:5,t:1}],1:[{kg:60,reps:10,t:3}]}},"1-B":{ex:{0:[{kg:40,reps:12,t:4}]}}},archive:[{block:0,logs:{}}],lifts:{Bench:{inc:2.5}},notes:{Bench:"hi"}};
+  const m=C.mergeDb(phone,drive);
+  assert.equal(m.programme.A.title,"p");                         /* newer structure */
+  assert.equal(m.logs["1-A"].ex[0].length,2);                    /* deduped by t */
+  assert.equal(m.logs["1-A"].ex[1][0].kg,60);                    /* older side's slot kept */
+  assert.equal(m.logs["1-B"].ex[0][0].kg,40);                    /* older side's session kept */
+  assert.deepEqual(m.lifts,{Bench:{inc:2.5},Squat:{inc:5}});
+  assert.equal(m.archive.length,1);assert.equal(m.updatedAt,200);
+});
+
+test("mergeDb folds an older copy's live sets into the block the newer copy archived",()=>{
+  const newer={block:2,updatedAt:500,programme:{},logs:{"1-A":{ex:{0:[{kg:1,reps:1,t:9}]}}},archive:[{block:1,logs:{"6-A":{ex:{0:[{kg:100,reps:5,t:1}]}}}}]};
+  const older={block:1,updatedAt:400,programme:{},logs:{"6-A":{ex:{0:[{kg:100,reps:5,t:1},{kg:100,reps:5,t:2}]}},"6-B":{ex:{0:[{kg:50,reps:8,t:3}]}}},archive:[]};
+  const m=C.mergeDb(newer,older);
+  assert.equal(m.block,2);
+  assert.equal(m.logs["1-A"].ex[0][0].t,9);
+  const b1=m.archive.find(x=>x.block===1);
+  assert.equal(b1.logs["6-A"].ex[0].length,2);assert.equal(b1.logs["6-B"].ex[0][0].kg,50);
 });

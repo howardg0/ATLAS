@@ -98,6 +98,38 @@ The app is a public static site: anyone with the link gets their own independent
 
 ## Changelog
 
+### 8.0
+A review release. A 16-lens sweep of the codebase produced 290 findings; 66 bugs were confirmed by two independent refuters each and 135 proposals passed a three-judge panel. This release fixes every confirmed bug that did not need an owner decision and ships the highest-value proposals.
+
+**Data safety**
+- Sync merges instead of overwriting. When both this phone and Drive have logged since the last sync (two devices, a download deferred during a session, the installed app plus a browser tab), `mergeDb` keeps the newer copy's structure and the **union of logged sets** from both, matched by timestamp; archived blocks are unioned by block number, and a copy that was still on the old block is folded into the matching archive entry. Merge is also offered on first connect ("Merge both") and dismissing that sheet connects nothing.
+- A failed Drive read is an error, never "no remote file" (which uploaded over it). Token popups that never call back time out after 90 s. Background syncs skip the download when Drive's file is unchanged.
+- Two browsing contexts on one phone: a `storage` event from the other context merges its write in.
+- Reset programme archives the current block first (sets stayed attached to a different slot layout). Restoring a backup keeps this phone's Drive link and refreshes the screen and theme. Mirror adoption at boot is a quiet save so a stale mirror can't out-rank Drive.
+- Empty log entries (Start tapped, time budget set) no longer count as logged weeks; the session's date is the day of its first set; entries with nothing in them are pruned on exit.
+
+**Session**
+- Bodyweight lifts log at 0 kg without typing it. `+` on an empty barbell lift starts at the bar. Stepping from off-grid values lands on the grid (62.5 + 5 → 65, not 70). The edit-set sheet steps by the lift's own increment and labels seconds correctly.
+- Finishing a session stamps it done; reviewing a finished day just shows the summary (no re-sync, no re-stamp). Unfinished lifts on the summary are tappable and drop you back into the session at that lift; the session map offers "Log another set" beyond the plan.
+- Skip on the last lift asks before ending the session, and Skip shows what it skipped. Deleting a set asks first.
+- Rest: logging while peeked no longer leaks the old clock; the target readout follows weight changes made while peeking; the hint hides when it duplicates the target; rest end shows a toast and, where there is no vibration (iPhone), a short tone. Notification permission is no longer requested on the first rest — it is an opt-in under Training → Rest alerts.
+- Warm-up ramp shows on the first set of every compound. Form cues stay open across sets of the same lift. The session map scrolls the current lift into view.
+- Coach: "add weight" now fires when all but one set hit the top of the range (and none fell below the bottom); a cut-short previous session no longer triggers it; when most sets fell under the range it suggests a 5% back-off. A rep PR that beats your best estimated 1RM is celebrated too.
+
+**Plan and progression**
+- Streak carry ends when a past week of the new plan has a missed session (both plans); block rollover now carries streaks. A session counts as done when finished in the app, fully logged, or at 80%+ of its sets, so editing the programme no longer turns finished weeks into "Missed".
+- Hero says Missed / Upcoming for past and future weeks. Verdict baseline skips light weeks; a load jump with fewer reps reads as progress, not a regression; the week average is weighted by tonnage; stall detection ignores light weeks; empty programme days are not "never logged".
+- Volume view lists every major muscle (untrained ones at 0), keeps the 8–20 band for majors only and lists smaller muscles separately. Sparklines have a floor so noise reads as flat.
+- Move-session no longer offers weeks it then refuses. A scheduled switch or Drive adoption never leaves a preview of a day that no longer exists.
+
+**Library, settings, misc**
+- Library and picker search match every word ("incline dumbbell"). Permanent swap lists require a shared primary muscle; the Permanently list highlights the programme's choice; a permanent swap across seconds/reps rewrites the slot range so edits stick.
+- Lift screen rest default follows the slot the lift sits in. Bulk rep-range shortcuts skip timed slots and the field accepts a dash on iPhone.
+- Reminders: block plans get a weekday picker; empty programmes are guarded; calendar UIDs are stable so re-adding updates the events. CSV export includes the set time.
+- Appearance: text size (Smaller/Default/Larger/Largest) as the accessibility control while zoom stays locked; theme applies before first paint. iPhone users get an install hint on Home. The problem report includes storage size, last save error and last sync.
+- Exercise database: 14 new lifts (151 total), 12 new curated swap lists (37 total), Rack Pull re-mapped to the hip extensors, honest Wide-Grip Pulldown text, Cable Lateral Raise flagged per-side, "only lift" claims softened; landmine, safety-bar, trap-bar and T-bar lifts leave the barbell plate calculator.
+- Performance: one IndexedDB connection, one save per logged set, the tonnage counter cancels its previous animation.
+
 ### 7.3.1
 - "Move this session to another week…" is also on the Done screen, which is where a finished session opens.
 

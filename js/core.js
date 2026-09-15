@@ -102,6 +102,12 @@ function nutritionTargets(p){
 function fmtKg(v){return String(Math.round(v*100)/100)}
 /* Nearest multiple of step, so the stepper pulls off-grid values back onto the grid */
 function snapStep(v,step){return Math.round(Math.round(v/step)*step*100)/100}
+/* One tap of +/−: on the grid, move one step; off it (62.5 with a 5 kg step), land on the next grid line in that direction */
+function stepValue(v,step,dir){
+  const q=v/step,on=Math.abs(q-Math.round(q))<1e-6;
+  const n=on?Math.round(q)+dir:(dir>0?Math.ceil(q):Math.floor(q));
+  return Math.max(0,Math.round(n*step*100)/100);
+}
 
 /* ---------- sets ---------- */
 /* Epley estimated 1RM — lets 80x8 and 85x6 be compared honestly */
@@ -109,9 +115,18 @@ function e1rm(kg,reps){return Math.round(kg*(1+reps/30)*10)/10}
 /* One comparable number per set. Rep sets: e1RM. Timed sets: seconds held,
    scaled up by load when there is any, so a heavier plank still scores higher. */
 function setScore(s){
-  if(s.timed)return s.kg>0?Math.round(s.kg*(1+s.reps/60)*10)/10:s.reps;
+  if(s.timed)return Math.round(s.reps*(1+(s.kg||0)/10)*10)/10;   /* 60 s = 60; 60 s with 5 kg = 90 */
   return e1rm(s.kg,s.reps);
 }
+/* Ready for more load: every set but one reached the top of the range and none fell below the bottom.
+   "Every set at the top" almost never happens on 4 hard sets, so it stalled people at the same weight. */
+function hitTop(reps,top,bottom){
+  if(!reps.length||isNaN(top))return false;
+  const atTop=reps.filter(r=>r>=top).length;
+  return atTop>=Math.max(1,reps.length-1)&&reps.every(r=>r>=(isNaN(bottom)?0:bottom));
+}
+/* Most sets under the bottom of the range: the weight is too heavy for the prescription */
+function underRange(reps,bottom){return !isNaN(bottom)&&reps.length>0&&reps.filter(r=>r<bottom).length>=Math.ceil(reps.length/2)}
 /* A unilateral set is logged once but performed on both sides. Timed sets
    don't contribute tonnage — kg × seconds isn't weight moved. */
 function setTonnage(s){return s.timed?0:s.kg*s.reps*(s.uni?2:1)}
@@ -158,7 +173,10 @@ function calendarWeek(startDate,today){
   return Math.max(1,Math.round((mondayOf(t)-mondayOf(startDate))/(7*86400e3))+1);
 }
 /* highest week number that has any set logged (0 when empty) */
-function maxLoggedWeek(logs){let m=0;for(const k of Object.keys(logs||{})){const w=parseInt(k);if(w>m)m=w}return m}
+function hasSets(L){return !!L&&Object.values(L.ex||{}).some(a=>Array.isArray(a)&&a.some(s=>s&&s.kg!=null))}
+function maxLoggedWeek(logs){let m=0;for(const [k,L] of Object.entries(logs||{})){if(!hasSets(L))continue;const w=parseInt(k);if(w>m)m=w}return m}
+/* A session counts as done when it was finished in the app, every planned set is in, or at least 80% are */
+function sessionDone(L,logged,total){return !!(L&&L.done)||(total>0&&logged>=total)||(total>0&&logged>0&&logged/total>=0.8)}
 const isDeload=(plan,w)=>planWeek(plan,w).phase==="Deload";
 /* Which weeks of an old block to look at first for "last time": the heaviest
    ones — latest non-deload week first, deloads last. */
@@ -193,7 +211,7 @@ function buildICS(events,time,from,minutesBefore){
     const dt=`${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(hh)}${pad(mm)}00`;
     const end=new Date(d);end.setHours(hh+1,mm);
     const de=`${end.getFullYear()}${pad(end.getMonth()+1)}${pad(end.getDate())}T${pad(end.getHours())}${pad(end.getMinutes())}00`;
-    out.push("BEGIN:VEVENT",`UID:atlas-${from}-${e.weekday}-${i}@atlas`,`DTSTAMP:${stamp}`,`DTSTART:${dt}`,`DTEND:${de}`,
+    out.push("BEGIN:VEVENT",`UID:atlas-day-${e.weekday}@atlas`,`DTSTAMP:${stamp}`,`DTSTART:${dt}`,`DTEND:${de}`,
       `RRULE:FREQ=WEEKLY;BYDAY=${ICS_DAYS[e.weekday]}`,`SUMMARY:${icsEscape(e.title)}`,`DESCRIPTION:${icsEscape(e.desc||"")}`,
       "BEGIN:VALARM","ACTION:DISPLAY",`DESCRIPTION:${icsEscape(e.title)}`,`TRIGGER:-PT${minutesBefore||0}M`,"END:VALARM","END:VEVENT");
   });
@@ -210,6 +228,57 @@ function syncDecision(localAt,remoteAt,remoteExists,localEmpty){
   if(remoteAt>localAt)return "download";
   if(localAt>remoteAt)return "upload";
   return "none";
+}
+
+/* ---------- merge ----------
+   Two copies of the log (this phone and Drive, or the installed app and a browser
+   tab). Whole-file last-writer-wins lost whichever side logged less recently, so:
+   structure (programme, plan, settings, swaps) comes from the newer copy; logged
+   sets are the UNION of both, matched by their timestamp; archived blocks are the
+   union by block number. If one side has rolled over to a new block, the other
+   side's current-block sets are folded into the matching archived block. */
+function mergeSets(a,b){
+  const out=(a||[]).filter(s=>s&&s.kg!=null);
+  const seen=new Set(out.map(s=>s.t||JSON.stringify(s)));
+  for(const s of b||[]){if(!s||s.kg==null)continue;const k=s.t||JSON.stringify(s);if(seen.has(k))continue;seen.add(k);out.push(s)}
+  return out.sort((p,q)=>(p.t||0)-(q.t||0));
+}
+function mergeLogs(x,y){
+  const o=clone(x||{});
+  for(const [k,L] of Object.entries(y||{})){
+    if(!L)continue;
+    if(!o[k]){o[k]=clone(L);continue}
+    const O=o[k];O.ex=O.ex||{};
+    for(const [i,sets] of Object.entries(L.ex||{}))O.ex[i]=mergeSets(O.ex[i],sets);
+    if(!O.date&&L.date)O.date=L.date;
+    if(L.done&&(!O.done||L.done>O.done))O.done=L.done;
+    if(!O.once&&L.once)O.once=clone(L.once);
+    if(!O.skip&&L.skip)O.skip=clone(L.skip);
+  }
+  return o;
+}
+function mergeDb(a,b){
+  if(!a)return clone(b);if(!b)return clone(a);
+  const newer=(a.updatedAt||0)>=(b.updatedAt||0)?a:b,older=newer===a?b:a;
+  const out=clone(newer);
+  out.archive=clone(newer.archive||[]);
+  for(const blk of older.archive||[]){
+    if(!blk||typeof blk!=="object")continue;
+    const hit=out.archive.find(x=>x&&x.block===blk.block);
+    if(hit)hit.logs=mergeLogs(hit.logs,blk.logs);else out.archive.push(clone(blk));
+  }
+  out.archive.sort((p,q)=>(p.block||0)-(q.block||0));
+  if((older.block||1)===(newer.block||1))out.logs=mergeLogs(newer.logs,older.logs);
+  else if((older.block||1)<(newer.block||1)){
+    /* the newer copy has rolled over: the older side's live sets belong to the block it was still on */
+    const hit=out.archive.find(x=>x&&x.block===(older.block||1));
+    if(hit)hit.logs=mergeLogs(hit.logs,older.logs);
+    else out.archive.push({block:older.block||1,logs:clone(older.logs||{}),programme:clone(older.programme||{}),swaps:clone(older.swaps||{}),plan:older.plan?clone(older.plan):undefined,endedAt:null});
+  }
+  out.lifts=Object.assign({},older.lifts||{},newer.lifts||{});
+  out.notes=Object.assign({},older.notes||{},newer.notes||{});
+  out.updatedAt=Math.max(a.updatedAt||0,b.updatedAt||0);
+  return out;
 }
 
 /* ---------- names ---------- */
@@ -307,9 +376,10 @@ function remapSlots(logs,swaps,d,n,transform,nWeeks){
 /* ---------- progression ---------- */
 /* Consecutive weeks ending at w where this lift failed to beat the week before.
    WK is {week: Map(name -> {top:{e}})}. */
-function stallStreak(name,w,WK){
+function stallStreak(name,w,WK,isLight){
   let n=0,newer=null;
   for(let x=w;x>=1;x--){
+    if(isLight&&isLight(x))continue;   /* a planned light week is not a stall */
     const m=WK[x]&&WK[x].get(name);
     if(!m)continue;
     if(newer===null){newer=m.top.e;continue}
@@ -375,4 +445,4 @@ function migrate(d,defaultDays,defaultSettings,defaultPlan,phases){
 
 if(typeof module!=="undefined"&&module.exports)module.exports={clone,logKey,parseRange,repTop,repBottom,normaliseRange,fmtKg,snapStep,
   e1rm,setScore,setTonnage,fmtSet,validatePlan,planWeeks,planWeek,isDeload,isLightWeek,isRampWeek,rampSets,nextLightWeek,isoDate,mondayOf,calendarWeek,maxLoggedWeek,historyOrder,sessionStreak,adherence,buildICS,syncDecision,exNameIn,setName,incrementFor,restFor,isUnilateral,plateBreakdown,
-  exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate,bulkRange,sameMuscleLifts,slotMinutes,trimForTime,nutritionTargets,betterSet,sessionDuration,nextMonday,carriedStreak};
+  exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate,bulkRange,sameMuscleLifts,slotMinutes,trimForTime,nutritionTargets,betterSet,sessionDuration,nextMonday,carriedStreak,stepValue,hitTop,underRange,hasSets,sessionDone,mergeSets,mergeLogs,mergeDb};

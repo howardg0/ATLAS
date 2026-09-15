@@ -6,7 +6,7 @@
    address of every logged set on the device. */
 const KEY="block-log-v2";
 /* Keep in step with CACHE in sw.js and the ?v= stamps in index.html (tests/version.test.js checks) */
-const APP_VERSION="7.3.1";
+const APP_VERSION="8.0";
 let restEnd=0,restTick=null,restDur=1,restLabel="",restHintTxt="";
 let S=null;
 const migrateDb=d=>migrate(d,DEFAULT_DAYS,DEFAULT_SETTINGS,DEFAULT_PLAN,PHASES);
@@ -16,6 +16,13 @@ catch(e){   /* a corrupt save must never brick the app: stash it beside the live
   BOOT_ERR=e;try{localStorage.setItem(KEY+"-broken-"+Date.now(),localStorage.getItem(KEY)||"")}catch(_){}
   db=migrateDb({});
 }
+try{applyTheme()}catch(e){}   /* before first paint, so light-theme users don't get a dark flash */
+/* the installed app and a browser tab share localStorage: adopt what the other context wrote */
+addEventListener("storage",e=>{
+  if(e.key!==KEY||!e.newValue||S)return;
+  try{const d=JSON.parse(e.newValue);if((d.updatedAt||0)>(db.updatedAt||0)){db=migrateDb(mergeDb(db,d));DAYS=db.programme;PV=null;const cur=document.querySelector(".screen.active");if(cur)showNow(["preview","done","session"].includes(cur.id.slice(4))?"home":cur.id.slice(4))}}catch(_){}
+});
+let SAVE_ERR=null;
 /* The live programme is db.programme (editable); DAYS points at it after init. */
 let DAYS=DEFAULT_DAYS;
 const dayIds=()=>Object.keys(DAYS);
@@ -73,10 +80,12 @@ function allBlocks(){return db.archive.concat([{block:db.block,logs:db.logs,prog
 /* localStorage is the working copy; IndexedDB is a durable mirror that survives
    most storage evictions, so years of logs don't hinge on one fragile store */
 const IDB={
-  open(){return new Promise((res,rej)=>{
+  _p:null,
+  open(){if(this._p)return this._p;this._p=new Promise((res,rej)=>{
     const r=indexedDB.open("blocklog",1);
     r.onupgradeneeded=()=>r.result.createObjectStore("kv");
-    r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})},
+    r.onsuccess=()=>{r.result.onversionchange=()=>{r.result.close();IDB._p=null};res(r.result)};r.onerror=()=>rej(r.error)});
+    this._p.catch(()=>{this._p=null});return this._p},
   async set(k,v){try{const d=await this.open();d.transaction("kv","readwrite").objectStore("kv").put(v,k)}catch(e){}},
   async get(k){try{const d=await this.open();return new Promise(res=>{
     const q=d.transaction("kv").objectStore("kv").get(k);
@@ -93,7 +102,7 @@ function save(opts){
   db.rest=(restEnd>Date.now())
     ?{end:restEnd,label:restLabel,dur:restDur,hint:restHintTxt}:null;
   const json=JSON.stringify(db);
-  try{localStorage.setItem(KEY,json)}catch(e){toast("Storage unavailable — back up now")}
+  try{localStorage.setItem(KEY,json);SAVE_ERR=null}catch(e){SAVE_ERR=String(e&&e.name||e);toast("Storage unavailable — back up now")}
   /* the IndexedDB mirror stores the same string, written at most once a second */
   MIRROR_JSON=json;clearTimeout(MIRROR_T);MIRROR_T=setTimeout(flushMirror,800);
 }
@@ -152,7 +161,7 @@ function isTimed(name){const o=db.lifts[name];if(o&&o.timed!=null)return !!o.tim
    "45–60" seconds makes no sense for Machine Crunch, so a swap across that line gets a default range. */
 function slotRange(w,d,i){
   const e=DAYS[d].ex[i],name=sessName(w,d,i);
-  if(isTimed(name)!==isTimed(e[0]))return isTimed(name)?"30–45":"10–15";
+  if(onceName(w,d,i)&&isTimed(name)!==isTimed(exName(d,i)))return isTimed(name)?"30–45":"10–15";   /* today-only swap across the seconds/reps line */
   return e[1];
 }
 function restSecs(w,d,i){const e=DAYS[d].ex[i];return restFor(sessName(w,d,i),e[2],db.lifts,db.settings.rest)}
@@ -166,7 +175,7 @@ function setLiftOpt(name,k,v){
 }
 const COMP_PATTERNS=["Squat","Hinge","Horizontal Push","Vertical Push","Horizontal Pull","Vertical Pull"];
 const isCompPattern=name=>!!(EXDB[name]&&COMP_PATTERNS.includes(EXDB[name].pat));
-function weekComplete(w){const ds=dayIds().filter(d=>totalSets(w,d)>0);return ds.length>0&&ds.every(d=>loggedSets(w,d)>=totalSets(w,d))}
+function weekComplete(w){const ds=dayIds().filter(d=>totalSets(w,d)>0);return ds.length>0&&ds.every(d=>sessionDone(db.logs[logKey(w,d)],loggedSets(w,d),totalSets(w,d)))}
 const programmeEmpty=()=>!dayIds().some(d=>DAYS[d].ex.length>0);
 
 /* ---------- in-app confirm (replaces native confirm dialogs) ---------- */
@@ -225,7 +234,8 @@ function showNow(name,dir){
   if(name==="settings")renderSettings();
   if(name==="prog")renderProg();
   if(name==="nutri")renderNutri();
-  if(name==="session")measureDock();   /* the dock only has a height once the screen is displayed */
+  if(name==="done")renderDone(DONE.w,DONE.d);
+  if(name==="session"){if(S)renderSet();measureDock()}   /* the dock only has a height once the screen is displayed */
   /* coming back should land where you left, going forward starts at the top.
      Wait a frame: the screen was just re-rendered, so scrollTo would otherwise
      be clamped against the previous screen's height. */
@@ -308,7 +318,7 @@ function renderHero(){
       ?`Starts with <b>${first}</b>${h0?` · last <b>${fmtSet(h0.sets[0])}</b>`:""}`
       :"No lifts on this day yet";
     $("hero").innerHTML=`<button class="hero d${nd}" onclick="shareTitle(this.querySelector('.hname'));showPreview(${w},'${nd}')">
-      <div class="hinfo"><div class="hkick">${started?"Continue":(isOpen()&&w===curWeek()&&dayIds()[todayIdx()]===nd?"Today":"Next up")} · Week ${w}${isOpen()&&deloadWeek(w)?" · light":""}</div>
+      <div class="hinfo"><div class="hkick">${started?"Continue":isOpen()&&w<curWeek()?"Missed":isOpen()&&w>curWeek()?"Upcoming":(isOpen()&&w===curWeek()&&dayIds()[todayIdx()]===nd?"Today":"Next up")} · Week ${w}${isOpen()&&deloadWeek(w)?" · light":""}</div>
       <div class="hname">${dayWeekday(nd)?dayWeekday(nd)+" · ":"Day "+nd+" · "}${esc(DAYS[nd].title)}</div>
       <div class="hmeta">${started?loggedSets(w,nd)+"/"+totalSets(w,nd)+" sets logged — pick it back up":firstTxt}</div>
       <div class="hmeta2">${DAYS[nd].ex.length} lifts · ${totalSets(w,nd)} sets · ~${estMinutes(w,nd)} min</div></div>
@@ -362,7 +372,9 @@ async function pickTemplate(){
     PROGRAMME_TEMPLATES.map(t=>({label:`${t.name} · ${t.tag}`,value:t.id})),async id=>{
       const t=PROGRAMME_TEMPLATES.find(x=>x.id===id);
       const hasLogs=Object.keys(db.logs).length>0;
-      if(!hasLogs&&!db.archive.length){applyTemplate(id);renderSettings();toast(db.programmeName+" loaded");if(id==="blank")go("prog");return}
+      if(!hasLogs&&!db.archive.length){
+        if(db.programmeName==="Custom programme"&&!await ask({title:"Replace your programme?",body:`Every day and lift you built is replaced by <b>${esc(t.name)}</b>.`,ok:"Replace"}))return;
+        applyTemplate(id);renderSettings();toast(db.programmeName+" loaded");if(id==="blank")go("prog");return}
       /* what carries over: every lift in the new plan that already has history */
       const names=[...new Set(Object.values(t.programme||{}).flatMap(day=>day.ex.map(e=>e[0])))];
       const known=names.filter(n=>liftStats(n,null));
@@ -395,11 +407,15 @@ function checkPending(){
   const t=PROGRAMME_TEMPLATES.find(x=>x.id===p.template);
   if(!t){db.pending=null;save();return false}
   performSwitch(p.template,p.startOn);
+  PV=null;DONE={w:1,d:dayIds()[0]};   /* a preview or summary of the old plan's day must not survive the switch */
   toast(t.name+" has started — week 1");
   return true;
 }
-function switchNow(){const p=db.pending;if(!p)return;const t=PROGRAMME_TEMPLATES.find(x=>x.id===p.template);performSwitch(p.template,null);renderHome();toast((t?t.name:"Plan")+" loaded")}
+async function switchNow(){const p=db.pending;if(!p)return;const t=PROGRAMME_TEMPLATES.find(x=>x.id===p.template);
+  if(Object.keys(db.logs).length&&!await ask({title:"Switch now?",body:`This block is archived and <b>${esc(t?t.name:"the new plan")}</b> starts today instead of Monday.`,ok:"Switch now"}))return;
+  performSwitch(p.template,null);PV=null;renderHome();toast((t?t.name:"Plan")+" loaded")}
 function cancelPending(){db.pending=null;save();renderHome();toast("Scheduled switch cancelled")}
+const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)&&!window.MSStream;
 function homeCards(){
   let html="";
   const fresh=!Object.keys(db.logs).length&&!db.archive.length;
@@ -424,6 +440,10 @@ function homeCards(){
       <div style="flex:1"><b>${esc(t?t.name:"New plan")}</b> starts ${when}. Carry on with the current plan until then; the app switches itself that morning and your streaks carry over.
       <div class="libchips wrap" style="margin-top:10px"><button class="libchip" onclick="switchNow()">Switch now</button><button class="libchip" onclick="cancelPending()">Cancel</button></div></div></div>`;
   }
+  if(isIOS()&&!isStandalone()&&!db.hideInstall)
+    html+=`<div class="nudge install"><svg viewBox="0 0 24 24" class="gico"><path d="M12 3.5v11M7.5 8 12 3.5 16.5 8M4 14.5v3.2a2.3 2.3 0 0 0 2.3 2.3h11.4a2.3 2.3 0 0 0 2.3-2.3v-3.2"/></svg>
+      <span style="flex:1">Install ATLAS so it works offline and keeps your log safe: tap Safari's <b>Share</b> button, then <b>Add to Home Screen</b>. A plain Safari tab can lose its data after a week unused.
+      <button class="libchip" style="margin-top:8px" onclick="db.hideInstall=1;save();renderHome()">Got it</button></span></div>`;
   if(INSTALL.prompt&&!db.hideInstall&&!isStandalone())
     html+=`<button class="nudge tap install" onclick="installApp()"><svg viewBox="0 0 24 24" class="gico"><path d="M12 3.5v11M7.5 10.5 12 15l4.5-4.5M4 16.5v2.2a1.8 1.8 0 0 0 1.8 1.8h12.4a1.8 1.8 0 0 0 1.8-1.8v-2.2"/></svg>
       <span>Install ATLAS for a full-screen app that works offline. <b>Install</b></span></button>`;
@@ -441,7 +461,7 @@ function backupNudgeHTML(minDays){
   const days=db.lastBackup?Math.floor((Date.now()-db.lastBackup)/86400000):null;
   if(!hasData||(days!==null&&days<=minDays))return "";
   return `<button class="nudge tap" onclick="backupJSON(false)"><svg viewBox="0 0 24 24" class="gico"><path d="M12 3.6 21.2 20H2.8z"/><path d="M12 10v4.2M12 17v.4"/></svg>
-    <span>${days===null?"No backup yet":"Last backup "+days+" days ago"} — your history lives only on this phone. <b>Back up now</b></span></button>`;
+    <span>${days===null?"No backup yet":"Last backup "+days+" days ago"}${driveOn()?" — Drive sync is on, but a file you hold is the safety net.":" — your history lives only on this phone. Google Drive sync (Settings) keeps a copy for you."} <b>Back up now</b></span></button>`;
 }
 /* every planned session up to now, in order, with whether it is done and whether it was due */
 function sessionList(){
@@ -453,7 +473,7 @@ function sessionList(){
   const startIdx=isOpen()&&db.startedOn&&calendarWeek(db.plan.startDate,db.startedOn)===1?(new Date(db.startedOn+"T12:00:00").getDay()+6)%7:0;
   for(let w=1;w<=cw;w++)dayIds().forEach((d,i)=>{
     const total=totalSets(w,d);if(!total)return;
-    const done=loggedSets(w,d)>=total;
+    const done=sessionDone(db.logs[logKey(w,d)],loggedSets(w,d),total);
     let due;
     if(isOpen())due=(w<cw||i<ti||done)&&!(w===1&&i<startIdx&&!done);   /* today counts only once it's finished */
     else due=done||w<cw;                           /* block plans have no calendar: earlier weeks are due */
@@ -475,8 +495,10 @@ function sessionStreakNow(list){
 }
 function weekStreakNow(){
   const base=weekStreak(),c=db.streakCarry;
-  const unbroken=isOpen()?base>=curWeek()-1:true;   /* every past week of the new plan complete */
-  return carriedStreak(base,c&&c.w,!unbroken);
+  if(!c)return base;
+  const cw=isOpen()?curWeek():Math.max(1,maxLoggedWeek(db.logs));
+  const broken=sessionList().some(x=>x.w<cw&&x.due&&!x.done);   /* a missed session in a past week of the new plan ends the carry */
+  return carriedStreak(base,c.w,broken);
 }
 function renderStreaks(){
   const el=$("streaks");if(!el)return;
@@ -632,7 +654,7 @@ function setTimeBudget(w,d,budget){
 function unskipSlot(w,d,i){
   const L=db.logs[logKey(w,d)];if(!L||!L.skip)return;
   L.skip=L.skip.filter(x=>x!==i);if(!L.skip.length)delete L.skip;
-  save();haptic("select");renderPreview();toast(sessName(w,d,i)+" is back in");
+  save();haptic("select");if(document.querySelector(".screen.active").id==="scr-preview")renderPreview();toast(sessName(w,d,i)+" is back in");
 }
 
 /* ================= SESSION ================= */
@@ -646,12 +668,14 @@ function startSession(w,d){
     const have=(db.logs[k].ex[i]||[]).filter(s=>s&&s.kg!=null).length;
     if(have<need){exIdx=i;setIdx=have;found=true}
   }
-  if(!found){showDone(w,d);return}
+  if(!found){showDone(w,d,true);return}   /* everything logged: just show the summary */
   S={w,d,exIdx,setIdx};save();
   lockScreen();TON_SHOWN=0;LAST_EX=null;
   renderSet();show("session");
 }
-function exitSession(){S=null;unlockScreen();save();history.back()}
+function exitSession(){if(restEnd>Date.now())endRest();pruneLog(logKey(S.w,S.d));S=null;unlockScreen();save();history.back()}
+/* an entry with no sets, no today-only swap and no time skip is noise: drop it so it never reads as a logged week */
+function pruneLog(k){const L=db.logs[k];if(L&&!hasSets(L)&&!L.once&&!L.skip&&!L.done)delete db.logs[k]}
 function resumeSession(){
   const q=db.session;
   if(!q||!DAYS[q.d]){toast("That session is no longer in the plan");db.session=null;save();renderHome();return}
@@ -714,16 +738,21 @@ function coachAdvice(w,d,exIdx){
   const timed=isTimed(name),unit=timed?"seconds":"reps",u=timed?" s":"";
   if(deloadWeek(w))return{cls:"hold",ico:CO.deload,txt:`<b>Deload.</b> Same weights as last week, fewer sets, ${rirOf(w)} RIR. Leave the gym feeling fresh.`};
   if(!hist)return{cls:"fresh",ico:CO.fresh,txt:`<b>First time on this lift.</b> Pick a weight you could do ~twice the reps with. Week 1 is for finding numbers, not testing them.`};
-  const top=repTop(range);
-  const allTop=hist.sets.every(s=>s.reps>=top);
+  const top=repTop(range),bottom=repBottom(range),reps=hist.sets.map(s=>s.reps);
   const ref=hist.block<db.block?`Block ${hist.block} wk ${hist.w}`:`Wk ${hist.w}`;
-  if(allTop){
+  const planned=slotSets(w,d,exIdx),cutShort=hist.sets.length<Math.min(2,planned);   /* one set logged last time proves nothing */
+  if(!cutShort&&hitTop(reps,top,bottom)){
     const inc=increment(name);
     const newKg=hist.sets[0].kg+inc;
-    return{cls:"",ico:CO.up,rec:newKg,recReps:repBottom(range),
-      txt:`<b>Add ${timed&&hist.sets[0].kg===0?"load":"weight"}: ${fmtKg(newKg)} kg.</b> You hit the top of the range on every set (${ref}). Drop back to ${repBottom(range)}${u} and build up again.`};
+    return{cls:"",ico:CO.up,rec:newKg,recReps:bottom,
+      txt:`<b>Add ${timed&&hist.sets[0].kg===0?"load":"weight"}: ${fmtKg(newKg)} kg.</b> ${reps.every(r=>r>=top)?"Top of the range on every set":"Top of the range on all but one set"} (${ref}). Drop back to ${bottom}${u} and build up again.`};
   }
-  return{cls:"hold",ico:CO.hold,txt:`<b>Same weight, chase ${unit}.</b> ${ref} you got ${hist.sets.map(s=>s.reps+u).join(", ")} — target is ${top}${u} on every set before adding load.`};
+  if(!cutShort&&underRange(reps,bottom)&&hist.sets[0].kg>0){
+    const inc=increment(name),backKg=Math.max(inc,snapStep(hist.sets[0].kg*0.95,inc));
+    return{cls:"hold",ico:CO.hold,rec:backKg,recReps:bottom,
+      txt:`<b>Back off to ${fmtKg(backKg)} kg.</b> ${ref} most sets fell under ${bottom}${u} (${reps.map(r=>r+u).join(", ")}). About 5% lighter puts you back in the range where the reps do the work.`};
+  }
+  return{cls:"hold",ico:CO.hold,txt:`<b>Same weight, chase ${unit}.</b> ${ref} you got ${reps.map(r=>r+u).join(", ")} — get to ${top}${u} on all but one set and it's time to add load.`};
 }
 
 function renderSet(){
@@ -748,7 +777,7 @@ function renderSet(){
   $("ss-coachico").innerHTML=adv.ico;$("ss-coachtxt").innerHTML=adv.txt;
   $("ss-cuelist").innerHTML=((EXDB[name]&&EXDB[name].form)||["No cues stored for this variant — watch the video below before your first set."]).map(c=>"<li>"+c+"</li>").join("");
   $("ss-vid").href=ytLink(name);
-  $("ss-cues").open=false;
+  if(CUES_EX!==d+"-"+exIdx){$("ss-cues").open=false;CUES_EX=d+"-"+exIdx}   /* collapse only when the lift changes */
   const pips=$("ss-pips");pips.innerHTML="";
   for(let i=0;i<nsets;i++){const p=document.createElement("div");p.className="pip"+(i<setIdx?" done":i===setIdx?" cur":"");
     if(FX&&FX.ex===exIdx&&FX.pip===i)p.classList.add("just");pips.appendChild(p)}
@@ -787,6 +816,7 @@ function renderSet(){
     const link=j>0&&exOpt(DAYS[d].ex[j-1],"ss")?"⇄ ":"";
     return `<button class="upchip ${st}" onclick="${st==="done"?"editLift("+j+")":st==="skip"?"unskipHere("+j+")":"jumpTo("+j+")"}" aria-label="${st==="done"?"Edit sets for ":st==="skip"?"Skipped for time, tap to add back: ":""}${sessName(w,d,j)}">${st==="done"?"✓ ":(j+1)+". "}${link}${sessName(w,d,j)}</button>`;
   }).join("");
+  {const c=$("ss-upnext"),cur=c.querySelector(".upchip.cur");if(cur)c.scrollLeft=Math.max(0,cur.offsetLeft-c.clientWidth/2+cur.offsetWidth/2)}   /* keep the current lift in view */
   renderPlates();
   renderWarmup();
   measureDock();
@@ -809,21 +839,27 @@ function resetTimer(){if(TIMER){clearInterval(TIMER.h);TIMER=null}const b=$("ss-
 function measureDock(){requestAnimationFrame(()=>{const d=$("setdock");if(d)document.documentElement.style.setProperty("--dock-h",d.offsetHeight+"px")})}
 addEventListener("resize",measureDock);
 /* session tonnage counts up rather than jumping */
+let TON_RAF=0;
 function tickTon(to){
   const el=$("ss-ton"),from=TON_SHOWN;if(from===to){el.textContent=to.toLocaleString();return}
+  cancelAnimationFrame(TON_RAF);
   const t0=performance.now(),dur=reduceMotion()?0:520;
   const step=t=>{const p=dur?Math.min(1,(t-t0)/dur):1,e=1-Math.pow(1-p,3);
     el.textContent=Math.round(from+(to-from)*e).toLocaleString();
-    if(p<1)requestAnimationFrame(step);else TON_SHOWN=to};
-  requestAnimationFrame(step);
+    if(p<1)TON_RAF=requestAnimationFrame(step);else TON_SHOWN=to};
+  TON_RAF=requestAnimationFrame(step);
 }
+let CUES_EX=null;
 function jumpTo(i){S.exIdx=i;S.setIdx=firstOpenSet();renderSet();save()}
 /* a finished lift in the session map: pick one of its sets to change or delete */
 function editLift(j){
   const {w,d}=S;const arr=db.logs[logKey(w,d)].ex[j]||[];
   const opts=arr.map((s,si)=>s&&s.kg!=null?{label:`Set ${si+1} · ${fmtSet(s)}`,value:si}:null).filter(Boolean);
   if(!opts.length){jumpTo(j);return}
-  chooseSheet(sessName(w,d,j),"Tap a set to change or delete it.",opts,si=>openEdit(w,d,j,si,"session"));
+  opts.push({label:"+ Log another set",value:"more"});
+  chooseSheet(sessName(w,d,j),"Tap a set to change or delete it, or add one beyond the plan.",opts,si=>{
+    if(si==="more"){S.exIdx=j;S.setIdx=arr.filter(s=>s&&s.kg!=null).length;renderSet();save();return}
+    openEdit(w,d,j,si,"session")});
 }
 async function endEarly(){
   const {w,d}=S;
@@ -836,10 +872,10 @@ async function endEarly(){
 /* ---------- warm-up ramp (first exercise, first set only) ---------- */
 function renderWarmup(){
   const box=$("ss-warmup");
-  if(!S||S.exIdx!==0||S.setIdx!==0){box.style.display="none";return}
+  if(!S||S.setIdx!==0||!(S.exIdx===0||DAYS[S.d].ex[S.exIdx][2])){box.style.display="none";return}   /* first set of the day, or of any compound */
   const kg=parseFloat($("in-kg").value);
   if(isNaN(kg)||kg<=0){box.style.display="none";return}
-  const name=sessName(S.w,S.d,0);
+  const name=sessName(S.w,S.d,S.exIdx);
   const isBar=isBarbellLift(name),bar=db.settings.bar;
   const round=v=>Math.max(isBar?bar:2.5,Math.round(v/2.5)*2.5);
   const steps=isBar
@@ -885,35 +921,47 @@ function bump(f,dir){
   const el=f==="kg"?$("in-kg"):$("in-reps");
   const step=f==="kg"?increment(sessName(S.w,S.d,S.exIdx)):1;
   let v=parseFloat(el.value)||0;
-  v=Math.max(0,snapStep(v+dir*step,step));
+  if(f==="kg"&&!v&&dir>0&&isBarbellLift(sessName(S.w,S.d,S.exIdx)))v=db.settings.bar;   /* + on an empty barbell lift starts at the bar */
+  else v=stepValue(v,step,dir);
   el.value=f==="kg"?fmtKg(v):Math.round(v);
   haptic("select");
   if(f==="kg"){renderPlates();renderWarmup()}
+  if(restEnd>Date.now())restTarget();   /* peeking at the rest bar while adjusting: keep the readout honest */
+}
+/* edit-set sheet steppers: the lift's own increment, kept to two decimals */
+function edBump(f,dir){
+  if(!ED)return;
+  const el=$(f==="kg"?"in-ed-kg":"in-ed-reps");
+  const step=f==="kg"?increment(sessName(ED.w,ED.d,ED.ex)):1;
+  const v=stepValue(parseFloat(el.value)||0,step,dir);
+  el.value=f==="kg"?fmtKg(v):Math.round(v);
 }
 
 function logSet(){
   if(TIMER)stopTimer();
-  const kg=parseFloat($("in-kg").value),reps=parseInt($("in-reps").value);
+  let kg=parseFloat($("in-kg").value);const reps=parseInt($("in-reps").value);
   const {w,d,exIdx,setIdx}=S;
-  const timed=isTimed(sessName(w,d,exIdx));
+  const name=sessName(w,d,exIdx);
+  const timed=isTimed(name);
+  if(isNaN(kg)&&EXDB[name]&&EXDB[name].eq==="Bodyweight")kg=0;   /* push-ups, planks, hangs: no weight to type */
   if(isNaN(kg)||isNaN(reps)||reps<=0){haptic("error");toast(timed?"Enter weight and seconds":"Enter weight and reps");return}
   const k=logKey(w,d);
-  const name=sessName(w,d,exIdx);
   const prevBest=liftStats(name,k);   /* best before today's session */
+  if(!hasSets(db.logs[k]))db.logs[k].date=todayISO();   /* the session's date is the day of its first set, not when Start was tapped */
   if(!db.logs[k].ex[exIdx])db.logs[k].ex[exIdx]=[];
   const set={kg,reps,t:Date.now(),name};
   if(isUni(name))set.uni=1;   /* stamped so history stays honest if the flag changes later */
   if(timed)set.timed=1;
   db.logs[k].ex[exIdx][setIdx]=set;
-  save();
   const pos={w,d,exIdx,setIdx};
   const isPR=!!prevBest&&betterSet(set,prevBest.best);
   FX={ex:exIdx,pip:setIdx};
   const b=$("logbtn");b.classList.add("pressed");setTimeout(()=>b.classList.remove("pressed"),140);
   if(isPR){haptic("pr");const f=$("prflash");f.classList.remove("go");void f.offsetWidth;f.classList.add("go")}
   else haptic("log");
-  toast((isPR?"🏆 New PR — ":"Logged ")+fmtSet(set),"Undo",()=>undoSet(pos));
-  advance(true);
+  const e1=!isPR&&prevBest&&!timed&&setScore(set)>prevBest.bestE.e+0.05;   /* a rep PR at a lighter weight still beats your best estimated 1RM */
+  toast((isPR?"🏆 New PR — ":e1?"🏆 Best e1RM — ":"Logged ")+fmtSet(set),"Undo",()=>undoSet(pos));
+  advance(true);   /* advance saves once for both */
 }
 function undoSet(pos){
   endRest();
@@ -928,8 +976,8 @@ function skipExercise(){
   const {w,d,exIdx}=S;
   const open=j=>(db.logs[logKey(w,d)].ex[j]||[]).filter(s=>s&&s.kg!=null).length;
   let j=exIdx+1;while(j<DAYS[d].ex.length&&open(j)>=slotSets(w,d,j))j++;   /* past finished and time-skipped slots */
-  if(j<DAYS[d].ex.length){S.exIdx=j;S.setIdx=open(j);renderSet();save()}
-  else showDone(w,d);
+  if(j<DAYS[d].ex.length){S.exIdx=j;S.setIdx=open(j);renderSet();save();toast("Skipped "+sessName(w,d,exIdx))}
+  else endEarly();   /* nothing left after this lift: finishing is a decision, not a side effect */
 }
 function firstOpenSet(){
   const {w,d,exIdx}=S;
@@ -996,7 +1044,7 @@ function openPad(f){
     if(isBarbellLift(name))q.push([`Empty bar · ${fmtKg(db.settings.bar)}`,db.settings.bar]);
   }else{
     if(ref)q.push([`${prev?"Same as last set":"Last time"} · ${ref.reps}`,ref.reps]);
-    const [,range]=DAYS[d].ex[exIdx];
+    const range=slotRange(w,d,exIdx);   /* the slot's effective range, not the raw programme entry */
     q.push([`Top of range · ${repTop(range)}`,repTop(range)]);
   }
   $("pad-quick").innerHTML=q.map(([l,v])=>`<button onclick="padSet(${v})">${l}</button>`).join("");
@@ -1024,7 +1072,7 @@ function padKey(k){
 function padSet(v){if(!PAD)return;PAD.val=String(v);PAD.fresh=true;padRender();padApply();haptic("select")}
 function closePad(){
   if(PAD){const n=parseFloat(PAD.val);const el=$(PAD.f==="kg"?"in-kg":"in-reps");
-    el.value=isNaN(n)?"":(PAD.f==="kg"?fmtKg(n):Math.round(n));padApply();PAD=null}
+    el.value=isNaN(n)?"":(PAD.f==="kg"?fmtKg(n):Math.round(n));padApply();PAD=null;if(restEnd>Date.now())restTarget()}
   $("padsheet").classList.remove("active");measureDock();
 }
 
@@ -1038,7 +1086,10 @@ function chooseSheet(title,hint,options,cb){
   $("choosesheet").classList.add("active");tap(6);
 }
 function pickChoice(i){const o=$("ch-list")._opts[i];const cb=CHOOSE;closeChoose();if(cb)cb(o.value)}
-function closeChoose(){CHOOSE=null;$("choosesheet").classList.remove("active")}
+let CHOOSE_DISMISS=null;
+/* chooseSheet as a promise: resolves the chosen value, or null if the sheet is dismissed */
+function chooseAsync(title,hint,opts){return new Promise(res=>{CHOOSE_DISMISS=()=>res(null);chooseSheet(title,hint,opts,v=>{CHOOSE_DISMISS=null;res(v)})})}
+function closeChoose(){if(CHOOSE_DISMISS){const f=CHOOSE_DISMISS;CHOOSE_DISMISS=null;f()}CHOOSE=null;$("choosesheet").classList.remove("active")}
 
 /* ---------- gestures ---------- */
 function onSwipe(el,fn){
@@ -1071,13 +1122,14 @@ function renderSwap(){
   $("swap-once").classList.toggle("sel",SWAP_MODE==="once");$("swap-perm").classList.toggle("sel",SWAP_MODE==="perm");
   const q=s=>s.replace(/'/g,"\\'");
   const meta=n=>{const e=EXDB[n];return e?`<span class="pemeta" style="flex-shrink:0">${e.eq} · ${e.pri.map(m=>MUSCLE_NAMES[m]).join(", ")}</span>`:""};
-  const row=(n,fn,note)=>`<button class="subopt bulkrow ${n===cur?"current":""}" onclick="${fn}('${q(n)}')"><span style="flex:1;min-width:0">${n}${note?` <span style='color:var(--ink-faint);font-weight:400'>${note}</span>`:""}</span>${meta(n)}</button>`;
+  const mark=SWAP_MODE==="once"?cur:planned;
+  const row=(n,fn,note)=>`<button class="subopt bulkrow ${n===mark?"current":""}" onclick="${fn}('${q(n)}')"><span style="flex:1;min-width:0">${n}${note?` <span style='color:var(--ink-faint);font-weight:400'>${note}</span>`:""}</span>${meta(n)}</button>`;
   let html;
   if(SWAP_MODE==="once"){
     $("swap-hint").textContent="Machine busy? Pick something that works the same muscles for this session only. Your plan and progression on "+planned+" are untouched.";
     html=row(planned,"doSwapOnce","(planned)")+sameMuscleLifts(EXDB,planned,SUBS).map(n=>row(n,"doSwapOnce")).join("");
   }else{
-    $("swap-hint").textContent=isOpen()?"Same movement pattern, different tool. The swap sticks until you change it back, so your progression stays comparable.":"Same movement pattern, different tool. The swap sticks for this whole block so your progression stays comparable.";
+    $("swap-hint").textContent="Same movement pattern and muscles, different tool. The swap sticks until you change it back, so your progression stays comparable.";
     html=[orig,...similarLifts(orig)].map(o=>row(o,"doSwap",o===orig?"(programme default)":"")).join("");
   }
   $("swaplist").innerHTML=html;
@@ -1095,8 +1147,10 @@ function doSwap(name){
   const {w,d,exIdx}=S;
   const orig=DAYS[d].ex[exIdx][0];
   if(!db.swaps)db.swaps={};
+  const before=exName(d,exIdx);
   if(name===orig)delete db.swaps[d+"-"+exIdx];
   else db.swaps[d+"-"+exIdx]=name;
+  if(isTimed(name)!==isTimed(before))DAYS[d].ex[exIdx][1]=isTimed(name)?"30–45":"10–15";   /* seconds ↔ reps: give the slot a range that makes sense and can be edited */
   const L=db.logs[logKey(w,d)];if(L&&L.once){delete L.once[exIdx];if(!Object.keys(L.once).length)delete L.once}
   save();closeSwap();renderSet();
   toast(name===orig?"Back to default":"Swapped to "+name);
@@ -1107,7 +1161,7 @@ function closeSwap(){$("swapsheet").classList.remove("active")}
    movement pattern — so every slot has options, not just the default programme's */
 function similarLifts(name){
   const e=EXDB[name];
-  const same=e?Object.keys(EXDB).filter(n=>n!==name&&EXDB[n].g===e.g&&EXDB[n].pat===e.pat):[];
+  const same=e?Object.keys(EXDB).filter(n=>n!==name&&EXDB[n].g===e.g&&EXDB[n].pat===e.pat&&EXDB[n].pri.some(m=>e.pri.includes(m))):[];   /* a lateral raise must not offer a rear-delt fly */
   return [...new Set([...(SUBS[name]||[]),...same])].filter(n=>EXDB[n]);
 }
 /* ================= LIFT LIBRARY ================= */
@@ -1127,10 +1181,11 @@ function renderLib(){
   let html="";
   for(const g of GROUPS){
     if(LIB.grp!=="All"&&LIB.grp!==g)continue;
+    const words=q.split(/\s+/).filter(Boolean);
     const items=Object.entries(EXDB).filter(([,e])=>e.g===g).filter(([,e])=>LIB.eq==="All"||e.eq===LIB.eq).filter(([n,e])=>{
-      if(!q)return true;
+      if(!words.length)return true;
       const hay=(n+" "+e.eq+" "+e.pat+" "+g+" "+[...e.pri,...e.sec].map(m=>MUSCLE_NAMES[m]).join(" ")).toLowerCase();
-      return hay.includes(q);
+      return words.every(t=>hay.includes(t));   /* "incline dumbbell" finds Incline Dumbbell Press */
     });
     if(!items.length)continue;
     html+=`<div class="sectlabel">${g}</div>`;
@@ -1188,7 +1243,8 @@ function stepperHTML(fn,val,step,label,unit,mode){
 function renderLiftSettings(name){
   const o=liftOpt(name),inc=increment(name),uni=isUni(name),timed=isTimed(name);
   const defInc=incrementFor(name,{},BIG_INC);
-  const defRest=isCompPattern(name)?db.settings.rest.comp:db.settings.rest.acc;
+  let slotComp=null;for(const d of dayIds())DAYS[d].ex.forEach((e,i)=>{if(slotComp===null&&exName(d,i)===name)slotComp=!!e[2]});
+  const defRest=(slotComp===null?isCompPattern(name):slotComp)?db.settings.rest.comp:db.settings.rest.acc;   /* the session rests by the slot's compound flag */
   $("lift-settings").innerHTML=
     `<div class="setrow"><div class="lrtext"><b>Weight step</b><i>${o.inc?"Custom · default "+defInc+" kg":"Used by the +/− buttons and the coach"}</i></div>${stepperHTML("liftInc",inc,0.5,"weight step","kg")}</div>
      <div class="setrow"><div class="lrtext"><b>Rest after a set</b><i>${o.rest?"Custom · default "+defRest+" s":"Default · "+defRest+" s (Settings)"}</i></div>${stepperHTML("liftRest",o.rest||defRest,15,"rest","s","numeric")}</div>
@@ -1309,13 +1365,13 @@ function liftStats(name,excludeKey){
 /* ================= REST ================= */
 const RING_C=339.3;
 function startRest(sec,nextLabel,hint){
+  clearInterval(restTick);   /* logging while peeked must not leave the old clock ticking */
   restEnd=Date.now()+sec*1000;restDur=sec;restLabel=nextLabel;restHintTxt=hint||"";
   $("rest-next").textContent=nextLabel;
   $("rest-hint").innerHTML=restHintTxt;
   restTarget();
   peekRest(false,true);
   $("restveil").classList.add("active");document.body.classList.add("resting");
-  if(window.Notification&&Notification.permission==="default")try{Notification.requestPermission()}catch(e){}
   tickRest();restTick=setInterval(tickRest,250);
 }
 /* what the next set is going to be, big enough to read from the bench */
@@ -1324,6 +1380,8 @@ function restTarget(){
   const kg=parseFloat($("in-kg").value)||0,reps=parseInt($("in-reps").value)||0;
   const timed=isTimed(sessName(S.w,S.d,S.exIdx)),uni=isUni(sessName(S.w,S.d,S.exIdx));
   el.innerHTML=kg?`${fmtKg(kg)} kg × ${reps||"?"}${timed?" s":""}<small>${uni?"per side":"target"}</small>`:"";
+  /* the hint ("Last set 70 kg × 8") is redundant when it is exactly the target on screen */
+  const h=$("rest-hint");if(h)h.style.display=(kg&&restHintTxt.includes(`${fmtKg(kg)} kg × ${reps}`))?"none":"";
 }
 /* peek: collapse the veil to a bar at the top so cues and the map are readable while resting */
 function peekRest(on,silent){
@@ -1346,11 +1404,21 @@ function tickRest(){
     endRest();
     haptic("restEnd");
     if(document.hidden)notifyRestDone();
+    else{toast("Rest over — "+(restLabel||"back to work").replace(/^Next: /,""));if(!navigator.vibrate)restBeep()}   /* iPhone has no vibration: a short tone and a toast */
   }
+}
+let AUDIO=null;
+function restBeep(){
+  try{
+    AUDIO=AUDIO||new (window.AudioContext||window.webkitAudioContext)();
+    const o=AUDIO.createOscillator(),g=AUDIO.createGain();o.type="sine";o.frequency.value=880;
+    g.gain.setValueAtTime(0.0001,AUDIO.currentTime);g.gain.exponentialRampToValueAtTime(0.25,AUDIO.currentTime+0.02);g.gain.exponentialRampToValueAtTime(0.0001,AUDIO.currentTime+0.35);
+    o.connect(g).connect(AUDIO.destination);o.start();o.stop(AUDIO.currentTime+0.4);
+  }catch(e){}
 }
 function notifyRestDone(){
   try{
-    if(window.Notification&&Notification.permission==="granted"&&navigator.serviceWorker)
+    if(db.settings.restNotify&&window.Notification&&Notification.permission==="granted"&&navigator.serviceWorker)
       navigator.serviceWorker.getRegistration().then(r=>r&&r.showNotification("Rest over",
         {body:restLabel||"Back to work",icon:"icon-192.png",tag:"rest",vibrate:[200,100,200]}));
   }catch(e){}
@@ -1360,10 +1428,23 @@ function endRest(){clearInterval(restTick);$("restveil").classList.remove("activ
 
 /* ================= DONE ================= */
 let DONE={w:1,d:"A"};
-function showDone(w,d){
-  S=null;unlockScreen();save();DONE={w,d};
+/* Finish the live session (view=false) or just look at a finished one (view=true).
+   Only finishing stamps the entry done, saves and syncs — reviewing a day from Home does none of that. */
+function showDone(w,d,view){
+  if(!view){
+    const L=db.logs[logKey(w,d)];if(L&&hasSets(L))L.done=Date.now();
+    if(restEnd>Date.now())endRest();
+    S=null;unlockScreen();pruneLog(logKey(w,d));save();
+  }
+  DONE={w,d};
+  renderDone(w,d);
+  if(document.querySelector(".screen.active").id!=="scr-done")show("done");
+  if(!view&&driveOn())setTimeout(()=>driveSync({quiet:true}),800);
+}
+function renderDone(w,d){
+  if(!DAYS[d]){showNow("home");return}
   $("done-sub").textContent="Day "+d+" · Week "+w+" · "+DAYS[d].title;
-  const L=db.logs[logKey(w,d)];
+  const L=db.logs[logKey(w,d)]||{ex:{}};
   const dur=sessionDuration(L);
   $("done-tonnage").textContent=sessionTonnage(w,d).toLocaleString();
   $("done-sets").textContent=loggedSets(w,d);
@@ -1375,16 +1456,22 @@ function showDone(w,d){
     if(!chips)return "";
     return `<div class="histrow"><div class="hname">${setName(arr.find(x=>x&&x.kg!=null),blockCtx(),d,i)}</div><div class="setchips">${chips}</div></div>`;
   }).join("");
-  const undone=DAYS[d].ex.map((e,i)=>({n:sessName(w,d,i),has:(L.ex[i]||[]).some(s=>s&&s.kg!=null),skip:isSkipped(w,d,i)})).filter(x=>!x.has);
-  const forTime=undone.filter(x=>x.skip).map(x=>x.n),notDone=undone.filter(x=>!x.skip).map(x=>x.n);
-  if(forTime.length)html+=`<div class="hsets" style="padding:10px 4px 0;color:var(--ink-faint)">Skipped for time: ${forTime.join(", ")}</div>`;
-  if(notDone.length)html+=`<div class="hsets" style="padding:10px 4px;color:var(--ink-faint)">Not done: ${notDone.join(", ")}</div>`;
+  const undone=DAYS[d].ex.map((e,i)=>({n:sessName(w,d,i),i,has:(L.ex[i]||[]).some(s=>s&&s.kg!=null),skip:isSkipped(w,d,i)})).filter(x=>!x.has);
+  const chip=x=>`<button class="setchip" onclick="resumeAt(${w},'${d}',${x.i})">${esc(x.n)} →</button>`;
+  const forTime=undone.filter(x=>x.skip),notDone=undone.filter(x=>!x.skip);
+  if(forTime.length)html+=`<div class="histrow"><div class="hname" style="color:var(--ink-faint)">Skipped for time · tap to do one now</div><div class="setchips">${forTime.map(chip).join("")}</div></div>`;
+  if(notDone.length)html+=`<div class="histrow"><div class="hname" style="color:var(--ink-faint)">Not done · tap to pick one up</div><div class="setchips">${notDone.map(chip).join("")}</div></div>`;
   html+=`<div class="hsets" style="padding:2px 4px;color:var(--ink-faint)">Tap a set to edit it, hold to delete.</div>`;
   $("done-list").innerHTML=html;
   $("done-nudge").innerHTML=backupNudgeHTML(7);
   $("done-share").onclick=()=>shareSession(w,d);
-  show("done");
-  if(driveOn())setTimeout(()=>driveSync({quiet:true}),800);
+}
+/* pick a lift up from the summary: back into the session at that slot */
+function resumeAt(w,d,i){
+  const L=db.logs[logKey(w,d)];if(L&&L.skip){L.skip=L.skip.filter(x=>x!==i);if(!L.skip.length)delete L.skip}
+  if(L)delete L.done;
+  S={w,d,exIdx:i,setIdx:0};S.setIdx=firstOpenSet();save();lockScreen();TON_SHOWN=0;
+  renderSet();show("session");
 }
 
 /* ---------- edit a logged set ---------- */
@@ -1393,6 +1480,7 @@ function openEdit(w,d,ex,si,src){
   ED={w,d,ex,si,src};
   const s=db.logs[logKey(w,d)].ex[ex][si];
   $("ed-sub").textContent=sessName(w,d,ex)+" · set "+(si+1);
+  $("ed-lbl-reps").textContent=s.timed?"Seconds":"Reps";
   $("in-ed-kg").value=s.kg;$("in-ed-reps").value=s.reps;
   $("editsheet").classList.add("active");
 }
@@ -1407,20 +1495,25 @@ function saveEditSet(){
 /* after an edit: back to the session if that's where we came from, else re-render the summary */
 function editReturn(){
   if(ED.src==="session"&&S){S.setIdx=firstOpenSet();renderSet()}
-  else showDone(ED.w,ED.d);
+  else showDone(ED.w,ED.d,true);
 }
-function deleteEditSet(){
-  const arr=db.logs[logKey(ED.w,ED.d)].ex[ED.ex];
+async function deleteEditSet(){
+  const arr=db.logs[logKey(ED.w,ED.d)].ex[ED.ex],st=arr[ED.si];
+  closeEdit();
+  if(!await ask({title:"Delete this set?",body:`<b>${fmtSet(st)}</b> is removed from your history.`,ok:"Delete",danger:1})){$("editsheet").classList.add("active");return}
   arr.splice(ED.si,1);   /* a null hole here would be overwritten by the next logged set */
   save();
-  closeEdit();editReturn();toast("Set deleted");
+  editReturn();toast("Set deleted");
 }
 
 /* ================= STATS ================= */
 let ST={tab:"volume"};
 function sparkSVG(series,w2,h2,color){
   if(series.length<2)return "";
-  const W=w2||96,H=h2||32,p=4,min=Math.min(...series),max=Math.max(...series),r=max-min||1;
+  const W=w2||96,H=h2||32,p=4;
+  let min=Math.min(...series),max=Math.max(...series);
+  const span=Math.max(max-min,Math.abs(max)*0.08||1);   /* at least ±4%, so noise reads as flat */
+  const mid=(max+min)/2;min=mid-span/2;max=mid+span/2;const r=max-min||1;
   const pts=series.map((v,i)=>[
     +(p+(W-2*p)*i/(series.length-1)).toFixed(1),
     +(H-p-(H-2*p)*(v-min)/r).toFixed(1)]);
@@ -1469,8 +1562,10 @@ function tonChartHTML(){
    Standard hypertrophy accounting: a primary muscle scores a full set, a
    secondary scores half. Uses the encyclopedia's muscle data, so a swap that
    quietly starves your rear delts shows up here. */
+const MINOR_MUSCLES=["hip_flexors","obliques","adductors","lower_back","forearms","traps"];
 function muscleVolume(w){
   const out={};
+  for(const [m,g] of Object.entries(MUSCLE_NAMES))out[g]={logged:0,planned:0,minor:MINOR_MUSCLES.includes(m)};   /* every muscle listed, trained or not */
   const bump=(name,sets,key)=>{
     const e=EXDB[name];if(!e)return;
     const put=(m,amt)=>{const g=MUSCLE_NAMES[m];if(!g)return;
@@ -1495,39 +1590,41 @@ function muscleVolume(w){
 function volumeHTML(){
   const w=db.selWeek;
   const vol=muscleVolume(w);
-  const rows=Object.entries(vol).sort((a,b)=>b[1].planned-a[1].planned);
-  const max=Math.max(24,...rows.map(r=>Math.max(r[1].planned,r[1].logged)));
-  const bars=rows.map(([g,v])=>{
+  const all=Object.entries(vol);
+  const majors=all.filter(([,v])=>!v.minor).sort((a,b)=>b[1].planned-a[1].planned);
+  const minors=all.filter(([,v])=>v.minor&&(v.planned>0||v.logged>0)).sort((a,b)=>b[1].planned-a[1].planned);
+  const max=Math.max(24,...all.map(r=>Math.max(r[1].planned,r[1].logged)));
+  const bar=([g,v],minor)=>{
     const n=Math.round(v.logged*10)/10,pl=Math.round(v.planned*10)/10;
     /* colour by what the week PLANS to deliver, so an unstarted week still
        tells you whether the programme covers this muscle at all */
-    const cls=pl===0?"none":pl<8?"low":pl<=22?"ok":"high";
-    return `<div class="musrow">
+    const cls=minor?"minor":pl===0?"none":pl<8?"low":pl<=22?"ok":"high";
+    return `<div class="musrow${minor?" minor":""}">
       <div class="muslabel">${g}</div>
       <div class="mustrack">
-        <div class="musband" style="left:${100*8/max}%;width:${100*12/max}%"></div>
+        ${minor?"":`<div class="musband" style="left:${100*8/max}%;width:${100*12/max}%"></div>`}
         <div class="musghost" style="width:${Math.min(100,100*pl/max)}%"></div>
         <div class="musfill ${cls}" style="width:${Math.min(100,100*n/max)}%"></div>
-        <div class="musmark" style="left:${100*8/max}%"></div>
-        <div class="musmark" style="left:${100*20/max}%"></div>
+        ${minor?"":`<div class="musmark" style="left:${100*8/max}%"></div><div class="musmark" style="left:${100*20/max}%"></div>`}
       </div>
       <div class="musval">${n}<span>/${pl}</span></div></div>`;
-  }).join("");
-  const thin=rows.filter(([,v])=>v.planned>0&&v.planned<8).map(([g])=>g);
-  const none=rows.filter(([,v])=>v.planned===0).map(([g])=>g);
+  };
+  const bars=majors.map(r=>bar(r,false)).join("")+(minors.length?`<div class="hsets" style="margin:12px 0 6px;color:var(--ink-faint)">Smaller muscles · trained mostly through the lifts above, no target band</div>`+minors.map(r=>bar(r,true)).join(""):"");
+  const thin=majors.filter(([,v])=>v.planned>0&&v.planned<8).map(([g])=>g);
+  const none=majors.filter(([,v])=>v.planned===0).map(([g])=>g);
   let verdict="";
   if(thin.length||none.length){
     verdict=`<div class="nudge" style="margin:12px 0 0">`+
-      (none.length?`<b>Untrained this week:</b> ${none.join(", ")}. `:"")+
+      (none.length?`<b>Not in this week's plan:</b> ${none.join(", ")}. `:"")+
       (thin.length?`<b>Under 8 sets:</b> ${thin.join(", ")}.`:"")+
       `</div>`;
-  }else if(rows.length){
-    verdict=`<div class="nudge" style="margin:12px 0 0;border-left-color:var(--plate-green)">Every muscle group is planned for 8+ sets this week. Balanced.</div>`;
+  }else if(majors.length){
+    verdict=`<div class="nudge" style="margin:12px 0 0;border-left-color:var(--plate-green)">Every major muscle is planned for 8+ sets this week. Balanced.</div>`;
   }
   return tonChartHTML()+
     `<div class="chartcard">
       <div class="sectlabel" style="margin:0 0 4px">Sets per muscle · week ${w}</div>
-      <div class="hsets" style="margin-bottom:12px">The shaded band, 8 to 20 sets a week, is the productive range for most muscles. Solid = logged, faint = planned. A primary muscle counts 1 set, a secondary ½.</div>
+      <div class="hsets" style="margin-bottom:12px">The shaded band, 8 to 20 sets a week, is the productive range for the major muscles. Solid = logged, faint = planned. A primary muscle counts 1 set, a secondary ½.</div>
       ${bars||'<div class="emptymsg">No exercises in the programme yet.</div>'}
       ${verdict}
     </div>`;
@@ -1648,7 +1745,9 @@ function allWeekLifts(){
    otherwise the last week with data in the most recent archived block. */
 function baselineFor(w,WK){
   for(let pw=w-1;pw>=1;pw--)
-    if(WK[pw]&&WK[pw].size)return{w:pw,block:db.block,lifts:WK[pw],label:"week "+pw,sameBlock:true};
+    if(WK[pw]&&WK[pw].size&&!deloadWeek(pw))return{w:pw,block:db.block,lifts:WK[pw],label:"week "+pw,sameBlock:true};   /* a light week is not a baseline */
+  for(let pw=w-1;pw>=1;pw--)
+    if(WK[pw]&&WK[pw].size)return{w:pw,block:db.block,lifts:WK[pw],label:"week "+pw+" (light)",sameBlock:true};
   for(let a=db.archive.length-1;a>=0;a--){
     const B=db.archive[a];
     for(let pw=blockWeeks(B);pw>=1;pw--){
@@ -1667,9 +1766,11 @@ function weekSummary(w,WK){
     const p=base&&base.lifts.get(name);
     if(!p){rows.push({name,c,p:null,status:"new"});continue}
     const pct=p.top.e?((c.top.e-p.top.e)/p.top.e)*100:0;
-    const status=pct>1?"up":pct<-1?"down":"hold";
+    /* double progression: more weight for fewer reps is the plan working, not a regression */
+    const loadJump=c.top.kg>p.top.kg&&pct<0&&pct>-12;
+    const status=loadJump?"hold":pct>1?"up":pct<-1?"down":"hold";
     if(status==="up")up++;else if(status==="down")down++;else hold++;
-    pctSum+=pct;pctN++;
+    const wgt=Math.max(1,c.vol||1);pctSum+=pct*wgt;pctN+=wgt;   /* weight by tonnage so a cable move can't outvote the squat */
     rows.push({name,c,p,pct,d:Math.round((c.top.e-p.top.e)*10)/10,status});
   }
   /* anything needing a decision goes first — the verdict card up top already
@@ -1692,7 +1793,7 @@ function readyToAddLoad(w){
       const done=(L.ex[i]||[]).filter(s=>s&&s.kg!=null);
       if(!done.length||done.length<slotSets(w,d,i))return;
       const rng=slotRange(w,d,i),top=repTop(rng);
-      if(!isNaN(top)&&done.every(s=>s.reps>=top)){
+      if(hitTop(done.map(s=>s.reps),top,repBottom(rng))){
         const name=sessName(w,d,i);
         out.push({name,kg:Math.max(...done.map(s=>s.kg)),inc:increment(name),low:repBottom(rng)});
       }
@@ -1737,8 +1838,8 @@ function weekTips(S,WK){
     t.push({k:"info",title:"How to run the deload",
       body:`Same weights as last week, fewer sets, <b>${rirOf(w)} RIR</b>. You should leave every session feeling like you could have done far more — that's the point. Resist adding load.`});
 
-  const stalled=S.rows.filter(r=>r.p&&stallStreak(r.name,w,WK)>=2)
-    .map(r=>({name:r.name,n:stallStreak(r.name,w,WK),kg:r.c.top.kg,reps:r.c.top.reps}));
+  const stalled=S.rows.filter(r=>r.p&&stallStreak(r.name,w,WK,deloadWeek)>=2)
+    .map(r=>({name:r.name,n:stallStreak(r.name,w,WK,deloadWeek),kg:r.c.top.kg,reps:r.c.top.reps}));
   if(stalled.length){
     const s0=stalled[0];
     t.push({k:"warn",title:`${s0.name} has stalled ${s0.n} weeks`,
@@ -1756,9 +1857,10 @@ function weekTips(S,WK){
   const weekIsPast=weekNums().some(x=>x>w&&WK[x]&&WK[x].size);
   const missing=S.planSets-S.doneSets;
   if(weekIsPast&&missing>0&&S.doneSets>0){
-    const missed=dayIds().filter(d=>loggedSets(w,d)===0);
+    const missed=dayIds().filter(d=>DAYS[d].ex.length&&loggedSets(w,d)===0);
+    const joinAnd=a=>a.length<=1?a.join(""):a.slice(0,-1).join(", ")+" and "+a[a.length-1];
     t.push({k:"warn",title:missed.length
-        ?`Day ${missed.join(" and ")} never got logged`
+        ?`Day${missed.length>1?"s":""} ${joinAnd(missed)} never got logged`
         :`${missing} set${missing===1?"":"s"} short this week`,
       body:missed.length
         ?`Week ${w} ran ${S.doneSets} of ${S.planSets} sets. A missed session costs more than a light one — if the week is tight, a short version of every day beats skipping one entirely.`
@@ -1770,7 +1872,7 @@ function weekTips(S,WK){
   if(ready.length){
     const names=ready.slice(0,3).map(r=>`<b>${r.name}</b> → ${r.kg+r.inc} kg`).join(", ");
     t.push({k:"good",title:"Ready for more weight",
-      body:`${names}${ready.length>3?` and ${ready.length-3} more`:""}. You hit the top of the rep range on every set, so add the increment and drop back to the bottom of the range next time.`});
+      body:`${names}${ready.length>3?` and ${ready.length-3} more`:""}. You hit the top of the rep range on all but one set, so add the increment and drop back to the bottom of the range next time.`});
   }
 
   const vol=muscleVolume(w);
@@ -1886,7 +1988,7 @@ function renderSettings(){
     ?`Week ${WEEKS()} complete — ready to roll over`
     :`Week ${WEEKS()} isn't finished yet`;
   renderTrainSettings();renderDrive();renderReminders();
-  renderOled();
+  renderOled();renderTextSize();
   $("set-theme").innerHTML=[["auto","Auto"],["dark","Dark"],["light","Light"]].map(([k,l])=>
     `<button class="seg ${db.settings.theme===k?"sel":""}" aria-pressed="${db.settings.theme===k}" onclick="setTheme('${k}')">${l}</button>`).join("");
 }
@@ -1895,19 +1997,39 @@ function renderReminders(){
   const el=$("set-remind");if(!el)return;
   const days=dayIds().filter(d=>DAYS[d].ex.length);
   const fixed=days.length<=7;
+  if(!days.length){el.innerHTML=`<div class="setrow"><div class="lrtext"><b>Training reminders</b><i>Add some lifts to your programme first.</i></div></div>`;return}
+  const wd=remindWeekdays(days);
+  const pickable=!isOpen()&&fixed;   /* block plans have no fixed weekdays: choose them */
   el.innerHTML=`<div class="setrow col">
     <div class="lrtext"><b>Training reminders</b><i>${fixed
-      ?`Adds one repeating event per training day (${days.map(d=>WEEKDAYS[dayIds().indexOf(d)]).join(", ")}) to your calendar, with an alert. Reliable on every phone, unlike web notifications, and it keeps working when the app is closed.`
+      ?`Adds one repeating event per training day (${wd.map(i=>WEEKDAYS[i]).join(", ")}) to your calendar, with an alert. Reliable on every phone, unlike web notifications, and it keeps working when the app is closed.`
       :"Your programme has more than seven days, so it can't map onto weekdays."}</i></div>
+    ${pickable?`<div class="libchips wrap" aria-label="Training weekdays">${WEEKDAYS.map((n,i)=>`<button class="libchip ${wd.includes(i)?"sel":""}" aria-pressed="${wd.includes(i)}" onclick="toggleRemindDay(${i})">${n}</button>`).join("")}</div>
+      <div class="hsets" style="color:var(--ink-faint)">Pick ${days.length} day${days.length>1?"s":""} for your ${days.length} training day${days.length>1?"s":""}.</div>`:""}
     ${fixed?`<div style="display:flex;gap:8px;align-items:center">
       <input type="time" id="remind-time" class="searchbar" style="margin:0;flex:1" value="${esc(db.settings.remindTime||"17:30")}" aria-label="Reminder time" onchange="db.settings.remindTime=this.value;save()">
       <button class="bigbtn primary" style="flex:1.3;padding:13px" onclick="addReminders()">Add to calendar</button></div>`:""}
   </div>`;
 }
+/* which weekday each training day lands on: open plans are fixed Mon→, block plans use the chosen days (default Mon→) */
+function remindWeekdays(days){
+  const chosen=Array.isArray(db.settings.remindDays)?db.settings.remindDays.filter(i=>i>=0&&i<7).sort((a,b)=>a-b):[];
+  if(!isOpen()&&chosen.length===days.length)return chosen;
+  return days.map((d,i)=>i);
+}
+function toggleRemindDay(i){
+  const days=dayIds().filter(d=>DAYS[d].ex.length);
+  let cur=Array.isArray(db.settings.remindDays)?db.settings.remindDays.slice():remindWeekdays(days);
+  cur=cur.includes(i)?cur.filter(x=>x!==i):[...cur,i].sort((a,b)=>a-b);
+  if(cur.length>days.length)cur=cur.slice(-days.length);
+  db.settings.remindDays=cur;save();haptic("select");renderReminders();
+}
 async function addReminders(){
   const t=($("remind-time")&&$("remind-time").value)||"17:30";
   db.settings.remindTime=t;save();
-  const evs=dayIds().map((d,i)=>({weekday:i,title:`ATLAS · Day ${d} · ${DAYS[d].title}`,desc:`${DAYS[d].ex.length} lifts. Open ATLAS to start.`})).filter((e,i)=>DAYS[dayIds()[i]].ex.length);
+  const days=dayIds().filter(d=>DAYS[d].ex.length),wd=remindWeekdays(days);
+  if(!days.length){toast("Add some lifts first");return}
+  const evs=days.map((d,i)=>({weekday:wd[i],title:`ATLAS · Day ${d} · ${DAYS[d].title}`,desc:`${DAYS[d].ex.length} lifts. Open ATLAS to start.`}));
   const ics=buildICS(evs,t,todayISO(),0);
   const res=await shareOrDownload("atlas-training.ics",ics,"text/calendar");
   if(res!=="cancelled")toast(res==="shared"?"Calendar file shared — open it with Google Calendar":"Calendar file saved — open it to add the events");
@@ -1919,7 +2041,8 @@ function buildReport(){
   const lines=[`ATLAS ${APP_VERSION}`,`Device: ${ua}`,`Screen: ${screen.width}×${screen.height} @${Math.round(devicePixelRatio*100)/100} · ${matchMedia("(display-mode: standalone)").matches?"installed":"browser tab"}`,
     `Theme: ${db.settings.theme} · Plan: ${db.plan.name}${isOpen()?" (open, week "+curWeek()+")":" ("+WEEKS()+" weeks, week "+db.selWeek+")"}`,
     `Programme: ${db.programmeName} · ${dayIds().length} days · ${Object.keys(db.logs).length} sessions this block · ${db.archive.length} archived`,
-    `Drive sync: ${driveOn()?"on"+(db.sync.error?" · last error "+db.sync.error:""):"off"} · Last backup: ${db.lastBackup?new Date(db.lastBackup).toISOString().slice(0,10):"never"}`,
+    `Drive sync: ${driveOn()?"on"+(db.sync.error?" · last error "+db.sync.error:"")+(db.sync.lastSync?" · last sync "+new Date(db.sync.lastSync).toISOString().slice(0,16):" · never synced"):"off"} · Last backup: ${db.lastBackup?new Date(db.lastBackup).toISOString().slice(0,10):"never"}`,
+    `Storage: ${Math.round((localStorage.getItem(KEY)||"").length/1024)} KB saved · updatedAt ${db.updatedAt?new Date(db.updatedAt).toISOString().slice(0,16):"0"}${SAVE_ERR?" · LAST SAVE FAILED: "+SAVE_ERR:""}`,
     `Recent errors: ${db.errors&&db.errors.length?"\n  "+db.errors.map(e=>e.t+" "+e.m).join("\n  "):"none"}`,
     "","What happened:","","What I expected:",""];
   return lines.join("\n");
@@ -1930,7 +2053,7 @@ function reportProblem(){
   if(typeof REPORT_URL!=="undefined"&&REPORT_URL)opts.push({label:"Open a GitHub issue",value:"gh"});
   chooseSheet("Report a problem","The report has the app version, phone, screen and the last few errors. No sets or personal data.",opts,async v=>{
     if(v==="share"){try{if(navigator.share){await navigator.share({title:"ATLAS problem report",text:txt});return}}catch(e){if(e&&e.name==="AbortError")return}v="copy"}
-    if(v==="copy"){try{await navigator.clipboard.writeText(txt);toast("Report copied — paste it to Howard")}catch(e){toast("Couldn't copy on this browser")}return}
+    if(v==="copy"){try{await navigator.clipboard.writeText(txt);toast("Report copied — paste it into a message to whoever gave you ATLAS")}catch(e){toast("Couldn't copy on this browser")}return}
     if(v==="gh")open(REPORT_URL+(REPORT_URL.includes("?")?"&":"?")+"title="+encodeURIComponent("Problem in ATLAS "+APP_VERSION)+"&body="+encodeURIComponent(txt),"_blank","noopener");
   });
 }
@@ -1941,10 +2064,17 @@ function applyTheme(){
   const light=pref==="light"||(pref==="auto"&&matchMedia("(prefers-color-scheme: light)").matches);
   document.documentElement.dataset.theme=light?"light":"dark";
   document.documentElement.dataset.oled=(!light&&db.settings.oled)?"1":"0";
+  document.documentElement.style.fontSize=(16*((db.settings.textScale||100)/100))+"px";   /* zoom stays locked; this is the text-size control */
   const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=light?"#F3F4F8":(db.settings.oled?"#000000":"#0A0B0F");
 }
 function setTheme(k){db.settings.theme=k;save();applyTheme();renderSettings();tap(6)}
 function setOled(on){db.settings.oled=!!on;save();applyTheme();renderSettings();tap(6)}
+function setTextSize(pct){db.settings.textScale=pct;save();applyTheme();renderSettings();tap(6)}
+function renderTextSize(){
+  const cur=db.settings.textScale||100;
+  $("set-textsize").innerHTML=[[90,"Smaller"],[100,"Default"],[110,"Larger"],[120,"Largest"]].map(([k,l])=>
+    `<button class="seg ${cur===k?"sel":""}" aria-pressed="${cur===k}" onclick="setTextSize(${k})">${l}</button>`).join("");
+}
 function renderOled(){
   const on=!!db.settings.oled;
   $("set-oled").innerHTML=`<div class="setrow"><div class="lrtext"><b>True black</b><i>Pure black background in the dark theme. Saves battery on OLED screens.</i></div>
@@ -1961,7 +2091,20 @@ function renderTrainSettings(){
      <div class="libchips wrap">${PLATE_OPTIONS.map(p=>`<button class="libchip ${st.plates.includes(p)?"sel":""}" aria-pressed="${st.plates.includes(p)}" onclick="togglePlate(${p})">${p}</button>`).join("")}</div></div>`+
     row("Rest · compounds","After a compound set","setRestComp",st.rest.comp,15,"s","numeric")+
     row("Rest · accessories","After an accessory set","setRestAcc",st.rest.acc,15,"s","numeric")+
-    row("Rest · superset","Between the two paired lifts (0 = none)","setRestSuper",st.rest.super,5,"s","numeric");
+    row("Rest · superset","Between the two paired lifts (0 = none)","setRestSuper",st.rest.super,5,"s","numeric")+
+    `<div class="setrow"><div class="lrtext"><b>Rest alerts when the screen is off</b><i>${notifyState()}</i></div>
+      <button class="pill ${db.settings.restNotify?"ss":""}" role="switch" aria-checked="${!!db.settings.restNotify}" aria-label="Rest alerts" onclick="toggleRestNotify()">${db.settings.restNotify?"ON":"OFF"}</button></div>`;
+}
+function notifyState(){
+  if(!window.Notification)return "This phone's browser can't show notifications from a web app.";
+  if(Notification.permission==="denied")return "Blocked in the browser's site settings.";
+  return db.settings.restNotify?"A notification when the rest timer ends while ATLAS is in the background.":"Off. The in-app timer, vibration and tone still work while the screen is on.";
+}
+async function toggleRestNotify(){
+  if(db.settings.restNotify){db.settings.restNotify=false;save();renderTrainSettings();return}
+  if(!window.Notification){toast("Notifications aren't available here");return}
+  try{const p=await Notification.requestPermission();db.settings.restNotify=p==="granted";if(p!=="granted")toast("Permission wasn't granted")}catch(e){}
+  save();renderTrainSettings();
 }
 function setNum(get,put,delta,typed,min,roundTo){
   let v=typed!=null&&typed!==""?parseFloat(typed):get()+delta;
@@ -2115,9 +2258,11 @@ async function removeDay(d){
   progChanged();
 }
 async function resetProgramme(){
+  const hasLogs=Object.keys(db.logs).length>0;
   if(!await ask({title:"Reset the programme?",
-    body:"Every day and exercise goes back to the default. Your logged history is untouched.",
-    ok:"Reset",danger:1}))return;
+    body:hasLogs?"Every day and exercise goes back to the default. This block is filed in the archive first, so its sets stay attached to the lifts they were done on.":"Every day and exercise goes back to the default.",
+    ok:hasLogs?"Archive and reset":"Reset",danger:1}))return;
+  if(hasLogs){db.streakCarry={s:sessionStreakNow(),w:weekStreakNow()};archiveCurrent()}
   db.programme=clone(DEFAULT_DAYS);db.swaps={};db.programmeName="ATLAS full body";
   progChanged();toast("Programme reset");
 }
@@ -2136,11 +2281,11 @@ function moveSessionSheet(w,d){
 }
 function moveSession(w,d,toW){
   const from=logKey(w,d),to=logKey(toW,d);
-  if(!db.logs[from]||db.logs[to])return;
+  if(!db.logs[from]||(db.logs[to]&&hasSets(db.logs[to])))return;   /* an empty entry at the target is fine to replace */
   db.logs[to]=db.logs[from];delete db.logs[from];
   if(db.session&&db.session.w===w&&db.session.d===d)db.session.w=toW;
   PV={w:toW,d};db.selWeek=toW;save();haptic("log");
-  if(document.querySelector(".screen.active").id==="scr-done")showDone(toW,d);else renderPreview();
+  if(document.querySelector(".screen.active").id==="scr-done")showDone(toW,d,true);else renderPreview();
   toast("Moved to week "+toW);
 }
 function weekHasLogs(w){return dayIds().some(d=>loggedSets(w,d)>0)}
@@ -2270,7 +2415,7 @@ function openBulk(){
 function closeBulk(){$("bulksheet").classList.remove("active")}
 function bulkPick(mode){
   BULK=new Set();
-  if(mode!=="none")for(const d of dayIds())DAYS[d].ex.forEach((e,i)=>{if(mode==="all"||(mode==="comp"?e[2]:!e[2]))BULK.add(d+"-"+i)});
+  if(mode!=="none")for(const d of dayIds())DAYS[d].ex.forEach((e,i)=>{if(isTimed(e[0]))return;if(mode==="all"||(mode==="comp"?e[2]:!e[2]))BULK.add(d+"-"+i)});   /* seconds-based slots keep their range */
   renderBulk();haptic("select");
 }
 function bulkToggle(key){if(BULK.has(key))BULK.delete(key);else BULK.add(key);renderBulk()}
@@ -2304,7 +2449,8 @@ function renderPick(){
   const q=$("picksearch").value.trim().toLowerCase();
   $("pickeq").innerHTML=["All",...EQUIPMENT].map(g=>
     `<button class="libchip eq ${g===PICK_EQ?"sel":""}" aria-pressed="${g===PICK_EQ}" onclick="PICK_EQ='${g}';renderPick()">${g}</button>`).join("");
-  const match=([n,e])=>(PICK_EQ==="All"||e.eq===PICK_EQ)&&(!q||(n+" "+e.eq+" "+e.g+" "+e.pat+" "+[...e.pri,...e.sec].map(m=>MUSCLE_NAMES[m]).join(" ")).toLowerCase().includes(q));
+  const words=q.split(/\s+/).filter(Boolean);
+  const match=([n,e])=>(PICK_EQ==="All"||e.eq===PICK_EQ)&&(!words.length||words.every(t=>(n+" "+e.eq+" "+e.g+" "+e.pat+" "+[...e.pri,...e.sec].map(m=>MUSCLE_NAMES[m]).join(" ")).toLowerCase().includes(t)));
   let html="";
   for(const g of GROUPS){
     const items=Object.entries(EXDB).filter(([,e])=>e.g===g).filter(match);
@@ -2360,7 +2506,8 @@ async function backupJSON(withPhotos){
   const name="atlas-"+new Date().toISOString().slice(0,10)+(withPhotos?"-full":"")+".json";
   const res=await shareOrDownload(name,JSON.stringify(payload),"application/json");
   if(res==="cancelled")return;
-  db.lastBackup=Date.now();save();renderStats();
+  db.lastBackup=Date.now();save({quiet:true});
+  const cur=document.querySelector(".screen.active");if(cur&&cur.id==="scr-stats")renderStats();
   toast(res==="shared"?"Backup shared":"Backup saved");
 }
 function restoreJSON(input){
@@ -2376,10 +2523,11 @@ function restoreJSON(input){
           " sessions in the current block.<br><br>Everything currently on this device is replaced.",
         ok:"Restore",danger:1}))return;
       const photos=d.photoBlobs||null;delete d.photoBlobs;
-      db=migrateDb(d);
+      const keepSync=db.sync;
+      db=migrateDb(d);db.sync=Object.assign({},keepSync);   /* the backup's Drive link belongs to whichever phone made it */
       if(photos)for(const[id,data]of Object.entries(photos))await IDB.set("photo:"+id,data);
-      DAYS=db.programme;
-      save();renderStats();toast("Backup restored"+(photos?" with photos":""));
+      DAYS=db.programme;PV=null;
+      save();applyTheme();showNow("settings");toast("Backup restored"+(photos?" with photos":""));
       if(driveOn())driveSync({quiet:true});
     }catch(e){toast("That file isn't a valid backup")}
     input.value="";
@@ -2388,13 +2536,13 @@ function restoreJSON(input){
 }
 function exportCSV(){
   const q=v=>/[",]/.test(v)?'"'+String(v).replace(/"/g,'""')+'"':v;
-  let rows=[["block","week","day","date","exercise","set","kg","reps_or_seconds","timed","per_side","score_e1rm"]];
+  let rows=[["block","week","day","date","time","exercise","set","kg","reps_or_seconds","timed","per_side","score_e1rm"]];
   for(const B of allBlocks()){
     for(const[k,L]of Object.entries(B.logs||{})){
       const[w,d]=k.split("-");
       for(const[i,sets]of Object.entries(L.ex||{}))
         sets.forEach((s,si)=>{if(s&&s.kg!=null)
-          rows.push([B.block,w,d,L.date||"",q(setName(s,B,d,i)),si+1,s.kg,s.reps,s.timed?1:0,s.uni?1:0,setScore(s)])});
+          rows.push([B.block,w,d,L.date||"",s.t?new Date(s.t).toISOString().slice(11,16):"",q(setName(s,B,d,i)),si+1,s.kg,s.reps,s.timed?1:0,s.uni?1:0,setScore(s)])});
     }
   }
   download("atlas-"+new Date().toISOString().slice(0,10)+".csv",rows.map(r=>r.join(",")).join("\n"),"text/csv");
@@ -2414,17 +2562,19 @@ async function rollover(){
     ok:"Start block "+(db.block+1)}))return;
   /* archive keeps the programme + swaps this block ran under, so its history
      stays readable even after you edit the programme */
+  const carry={s:sessionStreakNow(),w:weekStreakNow()};
   archiveCurrent();
+  db.streakCarry=(carry.s||carry.w)?carry:null;   /* a new block is not a broken streak */
   save();show("home");
   if(driveOn())driveSync({quiet:true});
   toast("Block "+db.block+" — previous block archived");
 }
 async function wipeData(){
   if(!await ask({title:"Erase everything?",
-    body:"Every logged set, all blocks, swaps, notes and photos. <b>This cannot be undone.</b> Take a backup first if there's any doubt.",
+    body:"Every logged set, all blocks, swaps and notes on this phone. <b>This cannot be undone.</b>"+(driveOn()?" The copy in Google Drive is left as it is and sync is switched off.":"")+" Take a backup first if there's any doubt.",
     ok:"Erase it all",danger:1}))return;
   for(const k of await IDB.keys())if(String(k).startsWith("photo:"))await IDB.del(k);
-  db=migrateDb({});DAYS=db.programme;save();renderStats();toast("All data erased");
+  db=migrateDb({});DAYS=db.programme;PV=null;save();applyTheme();showNow("settings");toast("All data erased");
 }
 
 /* ================= INIT ================= */
@@ -2437,12 +2587,11 @@ async function init(){
     let m=await IDB.get("db");if(typeof m==="string")m=JSON.parse(m);
     if(m&&m.logs&&(Object.keys(m.logs).length||(m.archive||[]).length)&&(m.updatedAt||0)>(db.updatedAt||0)){
       db=migrateDb(m);DAYS=db.programme;
-      save();toast("Log restored from device mirror");
+      save({quiet:true});toast("Log restored from device mirror");   /* quiet: a stale mirror must not out-rank Drive */
     }
   }catch(e){logErr(e)}
   if(BOOT_ERR){logErr(BOOT_ERR);toast("Saved data couldn't be read — a copy was kept. Restore a backup.")}
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
-  db=migrateDb(db);
   DAYS=db.programme;
   /* keep the focused input clear of the Android keyboard */
   document.querySelectorAll('input[type=number]').forEach(el=>{
@@ -2457,7 +2606,7 @@ async function init(){
   onLongPress($("done-list"),".setchip",async el=>{
     const {w,d,ex,si}=el.dataset;const arr=db.logs[logKey(w,d)].ex[ex];const st=arr&&arr[si];if(!st)return;
     if(!await ask({title:"Delete this set?",body:`<b>${fmtSet(st)}</b> on ${st.name||exName(d,+ex)} will be removed from your history.`,ok:"Delete",danger:1}))return;
-    arr.splice(+si,1);save();showDone(+w,d);toast("Set deleted");
+    arr.splice(+si,1);save();showDone(+w,d,true);toast("Set deleted");
   });
   onLongPress($("liblist"),".librow",el=>{
     const name=el.dataset.name;if(!name)return;
@@ -2477,7 +2626,7 @@ async function init(){
     $("rest-time").parentElement.addEventListener("click",()=>{if(v.classList.contains("peek"))peekRest(false)});
   }
   checkPending();
-  document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!S&&checkPending())renderHome()});
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!S&&checkPending())showNow("home")});
   history.replaceState({scr:"home"},"");
   renderHome();
   if(driveOn())setTimeout(()=>driveSync({quiet:true}),1200);

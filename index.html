@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="ATLAS">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="css/atlas.css?v=7.3.1">
+<link rel="stylesheet" href="css/atlas.css?v=8.0">
 <title>ATLAS — Training Log</title>
 <script>
 if ("serviceWorker" in navigator && location.protocol === "https:")
@@ -27,9 +27,9 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </head>
 <body>
 
-<script src="js/config.js?v=7.3.1"></script>
-<script src="js/data.js?v=7.3.1"></script>
-<script src="js/core.js?v=7.3.1"></script>
+<script src="js/config.js?v=8.0"></script>
+<script src="js/data.js?v=8.0"></script>
+<script src="js/core.js?v=8.0"></script>
 
 <!-- ================= SCREENS ================= -->
 <div class="screen active" id="scr-home">
@@ -169,6 +169,8 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
   <div class="sectlabel">Appearance</div>
   <div class="segrow" id="set-theme" style="margin-bottom:8px"></div>
   <div class="listgroup" id="set-oled"></div>
+  <div class="sectlabel">Text size</div>
+  <div class="segrow" id="set-textsize" style="margin-bottom:0"></div>
 
   <div class="sectlabel">Training</div>
   <div class="listgroup" id="set-train"></div>
@@ -484,7 +486,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
     <h3>Set reps for several lifts</h3>
     <div class="shint">Type a rep range, tick the lifts it should apply to, then apply. Sets and everything else stay as they are.</div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-      <input class="perange" id="bulk-range" value="8–12" inputmode="numeric" aria-label="Rep range" style="width:90px;flex-shrink:0;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 0;text-align:center;font-weight:700">
+      <input class="perange" id="bulk-range" value="8–12" inputmode="text" autocomplete="off" aria-label="Rep range" style="width:90px;flex-shrink:0;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 0;text-align:center;font-weight:700">
       <div class="libchips wrap" style="flex:1">
         <button class="libchip" onclick="bulkPick('all')">All</button>
         <button class="libchip" onclick="bulkPick('comp')">Compounds</button>
@@ -513,9 +515,9 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
     <div class="shint" id="ed-sub"></div>
     <div class="inrow">
       <div class="infield"><div class="flabel">Weight kg</div>
-        <div class="stepper"><button onclick="bumpEl('in-ed-kg',-2.5)" aria-label="Decrease weight">−</button><input id="in-ed-kg" type="number" inputmode="decimal" step="0.5" aria-label="Weight kg"><button onclick="bumpEl('in-ed-kg',2.5)" aria-label="Increase weight">+</button></div></div>
-      <div class="infield"><div class="flabel">Reps</div>
-        <div class="stepper"><button onclick="bumpEl('in-ed-reps',-1)" aria-label="Decrease reps">−</button><input id="in-ed-reps" type="number" inputmode="numeric" step="1" aria-label="Reps"><button onclick="bumpEl('in-ed-reps',1)" aria-label="Increase reps">+</button></div></div>
+        <div class="stepper"><button onclick="edBump('kg',-1)" aria-label="Decrease weight">−</button><input id="in-ed-kg" type="number" inputmode="decimal" step="0.5" aria-label="Weight kg"><button onclick="edBump('kg',1)" aria-label="Increase weight">+</button></div></div>
+      <div class="infield"><div class="flabel" id="ed-lbl-reps">Reps</div>
+        <div class="stepper"><button onclick="edBump('reps',-1)" aria-label="Decrease reps">−</button><input id="in-ed-reps" type="number" inputmode="numeric" step="1" aria-label="Reps"><button onclick="edBump('reps',1)" aria-label="Increase reps">+</button></div></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="bigbtn ghost" style="margin:0;flex:1;color:var(--plate-red)" onclick="deleteEditSet()">Delete</button>
@@ -576,8 +578,8 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/share.js?v=7.3.1"></script>
-<script src="js/drive.js?v=7.3.1"></script>
-<script src="js/app.js?v=7.3.1"></script>
+<script src="js/share.js?v=8.0"></script>
+<script src="js/drive.js?v=8.0"></script>
+<script src="js/app.js?v=8.0"></script>
 </body>
 </html>
