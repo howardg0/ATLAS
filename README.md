@@ -76,7 +76,8 @@ Key fields:
 |---|---|
 | `plan` | a block: `{name, weeks:[{phase, comp, acc, rir}]}` with 2 to 12 weeks; or open-ended: `{name, open:true, every, lightOffset, startDate, weeks:[hard, light]}` where weeks count up from `startDate` (Monday-based calendar weeks) forever |
 | `programme` | editable copy of the default days; each exercise is `[name, repRange, isCompound, options?]` with options `{ss:1}` (superset with next) and `{sets:n}` (pinned set count) |
-| `logs` | keyed `"week-day"`, each with `ex[slotIndex] = [sets]`; a set is `{kg, reps, t, name, uni?, timed?}` (for timed sets `reps` holds seconds) |
+| `logs` | keyed `"week-day"`, each with `ex[slotIndex] = [sets]`; a set is `{kg, reps, t, name, uni?, timed?}` (for timed sets `reps` holds seconds); `mins` is a session length typed on the summary |
+| `metrics` | body check-ins `{id, date, kg, waist, photos:[ids], t}`; photo data lives in IndexedDB under `photo:<id>`, never in this object, so it is not synced to Drive |
 | `swaps` | per-slot substitutions for the current block |
 | `archive` | previous blocks, each carrying its own programme, swaps and plan |
 | `settings` | `bar`, `plates[]`, `rest{comp, acc, super}`, `theme` (dark, light or auto) |
@@ -97,6 +98,29 @@ The app is a public static site: anyone with the link gets their own independent
 - Drive sync needs their Google account added under Test users on the OAuth consent screen while it is in Testing.
 
 ## Changelog
+
+### 8.1
+**Session time**
+- Session length adds up the gaps between sets and leaves out any gap over 30 minutes, so a set logged the next morning can no longer turn an hour into 1,200 minutes. It's worked out when shown, so old sessions correct themselves.
+- Tap the minutes on a summary to type the real length; clear the box to go back to the timed figure. The typed figure survives Drive sync.
+
+**Calendar**
+- Stats → Calendar: a month grid, Monday first, with a dot in the day's colour for every session from every block, placed on the day of its first set. Tap a day to open it. Sessions from archived blocks open a read-only summary, because their week-day keys also exist in the current block.
+
+**Lift screen**
+- Recent sessions: the last six sessions of that lift with dates, sets and estimated 1RM, and the change from the one before. Tap one to open that session (not while you're mid-session).
+
+**Coach**
+- If a set falls under the rep range, the next one is offered lighter: the weight with the same estimated 1RM at the bottom of the range, on the lift's grid and at least one step down. The rest screen shows that weight.
+- If a lift has been stuck at the same weight for two or more weeks, the first set suggests a reset to about 90% and aims for the top of the range. The Progress tip names the same weight.
+- A stall now means the same top weight without beating the week before. A load change in either direction restarts the count: more weight for fewer reps is progress, and a lighter week is a reset.
+- Assisted machines (where more weight means more help) are left out of both.
+
+**Body (Progress → Body)**
+- Check-ins: bodyweight, waist and up to four photos. There's a 7-day average, a weekly rate (least squares over the last four weeks, needing four or more weigh-ins across 14 days), 12-week charts, a photo grid and a full-screen viewer that can show a photo beside your first one in the same position.
+- The Nutrition screen compares that rate with the goal's band and offers the guide's own step (150 kcal more when behind, 100 less when ahead) as a one-tap change. After a change it waits for two weeks of new weigh-ins before suggesting another. Changing goal clears it.
+- Logging a weigh-in updates the Nutrition screen's bodyweight to your 7-day average.
+- Photos are downscaled to about 1280 px and stored in IndexedDB on the phone only. They're never in the synced log. "Back up everything" includes them and Erase removes them. Check-ins merge by id when Drive sync merges two copies.
 
 ### 8.0
 A review release. A 16-lens sweep of the codebase produced 290 findings; 66 bugs were confirmed by two independent refuters each and 135 proposals passed a three-judge panel. This release fixes every confirmed bug that did not need an owner decision and ships the highest-value proposals.

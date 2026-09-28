@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="ATLAS">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="css/atlas.css?v=8.0">
+<link rel="stylesheet" href="css/atlas.css?v=8.1">
 <title>ATLAS — Training Log</title>
 <script>
 if ("serviceWorker" in navigator && location.protocol === "https:")
@@ -27,9 +27,9 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </head>
 <body>
 
-<script src="js/config.js?v=8.0"></script>
-<script src="js/data.js?v=8.0"></script>
-<script src="js/core.js?v=8.0"></script>
+<script src="js/config.js?v=8.1"></script>
+<script src="js/data.js?v=8.1"></script>
+<script src="js/core.js?v=8.1"></script>
 
 <!-- ================= SCREENS ================= -->
 <div class="screen active" id="scr-home">
@@ -123,19 +123,19 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </div>
 
 <div class="screen" id="scr-done">
-  <div class="topbar"><button class="backbtn" onclick="go('home')" aria-label="Back"><svg viewBox="0 0 24 24" class="gico"><path d="M15 4.5 8 12l7 7.5"/></svg></button><div><h1>Session complete</h1><div class="sub" id="done-sub"></div></div></div>
+  <div class="topbar"><button class="backbtn" onclick="doneBack()" aria-label="Back"><svg viewBox="0 0 24 24" class="gico"><path d="M15 4.5 8 12l7 7.5"/></svg></button><div><h1 id="done-title">Session complete</h1><div class="sub" id="done-sub"></div></div></div>
   <div class="statgrid three">
     <div class="stat"><div class="v" id="done-tonnage"></div><div class="k">Tonnage kg</div></div>
     <div class="stat"><div class="v" id="done-sets"></div><div class="k">Sets</div></div>
-    <div class="stat"><div class="v" id="done-dur"></div><div class="k">Minutes</div></div>
+    <button class="stat tap" id="done-durbtn" onclick="editDuration()" aria-label="Session length, tap to change"><div class="v" id="done-dur"></div><div class="k">Minutes <svg viewBox="0 0 24 24" class="gico pencil" aria-hidden="true"><path d="M5 19l1-4L15.5 5.5a1.8 1.8 0 0 1 2.5 0l.5.5a1.8 1.8 0 0 1 0 2.5L9 18z"/></svg></div></button>
   </div>
   <div id="done-nudge"></div>
   <div id="done-list"></div>
-  <div style="display:flex;gap:8px;margin-top:14px">
+  <div id="done-acts" style="display:flex;gap:8px;margin-top:14px">
     <button class="bigbtn ghost" id="done-share" style="margin:0;flex:1"><svg viewBox="0 0 24 24" class="gico"><path d="M12 3.5v11M7.5 8 12 3.5 16.5 8M4 14.5v3.2a2.3 2.3 0 0 0 2.3 2.3h11.4a2.3 2.3 0 0 0 2.3-2.3v-3.2"/></svg> Share card</button>
     <button class="bigbtn primary" style="flex:1.4" onclick="show('home')">Back to plan</button>
   </div>
-  <button class="quietbtn" onclick="moveSessionSheet(DONE.w,DONE.d)">Move this session to another week…</button>
+  <button class="quietbtn" id="done-move" onclick="moveSessionSheet(DONE.w,DONE.d)">Move this session to another week…</button>
 </div>
 
 <div class="screen" id="scr-stats">
@@ -146,7 +146,8 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </div>
 
 <div class="screen" id="scr-progress">
-  <div class="topbar"><div><h1>Progression</h1><div class="sub" id="pg-sub"></div></div></div>
+  <div class="topbar"><div><h1 id="pg-title">Progression</h1><div class="sub" id="pg-sub"></div></div></div>
+  <div class="segrow" id="pg-tabs"></div>
   <div class="weekrow" id="pg-weeks"></div>
   <div id="pg-body"></div>
 </div>
@@ -450,6 +451,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
     <div class="stat"><div class="v" id="lift-best"></div><div class="k">Your best set</div></div>
     <div class="stat"><div class="v" id="lift-setcount"></div><div class="k">Sets logged</div></div>
   </div>
+  <div id="lift-hist"></div>
   <div class="sectlabel">Form guide</div>
   <div class="formcard"><ul id="lift-form"></ul></div>
   <div class="sectlabel">My notes</div>
@@ -526,6 +528,37 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
   </div>
 </div>
 
+<div class="sheet" id="cisheet" onclick="if(event.target===this)closeCheckin()">
+  <div class="panel">
+    <h3 id="ci-title">Check-in</h3>
+    <div class="shint">Weigh in first thing in the morning, after the loo and before food. Measure your waist at the belly button, relaxed. Leave out anything you didn't measure.</div>
+    <div class="infield"><div class="flabel">Date</div><input class="cidate" id="ci-date" type="date" aria-label="Date"></div>
+    <div class="inrow">
+      <div class="infield"><div class="flabel">Bodyweight kg</div>
+        <div class="stepper"><button onclick="ciBump('kg',-1)" aria-label="Decrease bodyweight">−</button><input id="ci-kg" type="number" inputmode="decimal" step="0.1" aria-label="Bodyweight kg"><button onclick="ciBump('kg',1)" aria-label="Increase bodyweight">+</button></div></div>
+      <div class="infield"><div class="flabel">Waist cm</div>
+        <div class="stepper"><button onclick="ciBump('waist',-1)" aria-label="Decrease waist">−</button><input id="ci-waist" type="number" inputmode="decimal" step="0.5" aria-label="Waist cm"><button onclick="ciBump('waist',1)" aria-label="Increase waist">+</button></div></div>
+    </div>
+    <div class="infield" style="margin-top:14px"><div class="flabel">Photos</div><div class="ciphotos" id="ci-photos"></div></div>
+    <input type="file" id="ci-file" accept="image/*" hidden onchange="ciAddPhoto(this)">
+    <div class="shint" style="margin:10px 0 0">Same spot, same light and the same order each time (front, side, back) so comparisons line up. Photos stay on this phone. They aren't synced to Drive, and only "Back up everything" includes them.</div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="bigbtn ghost" id="ci-del" style="margin:0;flex:1;color:var(--plate-red)" onclick="deleteCheckin()">Delete</button>
+      <button class="bigbtn primary" style="flex:2" onclick="saveCheckin()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="photoview" id="photoview" role="dialog" aria-modal="true" aria-label="Progress photos">
+  <div class="pvtop"><div class="pvcount" id="pv-count"></div><button class="pvclose" onclick="closePhoto()" aria-label="Close"><svg viewBox="0 0 24 24" class="gico"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="pvimgs" id="pv-imgs"></div>
+  <div class="pvctl">
+    <button id="pv-prev" onclick="stepPhoto(-1)" aria-label="Earlier photo"><svg viewBox="0 0 24 24" class="gico"><path d="M15 4.5 8 12l7 7.5"/></svg></button>
+    <button class="pvcmp" id="pv-cmp" onclick="toggleCompare()">Compare with first</button>
+    <button id="pv-next" onclick="stepPhoto(1)" aria-label="Later photo"><svg viewBox="0 0 24 24" class="gico"><path d="M9 4.5 16 12l-7 7.5"/></svg></button>
+  </div>
+</div>
+
 <div class="sheet" id="padsheet" onclick="if(event.target===this)closePad()">
   <div class="panel pad">
     <div class="padhead">
@@ -578,8 +611,8 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/share.js?v=8.0"></script>
-<script src="js/drive.js?v=8.0"></script>
-<script src="js/app.js?v=8.0"></script>
+<script src="js/share.js?v=8.1"></script>
+<script src="js/drive.js?v=8.1"></script>
+<script src="js/app.js?v=8.1"></script>
 </body>
 </html>

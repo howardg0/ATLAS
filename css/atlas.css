@@ -886,3 +886,100 @@ input[type=time].searchbar{-webkit-appearance:none;appearance:none;color:var(--i
 .musrow.minor .muslabel{color:var(--ink-faint)}
 .musfill.minor{background:var(--ink-faint);opacity:.7}
 .musrow.minor .musval{color:var(--ink-faint)}
+
+/* ================= 8.1 ================= */
+/* summary: tap the minutes to correct them; archived sessions are read-only */
+.stat.tap{font:inherit;color:inherit;text-align:inherit;width:100%;cursor:pointer}
+.stat.tap:active{background:var(--surface2)}
+.stat.tap:disabled{cursor:default}
+.stat.tap:disabled .pencil{display:none}
+.stat .pencil{width:.95em;height:.95em;vertical-align:-.12em;opacity:.8}
+.setchip.ro:active{background:var(--surface2);color:var(--ink-dim)}
+
+/* calendar */
+.calhead{display:flex;align-items:center;justify-content:space-between;margin:-4px -6px 10px}
+.calmonth{font-family:var(--f-dp);font-weight:700;font-size:1.02rem;letter-spacing:-.02em}
+.calnav{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--ink-dim)}
+.calnav:active{background:var(--surface2)}
+.calnav:disabled{opacity:.3}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.calwd{text-align:center;font-size:.62rem;font-weight:800;letter-spacing:.12em;color:var(--ink-faint);padding:2px 0 4px}
+.calcell{aspect-ratio:1;min-height:40px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:.8rem;color:var(--ink-dim)}
+.calcell b{font-weight:650}
+.calcell.empty{visibility:hidden}
+.calcell.future{color:var(--ink-faint);opacity:.55}
+.calcell.has{background:var(--surface2);color:var(--ink);border:1px solid var(--line)}
+.calcell.has:active{background:var(--surface3)}
+.calcell.today{box-shadow:inset 0 0 0 1.5px var(--ember)}
+.caldots{display:flex;gap:3px;height:6px}
+.caldots i,.callegend i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ink-faint)}
+.calsum{margin-top:12px;color:var(--ink-faint)}
+.callegend{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:8px;font-size:.72rem;color:var(--ink-dim)}
+.callegend span{display:inline-flex;align-items:center;gap:5px}
+.caldots .dA,.callegend .dA{background:var(--ember)} .caldots .dB,.callegend .dB{background:var(--blue)} .caldots .dC,.callegend .dC{background:var(--gold)}
+.caldots .dD,.callegend .dD{background:#A78BFA} .caldots .dE,.callegend .dE{background:#2DD4BF} .caldots .dF,.callegend .dF{background:#F472B6}
+.caldots .dG,.callegend .dG{background:#FB923C} .caldots .dH,.callegend .dH{background:#86EFAC}
+html[data-theme=light] :is(.caldots,.callegend) .dD{background:#7C3AED} html[data-theme=light] :is(.caldots,.callegend) .dE{background:#0F766E}
+html[data-theme=light] :is(.caldots,.callegend) .dF{background:#DB2777} html[data-theme=light] :is(.caldots,.callegend) .dG{background:#C2410C}
+html[data-theme=light] :is(.caldots,.callegend) .dH{background:#15803D}
+
+/* recent sessions on the Lift screen */
+.recrow .lhmeta{font-size:.72rem;font-weight:600;color:var(--ink-faint);margin-left:4px}
+.recrow .rv span.up{color:var(--plate-green)} .recrow .rv span.down{color:var(--plate-yellow)}
+div.recrow{cursor:default}
+
+/* body: scale card, charts, photos */
+.scalecard{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:14px;
+  padding:13px 15px;margin:0 0 14px;font-size:.84rem;line-height:1.55;color:var(--ink-dim);box-shadow:var(--card-sh)}
+.scalecard b{color:var(--ink);font-weight:650}
+.scalecard.act{border-left-color:var(--gold)}
+.ncalc .scalecard{margin:12px 0 0}
+.scalebtn{margin:10px 0 4px;padding:12px;font-size:.88rem}
+.scalehint{display:block;font-size:.74rem;color:var(--ink-faint)}
+.scaleadj{margin-top:8px;font-size:.76rem;color:var(--ink-faint)}
+.linkbtn{color:var(--blue);font-weight:700;font-size:inherit;padding:6px 2px}
+.bgrid{stroke:var(--line);stroke-width:1}
+.baxis{font-size:9.5px;font-weight:600;fill:var(--ink-faint)}
+.bdot{fill:var(--ink-faint)}
+.bline{fill:none;stroke:var(--ember);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.phgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ph{position:relative;aspect-ratio:3/4;border-radius:12px;overflow:hidden;background:var(--surface2);border:1px solid var(--line)}
+.ph img,.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ph span{position:absolute;left:0;right:0;bottom:0;padding:14px 7px 5px;font-size:.66rem;font-weight:700;color:#fff;text-align:left;
+  background:linear-gradient(transparent,rgba(0,0,0,.62))}
+.ph.missing::before,.thumb.missing::before{content:"Not on this phone";position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;text-align:center;padding:6px;font-size:.64rem;color:var(--ink-faint)}
+.ph.missing img,.thumb.missing img{display:none}
+
+/* check-in sheet */
+.cidate{width:100%;min-height:48px;background:var(--well);border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+  color:var(--ink);font:inherit;font-weight:650}
+html[data-theme=dark] .cidate{color-scheme:dark} html[data-theme=light] .cidate{color-scheme:light}
+.ciphotos{display:flex;flex-wrap:wrap;gap:8px}
+.thumb{position:relative;width:72px;height:96px;flex-shrink:0;border-radius:10px;overflow:hidden;background:var(--surface2);border:1px solid var(--line)}
+.thumb span{position:absolute;left:5px;bottom:4px;font-size:.6rem;font-weight:800;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.thumb button{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;
+  display:flex;align-items:center;justify-content:center}
+.thumb button::after{content:"";position:absolute;inset:-7px}
+.thumb.add{display:flex;align-items:center;justify-content:center;border-style:dashed;color:var(--ink-dim)}
+.thumb.add .gico{width:22px;height:22px}
+
+/* photo viewer */
+.photoview{position:fixed;inset:0;z-index:70;background:#000;display:none;flex-direction:column;
+  padding:max(8px,env(safe-area-inset-top)) 12px max(14px,env(safe-area-inset-bottom))}
+.photoview.active{display:flex;animation:fadein .17s ease}
+.pvtop{display:flex;align-items:center;justify-content:space-between;min-height:48px;color:#fff}
+.pvcount{font-size:.8rem;font-weight:700;opacity:.75;padding-left:4px}
+.pvclose{width:48px;height:48px;display:flex;align-items:center;justify-content:center;color:#fff}
+.pvclose .gico{width:22px;height:22px}
+.pvimgs{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:8px}
+.pvimgs.two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.pvimgs figure{margin:0;min-width:0;min-height:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+.pvimgs img{max-width:100%;max-height:calc(100% - 28px);object-fit:contain;border-radius:10px}
+.pvimgs figcaption{font-size:.74rem;font-weight:700;color:rgba(255,255,255,.8)}
+.pvctl{display:flex;align-items:center;gap:10px;margin-top:10px}
+.pvctl button{height:48px;border-radius:12px;background:rgba(255,255,255,.1);color:#fff;display:flex;align-items:center;justify-content:center}
+.pvctl #pv-prev,.pvctl #pv-next{width:56px;flex-shrink:0}
+.pvctl .pvcmp{flex:1;font-size:.86rem;font-weight:700}
+.pvctl button:disabled{opacity:.3}
+.pvctl button .gico{width:20px;height:20px}

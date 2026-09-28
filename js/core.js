@@ -47,10 +47,22 @@ function sameMuscleLifts(exdb,name,subs){
 /* ---------- sets ---------- */
 /* Does set a beat set b? Heavier wins; same weight, more reps wins. */
 function betterSet(a,b){return !b||a.kg>b.kg||(a.kg===b.kg&&a.reps>b.reps)}
-/* Minutes from the first logged set to the last in one session's log entry */
+/* Minutes of training in one session: the gaps between consecutive sets added up, leaving out any
+   gap over half an hour, so a set logged the next morning can't turn an hour into twenty.
+   A figure typed on the summary (L.mins) wins. */
+const GAP_MAX=30*60000;
 function sessionDuration(L){
+  if(L&&L.mins>0)return L.mins;
   const ts=[];for(const ex of Object.values((L&&L.ex)||{}))for(const s of ex||[])if(s&&s.t)ts.push(s.t);
-  return ts.length>1?Math.round((Math.max(...ts)-Math.min(...ts))/60000):0;
+  ts.sort((a,b)=>a-b);
+  let ms=0;for(let i=1;i<ts.length;i++){const g=ts[i]-ts[i-1];if(g<=GAP_MAX)ms+=g}
+  return Math.round(ms/60000);
+}
+/* The day a session happened: its first set, in local time. L.date is the fallback, for sets
+   without a time and entries from before 8.0 that stored the day Start was tapped. */
+function sessionDate(L){
+  let t=Infinity;for(const ex of Object.values((L&&L.ex)||{}))for(const s of ex||[])if(s&&s.kg!=null&&s.t&&s.t<t)t=s.t;
+  return t<Infinity?isoDate(new Date(t)):(L&&L.date)||null;
 }
 
 /* ---------- plan switching ---------- */
@@ -88,13 +100,43 @@ function nutritionTargets(p){
   const bmr=10*kg+6.25*cm-5*age+(p.sex==="f"?-161:5);
   const maint=bmr*(STEP_FACTOR[p.steps]||1.3)+days*350/7;
   const shift=p.goal==="cut"?-Math.min(500,Math.max(300,maint*0.15)):p.goal==="gain"?250:0;
-  const kcal=Math.round((maint+shift)/25)*25;
+  const kcal=Math.round((maint+shift)/25)*25+Math.round(+p.adj||0);   /* adj: calories moved by what the scale said */
   const protein=Math.round(kg*(p.goal==="cut"?2.2:2.0));
   const fat=Math.round(kg*0.9);
   const carbs=Math.max(0,Math.round((kcal-protein*4-fat*9)/4));
   const rate=p.goal==="cut"?"0.5 to 1% of bodyweight down per week":p.goal==="gain"?"0.25 to 0.5% of bodyweight up per week":"weight steady over a month";
   return{bmr:Math.round(bmr),maint:Math.round(maint/25)*25,kcal,protein,fat,carbs,rate,
     lo:kcal-100,hi:kcal+100,kgLo:Math.round(kg*(p.goal==="cut"?0.005:0.0025)*10)/10,kgHi:Math.round(kg*(p.goal==="cut"?0.01:0.005)*10)/10};
+}
+
+/* ---------- body check-ins ----------
+   db.metrics: [{id, date, kg, waist, photos:[ids], t}]. Photo data lives in IndexedDB, never here. */
+/* The scale over the last four weeks: a 7-day average, and a least-squares rate so single days
+   can't swing it. The rate needs 4+ weigh-ins spread over 14+ days. `since` leaves out weigh-ins
+   from before the last calorie change, so the old rate can't argue for another one. */
+function weightTrend(metrics,today,since){
+  const day=s=>Math.round(new Date(s+"T12:00:00").getTime()/86400e3);
+  const t0=day(today),from=Math.max(t0-28,since?day(since):-Infinity);
+  const pts=(metrics||[]).filter(m=>m&&m.kg>0&&m.date).map(m=>({x:day(m.date),y:+m.kg})).filter(p=>p.x<=t0).sort((a,b)=>a.x-b.x);
+  if(!pts.length)return null;
+  const wk=pts.filter(p=>p.x>t0-7),use=wk.length?wk:[pts[pts.length-1]];
+  const avg=Math.round(use.reduce((a,p)=>a+p.y,0)/use.length*10)/10;
+  const win=pts.filter(p=>p.x>=from);
+  let rate=null;
+  if(win.length>=4&&win[win.length-1].x-win[0].x>=14){
+    const n=win.length,mx=win.reduce((a,p)=>a+p.x,0)/n,my=win.reduce((a,p)=>a+p.y,0)/n;
+    const sxy=win.reduce((a,p)=>a+(p.x-mx)*(p.y-my),0),sxx=win.reduce((a,p)=>a+(p.x-mx)**2,0);
+    rate=Math.round(sxy/sxx*7*100)/100;
+  }
+  return{avg,rate,n:win.length,days:win.length?win[win.length-1].x-win[0].x:0,latest:pts[pts.length-1].y};
+}
+/* What the rate says about the calorie target, in the guide's own steps: 150 more when the scale is
+   behind the goal, 100 less when it is ahead. lo/hi are the goal's kg-a-week band (a loss when cutting). */
+function calorieNudge(rate,goal,lo,hi){
+  if(rate==null)return null;
+  if(goal==="gain")return rate<lo?150:rate>hi?-100:0;
+  if(goal==="cut")return -rate<lo?-150:-rate>hi?100:0;
+  return rate>0.15?-100:rate<-0.15?100:0;
 }
 
 /* ---------- numbers ---------- */
@@ -127,6 +169,15 @@ function hitTop(reps,top,bottom){
 }
 /* Most sets under the bottom of the range: the weight is too heavy for the prescription */
 function underRange(reps,bottom){return !isNaN(bottom)&&reps.length>0&&reps.filter(r=>r<bottom).length>=Math.ceil(reps.length/2)}
+/* A set came in under the range: the weight that should put the next one back at the bottom of it
+   (same estimated 1RM), on the lift's grid and at least one step lighter. null when there's nothing to drop. */
+function dropOffKg(kg,reps,bottom,inc){
+  if(!(kg>0)||isNaN(bottom)||!(reps<bottom))return null;
+  const v=Math.min(snapStep(kg*(1+reps/30)/(1+bottom/30),inc),Math.round((kg-inc)*100)/100);
+  return v>0?v:null;
+}
+/* Breaking a stall: about 90%, on the grid, at least one step down */
+function resetKg(kg,inc){return Math.max(inc,Math.min(snapStep(kg*0.9,inc),Math.round((kg-inc)*100)/100))}
 /* A unilateral set is logged once but performed on both sides. Timed sets
    don't contribute tonnage — kg × seconds isn't weight moved. */
 function setTonnage(s){return s.timed?0:s.kg*s.reps*(s.uni?2:1)}
@@ -252,6 +303,7 @@ function mergeLogs(x,y){
     for(const [i,sets] of Object.entries(L.ex||{}))O.ex[i]=mergeSets(O.ex[i],sets);
     if(!O.date&&L.date)O.date=L.date;
     if(L.done&&(!O.done||L.done>O.done))O.done=L.done;
+    if(!O.mins&&L.mins)O.mins=L.mins;
     if(!O.once&&L.once)O.once=clone(L.once);
     if(!O.skip&&L.skip)O.skip=clone(L.skip);
   }
@@ -277,6 +329,13 @@ function mergeDb(a,b){
   }
   out.lifts=Object.assign({},older.lifts||{},newer.lifts||{});
   out.notes=Object.assign({},older.notes||{},newer.notes||{});
+  /* check-ins: union by id, the later edit wins */
+  const cm=new Map();
+  for(const m of [...(older.metrics||[]),...(newer.metrics||[])]){
+    if(!m||typeof m!=="object")continue;
+    const k=m.id||m.date,o=cm.get(k);if(!o||(m.t||0)>=(o.t||0))cm.set(k,clone(m));
+  }
+  out.metrics=[...cm.values()].sort((p,q)=>String(p.date).localeCompare(String(q.date)));
   out.updatedAt=Math.max(a.updatedAt||0,b.updatedAt||0);
   return out;
 }
@@ -374,16 +433,17 @@ function remapSlots(logs,swaps,d,n,transform,nWeeks){
 }
 
 /* ---------- progression ---------- */
-/* Consecutive weeks ending at w where this lift failed to beat the week before.
-   WK is {week: Map(name -> {top:{e}})}. */
+/* Consecutive weeks ending at w where this lift stayed at the same top weight and failed to beat
+   the week before. A load change either way restarts the count: more weight for fewer reps is
+   progress, and a lighter week is a reset, not a stall. WK is {week: Map(name -> {top:{kg,e}})}. */
 function stallStreak(name,w,WK,isLight){
   let n=0,newer=null;
   for(let x=w;x>=1;x--){
     if(isLight&&isLight(x))continue;   /* a planned light week is not a stall */
     const m=WK[x]&&WK[x].get(name);
     if(!m)continue;
-    if(newer===null){newer=m.top.e;continue}
-    if(newer<=m.top.e+0.01){n++;newer=m.top.e}else break;
+    if(newer===null){newer=m.top;continue}
+    if(newer.kg===m.top.kg&&newer.e<=m.top.e+0.01){n++;newer=m.top}else break;
   }
   return n;
 }
@@ -445,4 +505,4 @@ function migrate(d,defaultDays,defaultSettings,defaultPlan,phases){
 
 if(typeof module!=="undefined"&&module.exports)module.exports={clone,logKey,parseRange,repTop,repBottom,normaliseRange,fmtKg,snapStep,
   e1rm,setScore,setTonnage,fmtSet,validatePlan,planWeeks,planWeek,isDeload,isLightWeek,isRampWeek,rampSets,nextLightWeek,isoDate,mondayOf,calendarWeek,maxLoggedWeek,historyOrder,sessionStreak,adherence,buildICS,syncDecision,exNameIn,setName,incrementFor,restFor,isUnilateral,plateBreakdown,
-  exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate,bulkRange,sameMuscleLifts,slotMinutes,trimForTime,nutritionTargets,betterSet,sessionDuration,nextMonday,carriedStreak,stepValue,hitTop,underRange,hasSets,sessionDone,mergeSets,mergeLogs,mergeDb};
+  exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate,bulkRange,sameMuscleLifts,slotMinutes,trimForTime,nutritionTargets,weightTrend,calorieNudge,betterSet,sessionDuration,sessionDate,nextMonday,carriedStreak,stepValue,hitTop,underRange,dropOffKg,resetKg,hasSets,sessionDone,mergeSets,mergeLogs,mergeDb};

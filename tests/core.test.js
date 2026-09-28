@@ -372,6 +372,42 @@ test("nutritionTargets: Mifflin-St Jeor plus activity and goal shift",()=>{
   assert.equal(C.nutritionTargets({kg:0,cm:180,age:30}),null);
 });
 
+test("nutritionTargets: a scale adjustment moves calories and carbs only",()=>{
+  const p={kg:75,cm:182,age:24,sex:"m",steps:"low",days:3,goal:"gain"};
+  const a=C.nutritionTargets(p),b=C.nutritionTargets(Object.assign({adj:150},p));
+  assert.equal(b.kcal,a.kcal+150);assert.equal(b.protein,a.protein);assert.equal(b.fat,a.fat);
+  assert.equal(b.carbs,Math.max(0,Math.round((b.kcal-b.protein*4-b.fat*9)/4)));
+});
+
+test("weightTrend: 7-day average and a least-squares weekly rate",()=>{
+  const d=n=>{const x=new Date(2026,8,1+n,12);return C.isoDate(x)};
+  const M=[0,4,8,12,16,21,25].map((n,i)=>({id:"m"+i,date:d(n),kg:80+n*0.04}));   /* +0.28 kg a week */
+  const t=C.weightTrend(M,d(25));
+  assert.equal(t.rate,0.28);assert.equal(t.n,7);
+  assert.equal(t.avg,Math.round(((80+21*0.04)+(80+25*0.04))/2*10)/10);
+  assert.equal(C.weightTrend(M.slice(0,3),d(8)).rate,null,"too few weigh-ins");
+  assert.equal(C.weightTrend(M,d(25),d(12)).rate,null,"only 13 days since the last calorie change");
+  assert.equal(C.weightTrend([],d(0)),null);
+});
+
+test("calorieNudge: small steps toward the goal's band",()=>{
+  assert.equal(C.calorieNudge(0.1,"gain",0.2,0.4),150);
+  assert.equal(C.calorieNudge(0.3,"gain",0.2,0.4),0);
+  assert.equal(C.calorieNudge(0.6,"gain",0.2,0.4),-100);
+  assert.equal(C.calorieNudge(-0.2,"cut",0.4,0.8),-150,"losing too slowly");
+  assert.equal(C.calorieNudge(-1.1,"cut",0.4,0.8),100,"losing too fast");
+  assert.equal(C.calorieNudge(0.3,"maintain"),-100);
+  assert.equal(C.calorieNudge(null,"gain",0.2,0.4),null);
+});
+
+test("mergeDb unions check-ins by id, later edit wins",()=>{
+  const a={updatedAt:2,logs:{},archive:[],metrics:[{id:"x",date:"2026-09-01",kg:80,t:5},{id:"y",date:"2026-09-08",kg:81,t:6}]};
+  const b={updatedAt:1,logs:{},archive:[],metrics:[{id:"x",date:"2026-09-01",kg:79.5,t:9},{id:"z",date:"2026-08-25",kg:79,t:1}]};
+  const m=C.mergeDb(a,b);
+  assert.deepEqual(m.metrics.map(x=>x.id),["z","x","y"]);
+  assert.equal(m.metrics.find(x=>x.id==="x").kg,79.5);
+});
+
 test("betterSet: heavier wins, then more reps; anything beats nothing",()=>{
   assert.equal(C.betterSet({kg:100,reps:5},{kg:95,reps:12}),true);
   assert.equal(C.betterSet({kg:100,reps:6},{kg:100,reps:5}),true);
@@ -383,6 +419,28 @@ test("sessionDuration spans first to last set, zero for one set",()=>{
   assert.equal(C.sessionDuration({ex:{0:[{kg:1,reps:1,t:60000}],2:[null,{kg:1,reps:1,t:26*60000}]}}),25);
   assert.equal(C.sessionDuration({ex:{0:[{kg:1,reps:1,t:5}]}}),0);
   assert.equal(C.sessionDuration(null),0);
+});
+
+test("sessionDuration leaves out gaps over half an hour and honours a typed figure",()=>{
+  const m=60000;
+  /* 60 minutes of sets, then the last one logged 20 hours later */
+  const L={ex:{0:[{kg:1,reps:1,t:0+m},{kg:1,reps:1,t:31*m}],1:[{kg:1,reps:1,t:61*m},{kg:1,reps:1,t:61*m+20*60*m}]}};
+  assert.equal(C.sessionDuration(L),60);
+  assert.equal(C.sessionDuration({ex:{0:[{kg:1,reps:1,t:m},{kg:1,reps:1,t:31*m}]}}),30,"exactly 30 still counts");
+  assert.equal(C.sessionDuration(Object.assign({mins:72},L)),72);
+});
+
+test("sessionDate is the local day of the first set, else the stored date",()=>{
+  const late=new Date(2026,8,28,23,40).getTime(),next=new Date(2026,8,29,0,20).getTime();
+  assert.equal(C.sessionDate({date:"2026-09-27",ex:{0:[{kg:1,reps:1,t:next},{kg:1,reps:1,t:late}]}}),"2026-09-28");
+  assert.equal(C.sessionDate({date:"2026-09-27",ex:{0:[{kg:1,reps:1}]}}),"2026-09-27");
+  assert.equal(C.sessionDate({ex:{}}),null);
+});
+
+test("mergeLogs keeps a typed session length from either copy",()=>{
+  const m=C.mergeLogs({"1-A":{ex:{0:[{kg:1,reps:1,t:1}]}}},{"1-A":{mins:55,ex:{0:[{kg:1,reps:1,t:1}]}}});
+  assert.equal(m["1-A"].mins,55);
+  assert.equal(C.mergeLogs({"1-A":{mins:40,ex:{}}},{"1-A":{mins:55,ex:{}}})["1-A"].mins,40,"the newer copy's figure wins");
 });
 
 test("remapSlots carries today-only swaps and time skips with their slot",()=>{
@@ -449,6 +507,30 @@ test("maxLoggedWeek and hasSets ignore empty entries; sessionDone accepts 80%",(
   assert.equal(C.hasSets(logs["3-A"]),false);assert.equal(C.hasSets(logs["2-B"]),true);
   assert.equal(C.sessionDone(null,11,12),true);assert.equal(C.sessionDone(null,9,12),false);
   assert.equal(C.sessionDone({done:1},1,12),true);assert.equal(C.sessionDone(null,0,0),false);
+});
+
+test("stallStreak: a load change either way restarts the count",()=>{
+  const m=(kg,reps)=>new Map([["Row",{top:{kg,reps,e:C.e1rm(kg,reps)}}]]);
+  assert.equal(C.stallStreak("Row",3,{1:m(60,8),2:m(60,8),3:m(60,8)}),2,"same weight, same reps");
+  assert.equal(C.stallStreak("Row",3,{1:m(57.5,12),2:m(60,8),3:m(60,8)}),1,"moving up for fewer reps is progress, not a stall");
+  assert.equal(C.stallStreak("Row",4,{1:m(60,8),2:m(60,8),3:m(55,10),4:m(55,10)}),1,"a reset starts the clock again");
+});
+
+test("dropOffKg: lighter next set after one under the range",()=>{
+  assert.equal(C.dropOffKg(60,6,8,2.5),57.5);                 /* same e1RM at 8 reps is 56.8, onto the grid */
+  assert.equal(C.dropOffKg(60,4,8,2.5),52.5);
+  assert.equal(C.dropOffKg(100,7,8,5),95,"at least one step lighter even when the maths rounds back up");
+  assert.equal(C.dropOffKg(20,7,8,2),18);
+  assert.equal(C.dropOffKg(60,8,8,2.5),null,"in the range: no change");
+  assert.equal(C.dropOffKg(0,5,8,2.5),null,"bodyweight: nothing to drop");
+  assert.equal(C.dropOffKg(2.5,3,8,2.5),null);
+});
+
+test("resetKg: about 90%, on the grid, at least a step down",()=>{
+  assert.equal(C.resetKg(60,2.5),55);        /* 54 -> 55 */
+  assert.equal(C.resetKg(100,5),90);
+  assert.equal(C.resetKg(10,2.5),7.5);       /* 9 would round back to 10 */
+  assert.equal(C.resetKg(2.5,2.5),2.5,"never below one step");
 });
 
 test("stallStreak skips planned light weeks",()=>{
