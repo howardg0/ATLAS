@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="ATLAS">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="css/atlas.css?v=8.1">
+<link rel="stylesheet" href="css/atlas.css?v=8.4">
 <title>ATLAS — Training Log</title>
 <script>
 if ("serviceWorker" in navigator && location.protocol === "https:")
@@ -27,9 +27,9 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </head>
 <body>
 
-<script src="js/config.js?v=8.1"></script>
-<script src="js/data.js?v=8.1"></script>
-<script src="js/core.js?v=8.1"></script>
+<script src="js/config.js?v=8.4"></script>
+<script src="js/data.js?v=8.4"></script>
+<script src="js/core.js?v=8.4"></script>
 
 <!-- ================= SCREENS ================= -->
 <div class="screen active" id="scr-home">
@@ -54,8 +54,10 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
     <button class="gearbtn" onclick="go('settings')" aria-label="Settings"><svg viewBox="0 0 24 24" class="gico"><path d="M3.5 8h9M17 8h3.5M3.5 16h3M11 16h9.5"/><circle cx="14.6" cy="8" r="2.4"/><circle cx="7.8" cy="16" r="2.4"/></svg></button>
   </div>
   <div id="home-cards"></div>
+  <div id="home-sync"></div>
   <div id="hero"></div>
   <div id="streaks"></div>
+  <div id="ready"></div>
   <div class="weekrow" id="weekrow"></div>
   <div class="weekmeta" id="weekmeta"></div>
   <div id="daylist"></div>
@@ -101,7 +103,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
   <button class="quietbtn" onclick="endEarly()">End session early</button>
   </div>
   <div class="setdock" id="setdock">
-    <div class="dockacts"><button class="swapbtn" onclick="openLiftFromSession()"><svg viewBox="0 0 24 24" class="gico"><circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5M12 7.7v.5"/></svg> Guide</button><button class="swapbtn" onclick="openSwap()"><svg viewBox="0 0 24 24" class="gico"><path d="M4 8.5h13l-3.4-3.4M20 15.5H7l3.4 3.4"/></svg> Swap</button><span style="flex:1"></span><button class="swapbtn" id="rest-peekbtn" onclick="peekRest(false)" style="display:none">⏱ <span id="rest-mini">0:00</span></button></div>
+    <div class="dockacts"><button class="swapbtn" onclick="openLiftFromSession()"><svg viewBox="0 0 24 24" class="gico"><circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5M12 7.7v.5"/></svg> Guide</button><button class="swapbtn" id="ss-swapbtn" onclick="openSwap()"><svg viewBox="0 0 24 24" class="gico"><path d="M4 8.5h13l-3.4-3.4M20 15.5H7l3.4 3.4"/></svg> Swap</button><span style="flex:1"></span><button class="swapbtn" id="rest-peekbtn" onclick="peekRest(false)" style="display:none">⏱ <span id="rest-mini">0:00</span></button></div>
     <div class="pips" id="ss-pips"></div>
     <div class="setcard">
       <div class="setlabel"><span class="s" id="ss-setlabel"></span><span class="last" id="ss-last"></span></div>
@@ -118,6 +120,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
     <div class="dockbtns">
       <button class="bigbtn ghost" onclick="skipExercise()">Skip <svg viewBox="0 0 24 24" class="gico"><path d="M4.5 12h14M13 6.5l5.5 5.5L13 17.5"/></svg></button>
       <button class="bigbtn primary" id="logbtn" onclick="logSet()">Log set</button>
+      <div class="loghint" id="loghint">Hold the button when a set went to failure</div>
     </div>
   </div>
 </div>
@@ -135,6 +138,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
     <button class="bigbtn ghost" id="done-share" style="margin:0;flex:1"><svg viewBox="0 0 24 24" class="gico"><path d="M12 3.5v11M7.5 8 12 3.5 16.5 8M4 14.5v3.2a2.3 2.3 0 0 0 2.3 2.3h11.4a2.3 2.3 0 0 0 2.3-2.3v-3.2"/></svg> Share card</button>
     <button class="bigbtn primary" style="flex:1.4" onclick="show('home')">Back to plan</button>
   </div>
+  <button class="quietbtn" id="done-add" onclick="openAddLift(DONE.w,DONE.d)">Add a lift to this session…</button>
   <button class="quietbtn" id="done-move" onclick="moveSessionSheet(DONE.w,DONE.d)">Move this session to another week…</button>
 </div>
 
@@ -164,6 +168,14 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
     <button class="listrow" onclick="pickTemplate()">
       <span class="lrico"><svg viewBox="0 0 24 24" class="gico"><rect x="3.5" y="4" width="17" height="16" rx="2.4"/><path d="M3.5 9.5h17M9 9.5v10.5"/></svg></span>
       <span class="lrtext"><b>Start from a template</b><i>Full body, upper / lower, push / pull / legs, or empty</i></span>
+      <svg viewBox="0 0 24 24" class="chev"><path d="M9.6 5.4 16.2 12l-6.6 6.6"/></svg></button>
+    <button class="listrow" onclick="shareProgramme()">
+      <span class="lrico"><svg viewBox="0 0 24 24" class="gico"><path d="M12 3.5v11M7.5 8 12 3.5 16.5 8M4 14.5v3.2a2.3 2.3 0 0 0 2.3 2.3h11.4a2.3 2.3 0 0 0 2.3-2.3v-3.2"/></svg></span>
+      <span class="lrtext"><b>Share my programme</b><i>A link with your days, lifts and plan. No logs, nothing personal</i></span>
+      <svg viewBox="0 0 24 24" class="chev"><path d="M9.6 5.4 16.2 12l-6.6 6.6"/></svg></button>
+    <button class="listrow" onclick="pasteProgramme()">
+      <span class="lrico"><svg viewBox="0 0 24 24" class="gico"><path d="M12 14.5v-11M7.5 10 12 14.5 16.5 10M4 14.5v3.2a2.3 2.3 0 0 0 2.3 2.3h11.4a2.3 2.3 0 0 0 2.3-2.3v-3.2"/></svg></span>
+      <span class="lrtext"><b>Import a programme</b><i>Paste a link someone shared with you</i></span>
       <svg viewBox="0 0 24 24" class="chev"><path d="M9.6 5.4 16.2 12l-6.6 6.6"/></svg></button>
   </div>
 
@@ -213,6 +225,10 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 
   <div class="sectlabel">Help</div>
   <div class="listgroup">
+    <button class="listrow" onclick="show('help')">
+      <span class="lrico"><svg viewBox="0 0 24 24" class="gico"><circle cx="12" cy="12" r="8.6"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.6 2.3c-.8.4-1.2 1-1.2 1.9M12 16.6v.4"/></svg></span>
+      <span class="lrtext"><b>How ATLAS works</b><i>Gestures, shortcuts and where things live</i></span>
+      <svg viewBox="0 0 24 24" class="chev"><path d="M9.6 5.4 16.2 12l-6.6 6.6"/></svg></button>
     <button class="listrow" onclick="show('nutri')">
       <span class="lrico"><svg viewBox="0 0 24 24" class="gico"><path d="M6 3.5v17M6 3.5c3.2 0 5 2.2 5 5.5s-1.8 5-5 5M14.5 3.5c0 4 0 8 0 8 0 1.8 1.4 3 3.5 3s3.5-1.2 3.5-3v-8M18 14.5v6"/></svg></span>
       <span class="lrtext"><b>Nutrition guide</b><i>Calories and protein for your goal, and how to adjust</i></span>
@@ -240,6 +256,22 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
   <button class="bigbtn ghost" style="color:var(--plate-red)" onclick="resetProgramme()">Reset to the default programme</button>
 </div>
 
+<div class="sheet" id="customsheet" onclick="if(event.target===this)closeCustom()">
+  <div class="panel">
+    <h3>Create your own lift</h3>
+    <div class="shint">For a machine or variation the library doesn't have. It behaves like any other lift: coach, records, swaps and volume.</div>
+    <input class="searchbar" id="cu-name" style="margin:0 0 10px" maxlength="40" placeholder="Name, e.g. Gym80 Row" autocomplete="off" spellcheck="false" aria-label="Lift name">
+    <button class="listrow cubase" onclick="customPickBase()"><span class="lrtext" id="cu-base"></span>
+      <svg viewBox="0 0 24 24" class="chev"><path d="M9.6 5.4 16.2 12l-6.6 6.6"/></svg></button>
+    <div class="flabel" style="margin:14px 0 8px">Equipment</div>
+    <div class="libchips wrap" id="cu-eq"></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="bigbtn ghost" style="margin:0;flex:1" onclick="closeCustom()">Cancel</button>
+      <button class="bigbtn primary" style="flex:1.6" onclick="saveCustom()">Save lift</button>
+    </div>
+  </div>
+</div>
+
 <div class="sheet" id="picksheet" onclick="if(event.target===this)closePick()">
   <div class="panel">
     <h3 id="pick-title">Add exercise</h3>
@@ -255,6 +287,54 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
   <div class="topbar"><button class="backbtn" onclick="history.back()" aria-label="Back"><svg viewBox="0 0 24 24" class="gico"><path d="M15 4.5 8 12l7 7.5"/></svg></button>
     <div><h1>Nutrition</h1><div class="sub">Eat to match the training, then let the scale decide</div></div></div>
   <div id="nutri-body"></div>
+</div>
+
+<div class="screen" id="scr-help">
+  <div class="topbar"><button class="backbtn" onclick="history.back()" aria-label="Back"><svg viewBox="0 0 24 24" class="gico"><path d="M15 4.5 8 12l7 7.5"/></svg></button>
+    <div><h1>How ATLAS works</h1><div class="sub">The gestures and features that aren't obvious</div></div></div>
+  <div class="nsect">Install it</div>
+  <div class="formcard"><ul>
+    <li><b>Android:</b> open the link in Chrome, then menu, Install app.</li>
+    <li><b>iPhone:</b> open the link in Safari, tap Share, then Add to Home Screen. Safari never offers this by itself.</li>
+    <li>Once installed it works with no signal. Everything is stored on the phone.</li></ul></div>
+  <div class="nsect">During a session</div>
+  <div class="formcard"><ul>
+    <li><b>Tap a number</b> to type it on the keypad. Plus and minus move by the lift's own weight step.</li>
+    <li><b>Hold Log set</b> when the set went to failure. It is marked with an F and the coach takes it into account.</li>
+    <li><b>The coach card</b> tells you whether to add weight, hold or back off, based on last time. If a set falls under the rep range, the next one is offered lighter.</li>
+    <li><b>Resting:</b> swipe the timer down (or tap Peek) to read the cues while the clock runs. Swipe it back up to return.</li>
+    <li><b>Swap:</b> "Just today" covers a busy machine without touching your plan. "Permanently" changes the programme.</li>
+    <li><b>Session map</b> (the row of chips): tap a lift to jump to it, tap a finished one to edit its sets or log another, and use "+ Add a lift" for anything extra today.</li>
+    <li><b>Skip</b> moves to the next lift. Finish early marks the day done.</li></ul></div>
+  <div class="nsect">Fixing a mistake</div>
+  <div class="formcard"><ul>
+    <li><b>Undo</b> appears on the toast straight after you log a set.</li>
+    <li>On the summary, <b>tap a set</b> to change it and <b>hold a set</b> to delete it.</li>
+    <li><b>Tap the minutes</b> on the summary to correct the session length.</li>
+    <li><b>Move this session to another week</b> is at the bottom of the summary.</li></ul></div>
+  <div class="nsect">The Plan screen</div>
+  <div class="formcard"><ul>
+    <li><b>Swipe left or right</b> to change week, or tap a week number.</li>
+    <li><b>Freestyle session</b>, under the days, starts a session where you pick each lift as you go.</li>
+    <li><b>Light weeks</b> come round on a schedule. Postpone pushes the next one back a week. If several lifts stall together, the Progress tab offers to bring one forward.</li>
+    <li><b>Short on time?</b> Open a day and set a time budget; accessories are trimmed first.</li>
+    <li><b>Muscles</b> shows days since each muscle was trained. It is a rough guide.</li></ul></div>
+  <div class="nsect">Lifts</div>
+  <div class="formcard"><ul>
+    <li>Tap any lift for its muscles, form cues, your recent sessions and its settings: weight step, rest time, per side, seconds or reps.</li>
+    <li><b>Hold a lift</b> in the library to add it to a training day.</li>
+    <li><b>Create your own lift</b> is at the bottom of the library. Name it and choose the most similar lift; yours borrows its muscles.</li>
+    <li>Flag a lift as <b>irritating a joint</b> and sessions will offer a swap for the day.</li></ul></div>
+  <div class="nsect">Progress and body</div>
+  <div class="formcard"><ul>
+    <li><b>Stats</b> has weekly volume per muscle, push and pull balance, records, per-lift trends and a calendar of every session.</li>
+    <li><b>Progress, Body</b> takes weigh-ins, waist and photos. With two weeks of weigh-ins the Nutrition guide tells you whether to eat more or less.</li></ul></div>
+  <div class="nsect">Your data</div>
+  <div class="formcard"><ul>
+    <li><b>Google Drive sync</b> (Settings) keeps a copy and merges two phones. The Plan screen warns you if it stops.</li>
+    <li><b>Photos are not synced.</b> Only "Back up everything" carries them, so run it now and then.</li>
+    <li><b>Share my programme</b> makes a link with your days and lifts and none of your logs.</li>
+    <li><b>On iPhone</b> a shared link opens in Safari, not the installed app. Copy the link, open ATLAS, then Settings, Import a programme.</li></ul></div>
 </div>
 
 <div class="screen" id="scr-lib">
@@ -521,6 +601,8 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
       <div class="infield"><div class="flabel" id="ed-lbl-reps">Reps</div>
         <div class="stepper"><button onclick="edBump('reps',-1)" aria-label="Decrease reps">−</button><input id="in-ed-reps" type="number" inputmode="numeric" step="1" aria-label="Reps"><button onclick="edBump('reps',1)" aria-label="Increase reps">+</button></div></div>
     </div>
+    <div class="setrow" style="padding:14px 2px 0"><div class="lrtext"><b>Taken to failure</b><i>Couldn't have got another rep</i></div>
+      <button class="pill" id="ed-fail" role="switch" aria-checked="false" onclick="edFail(!ED.f)">NOT TO FAILURE</button></div>
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="bigbtn ghost" style="margin:0;flex:1;color:var(--plate-red)" onclick="deleteEditSet()">Delete</button>
       <button class="bigbtn primary" style="flex:2" onclick="saveEditSet()">Save</button>
@@ -611,8 +693,8 @@ if ("serviceWorker" in navigator && location.protocol === "https:")
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/share.js?v=8.1"></script>
-<script src="js/drive.js?v=8.1"></script>
-<script src="js/app.js?v=8.1"></script>
+<script src="js/share.js?v=8.4"></script>
+<script src="js/drive.js?v=8.4"></script>
+<script src="js/app.js?v=8.4"></script>
 </body>
 </html>

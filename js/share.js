@@ -30,7 +30,7 @@ async function drawSessionCard(w,d){
   c.textAlign="right";c.fillText(kick.split("").join(" "),W-pad,my+52);c.textAlign="left";
   /* title */
   let y=my+150;
-  const title=`Day ${d} · ${DAYS[d].title}`;
+  const title=`${dayLabel(d)} · ${dayTitle(d)}`;
   c.fillStyle=col.ink;c.font="800 60px Sora, Inter, sans-serif";
   if(c.measureText(title).width>W-pad*2)c.font="800 48px Sora, Inter, sans-serif";   /* long day names shrink before they truncate */
   c.fillText(ellipsize(c,title,W-pad*2),pad,y);
@@ -49,7 +49,7 @@ async function drawSessionCard(w,d){
   y+=sh+48;
   /* lifts */
   const k=logKey(w,d);
-  const rows=DAYS[d].ex.map((e,i)=>{
+  const rows=dayEx(w,d).map((e,i)=>{
     const sets=(L.ex[i]||[]).filter(s=>s&&s.kg!=null);if(!sets.length)return null;
     const name=setName(sets[0],blockCtx(),d,i);
     const prev=liftStats(name,k);

@@ -139,6 +139,58 @@ function calorieNudge(rate,goal,lo,hi){
   return rate>0.15?-100:rate<-0.15?100:0;
 }
 
+/* ---------- balance and readiness ---------- */
+/* Two sides of a volume comparison (push vs pull, front vs back). Balanced within 1.5 : 1. */
+function balance(a,b){
+  if(!(a>0)&&!(b>0))return null;
+  const ratio=b>0?a/b:Infinity;
+  return{a,b,ratio,lead:ratio>1.5?"a":ratio<1/1.5?"b":null};
+}
+/* A guide, not a measurement: under two days since a muscle was trained it is still recovering,
+   from five days it is due again, in between it is ready. */
+function readiness(hours){return hours<48?"recovering":hours>=120?"due":"ready"}
+
+/* ---------- custom lifts ----------
+   db.custom[name] = {g, pat, eq, pri, sec, base, uni?, timed?}. Names and fields end up in markup and in
+   onclick strings, and can arrive from a shared link, so both are cut down to a safe alphabet here. */
+function cleanLiftName(n){return String(n==null?"":n).replace(/[^\w \-()\/+.]/g,"").replace(/\s+/g," ").trim().slice(0,40)}
+function cleanCustomLift(def,groups,muscles){
+  if(!def||typeof def!=="object"||!groups.includes(def.g))return null;
+  const ms=a=>[...new Set((Array.isArray(a)?a:[]).filter(m=>typeof m==="string"&&Object.prototype.hasOwnProperty.call(muscles,m)))].slice(0,5);
+  const pri=ms(def.pri);if(!pri.length)return null;
+  const word=(v,d)=>String(v||d).replace(/[^A-Za-z &]/g,"").trim().slice(0,24)||d;
+  const base=cleanLiftName(def.base);
+  const o={g:def.g,pat:word(def.pat,"Isolation"),eq:word(def.eq,"Other"),pri,sec:ms(def.sec).filter(m=>!pri.includes(m)),custom:1,base,
+    about:"Your own lift"+(base?", set up like "+base:"")+". Muscles, swaps and volume follow that lift.",
+    form:["A custom lift has no stored cues. Keep your own under My notes on the Lift screen."]};
+  if(def.uni)o.uni=1;if(def.timed)o.timed=1;
+  return o;
+}
+
+/* ---------- shared programme links ----------
+   A link carries a programme and its plan, never logs. Anything unknown is dropped on the way in:
+   only lifts in the library, valid rep ranges, days A to H. Returns null when nothing usable is left. */
+function cleanSharedProgramme(p,exdb){
+  if(!p||typeof p!=="object"||!p.programme||typeof p.programme!=="object")return null;
+  const out={};let lifts=0;
+  for(const d of "ABCDEFGH"){
+    const day=p.programme[d];if(!day||!Array.isArray(day.ex))continue;
+    const ex=[];
+    for(const e of day.ex.slice(0,20)){
+      if(!Array.isArray(e)||!exdb[e[0]])continue;
+      const r=normaliseRange(e[1]);if(!r)continue;
+      const t=[e[0],r,e[2]?1:0],o=e[3]&&typeof e[3]==="object"?e[3]:{};
+      if(o.ss)setExOpt(t,"ss",1);
+      const n=parseInt(o.sets);if(n>=1&&n<=10)setExOpt(t,"sets",n);
+      ex.push(t);
+    }
+    lifts+=ex.length;
+    out[d]={title:String(day.title||"Day "+d).slice(0,40),ex:normaliseSupersets(ex)};
+  }
+  if(!lifts)return null;
+  return{name:String(p.name||"Shared programme").slice(0,40),programme:out,plan:p.plan&&typeof p.plan==="object"?p.plan:null,days:Object.keys(out).length,lifts};
+}
+
 /* ---------- numbers ---------- */
 /* 62.5 -> "62.5", 60 -> "60", 41.25 -> "41.25": no trailing zeros, at most 2 dp */
 function fmtKg(v){return String(Math.round(v*100)/100)}
@@ -200,15 +252,19 @@ function validatePlan(p,fallback,phases){
     comp:clampInt(w&&w.comp,1,8,3),acc:clampInt(w&&w.acc,0,8,3),
     rir:normaliseRange(w&&w.rir!=null?w.rir:"2")||"2"});
   if(p.open){
-    return{name:String((p.name||"Open-ended")).slice(0,40),open:true,
+    const o={name:String((p.name||"Open-ended")).slice(0,40),open:true,
       every:clampInt(p.every,2,12,6),lightOffset:clampInt(p.lightOffset,0,999,0),rampWeeks:clampInt(p.rampWeeks,0,4,0),
       startDate:/^\d{4}-\d{2}-\d{2}$/.test(p.startDate||"")?p.startDate:null,
       weeks:[cleanWeek(p.weeks[0]),cleanWeek(p.weeks[1])]};
+    /* one-off light weeks brought forward by hand; the regular cadence is untouched */
+    const lw=(Array.isArray(p.lightWeeks)?p.lightWeeks:[]).map(Number).filter(n=>n>0&&n<1000).slice(-20);
+    if(lw.length)o.lightWeeks=lw;
+    return o;
   }
   return{name:String((p.name||"Custom")).slice(0,40),weeks:p.weeks.map(cleanWeek)};
 }
 /* Light weeks fall every `every` weeks, pushed later by lightOffset (postponements) */
-function isLightWeek(plan,w){if(!plan.open)return false;const x=w-(plan.lightOffset||0);return x>0&&x%(plan.every||6)===0}
+function isLightWeek(plan,w){if(!plan.open)return false;if((plan.lightWeeks||[]).includes(w))return true;const x=w-(plan.lightOffset||0);return x>0&&x%(plan.every||6)===0}
 /* the first rampWeeks of an open plan run at about two-thirds of the sets */
 function isRampWeek(plan,w){return !!plan.open&&w<=(plan.rampWeeks||0)}
 function rampSets(n){return n<=1?n:Math.max(2,Math.round(n*0.67))}
@@ -304,6 +360,8 @@ function mergeLogs(x,y){
     if(!O.date&&L.date)O.date=L.date;
     if(L.done&&(!O.done||L.done>O.done))O.done=L.done;
     if(!O.mins&&L.mins)O.mins=L.mins;
+    if(!O.extra&&L.extra)O.extra=clone(L.extra);
+    if(L.free)O.free=1;
     if(!O.once&&L.once)O.once=clone(L.once);
     if(!O.skip&&L.skip)O.skip=clone(L.skip);
   }
@@ -329,6 +387,7 @@ function mergeDb(a,b){
   }
   out.lifts=Object.assign({},older.lifts||{},newer.lifts||{});
   out.notes=Object.assign({},older.notes||{},newer.notes||{});
+  out.custom=Object.assign({},older.custom||{},newer.custom||{});
   /* check-ins: union by id, the later edit wins */
   const cm=new Map();
   for(const m of [...(older.metrics||[]),...(newer.metrics||[])]){
@@ -417,14 +476,18 @@ function remapSlots(logs,swaps,d,n,transform,nWeeks){
   for(let w=1;w<=(nWeeks||6);w++){
     const L=logs[logKey(w,d)];if(!L)continue;
     const arr=[];for(let i=0;i<n;i++)arr.push(L.ex[i]||null);
+    /* lifts added to this one session (L.extra) are logged after the programme's slots: keep them there */
+    const m=(L.extra||[]).length,xs=[];for(let j=0;j<m;j++)xs.push(L.ex[n+j]||null);
+    const xskip=(L.skip||[]).filter(i=>i>=n).map(i=>i-n);
     const out=transform(arr);
     const ex={};out.forEach((v,i)=>{if(v&&v.length)ex[i]=v});
+    xs.forEach((v,j)=>{if(v&&v.length)ex[out.length+j]=v});
     L.ex=ex;
     /* today-only swaps and time skips are slot-indexed too */
     if(L.once){const o=[];for(let i=0;i<n;i++)o.push(L.once[i]||null);const oo=transform(o);
       L.once={};oo.forEach((v,i)=>{if(v)L.once[i]=v});if(!Object.keys(L.once).length)delete L.once}
     if(L.skip){const k=[];for(let i=0;i<n;i++)k.push(L.skip.includes(i)?1:null);const kk=transform(k);
-      L.skip=[];kk.forEach((v,i)=>{if(v)L.skip.push(i)});if(!L.skip.length)delete L.skip}
+      L.skip=[];kk.forEach((v,i)=>{if(v)L.skip.push(i)});xskip.forEach(j=>L.skip.push(out.length+j));if(!L.skip.length)delete L.skip}
   }
   const sw=[];for(let i=0;i<n;i++)sw.push(swaps[d+"-"+i]||null);
   const swOut=transform(sw);
@@ -484,6 +547,7 @@ function migrate(d,defaultDays,defaultSettings,defaultPlan,phases){
     nutri:Object.assign(clone(ds.nutri||{kg:80,cm:180,age:30,sex:"m",steps:"low",goal:"maintain"}),s.nutri||{})
   };
   d.lifts=d.lifts||{};
+  d.custom=(d.custom&&typeof d.custom==="object"&&!Array.isArray(d.custom))?d.custom:{};
   /* 6.4: configurable block plan; archived blocks carry theirs. Sync bookkeeping. */
   if(defaultPlan){
     d.plan=validatePlan(d.plan,defaultPlan,phases);
@@ -505,4 +569,4 @@ function migrate(d,defaultDays,defaultSettings,defaultPlan,phases){
 
 if(typeof module!=="undefined"&&module.exports)module.exports={clone,logKey,parseRange,repTop,repBottom,normaliseRange,fmtKg,snapStep,
   e1rm,setScore,setTonnage,fmtSet,validatePlan,planWeeks,planWeek,isDeload,isLightWeek,isRampWeek,rampSets,nextLightWeek,isoDate,mondayOf,calendarWeek,maxLoggedWeek,historyOrder,sessionStreak,adherence,buildICS,syncDecision,exNameIn,setName,incrementFor,restFor,isUnilateral,plateBreakdown,
-  exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate,bulkRange,sameMuscleLifts,slotMinutes,trimForTime,nutritionTargets,weightTrend,calorieNudge,betterSet,sessionDuration,sessionDate,nextMonday,carriedStreak,stepValue,hitTop,underRange,dropOffKg,resetKg,hasSets,sessionDone,mergeSets,mergeLogs,mergeDb};
+  exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate,bulkRange,sameMuscleLifts,slotMinutes,trimForTime,nutritionTargets,weightTrend,calorieNudge,betterSet,sessionDuration,sessionDate,nextMonday,carriedStreak,balance,readiness,cleanSharedProgramme,cleanLiftName,cleanCustomLift,stepValue,hitTop,underRange,dropOffKg,resetKg,hasSets,sessionDone,mergeSets,mergeLogs,mergeDb};

@@ -99,6 +99,31 @@ The app is a public static site: anyone with the link gets their own independent
 
 ## Changelog
 
+### 8.4
+- **Light week brought forward:** when three or more lifts have stalled in the same week, Progress offers "Make week N a light week" (open-ended plans). It is a one-off stored in `plan.lightWeeks`; the regular cadence does not move. Postpone on a brought-forward week cancels it. Block plans get the advice without the button.
+- **Custom lifts:** Lifts, "Create your own lift": a name plus the most similar library lift, whose group, movement, muscles and per-side/seconds defaults it borrows. Stored in `db.custom`, folded into the library on every load, merged across phones, and carried inside shared programme links. Names and fields are reduced to a safe alphabet (`cleanLiftName`, `cleanCustomLift`). A custom lift can be deleted from its Lift screen once it is out of the programme; logged sets keep their name.
+- **Help:** Settings, "How ATLAS works": install steps, session gestures, fixing mistakes, the Plan screen, lifts, progress and data.
+
+### 8.3
+- **Freestyle session:** a button under the day list on the Plan screen starts a session with no programme day behind it. Pick a lift, log it, then add the next or finish. Freestyle sessions appear as their own card for the week and count in tonnage, volume, records, lift history and the calendar; they don't count towards streaks or the week's planned sessions.
+- **Add a lift to a session:** "+ Add a lift" at the end of the session map (and on the summary) adds a lift to that session only, three sets by default. The programme is untouched. A lift added by mistake can be removed before it has any sets.
+- Stored as `extra` (programme-style tuples) on the session's log entry, logged after the day's programme slots; freestyle entries use day ids `Z1`, `Z2`… with `free:1`. `remapSlots` keeps them in place when the programme is edited.
+
+### 8.2
+- **To failure:** hold Log set to mark a set as taken to failure (an F on the set; also a switch in Edit set, and a column in the CSV). When you use it, the "same weight, chase reps" advice says whether last time left reps in hand or was a true ceiling.
+- **Muscles on Home:** days since each major muscle was last a primary mover, grouped as recovering (under 2 days), ready, or due (5 days or more). A guide from the log, not a recovery measure.
+- **Irritating lifts:** flag a lift under Lift settings. Sessions show the flag and offer a swap for the day; swap lists mark flagged lifts and put them last. Nothing is swapped for you.
+- **Balance:** Stats, Volume shows planned push against pull and front against back sets; anything inside 1.5 to 1 counts as balanced.
+- **Four-week trend:** logged sets per major muscle for the last four weeks, with a note when a muscle's volume has climbed while one of its lifts has stalled.
+- **Week review:** Progress has a Share week review button: sessions, sets, tonnage, the verdict, PRs, stalls and the bodyweight trend as plain text.
+- **Programme links:** Settings, Share my programme makes a link holding the days, lifts and plan (compressed into the `#plan=` part; no logs or body data). Opening the link, or pasting it under Import a programme, offers to switch to it; the current block is archived first. Unknown lifts and malformed entries are dropped by `cleanSharedProgramme`.
+- **Drive health:** Home warns when Drive is connected but has not synced for 3 days, has never synced, or the last attempt failed, with Sync now on the card.
+
+### 8.1.1
+- Assisted Pull-Up and Assisted Dip: the weight is help, so the coach now says "Less help" when you top the range and "More help" when you fall under it. The Progress tip follows suit, and more assistance is no longer celebrated as a PR.
+- Opening the lift guide while resting and coming back no longer ends the rest timer.
+- Ending a session early marks the day Done on the Plan screen instead of leaving it at 16/27 sets. The summary still lets you pick a lift back up.
+
 ### 8.1
 **Session time**
 - Session length adds up the gaps between sets and leaves out any gap over 30 minutes, so a set logged the next morning can no longer turn an hour into 1,200 minutes. It's worked out when shown, so old sessions correct themselves.

@@ -6,10 +6,19 @@
    address of every logged set on the device. */
 const KEY="block-log-v2";
 /* Keep in step with CACHE in sw.js and the ?v= stamps in index.html (tests/version.test.js checks) */
-const APP_VERSION="8.1";
+const APP_VERSION="8.4";
 let restEnd=0,restTick=null,restDur=1,restLabel="",restHintTxt="";
 let S=null;
-const migrateDb=d=>migrate(d,DEFAULT_DAYS,DEFAULT_SETTINGS,DEFAULT_PLAN,PHASES);
+const migrateDb=d=>{const m=migrate(d,DEFAULT_DAYS,DEFAULT_SETTINGS,DEFAULT_PLAN,PHASES);applyCustom(m.custom);return m};
+/* custom lifts live in the log (db.custom) and are folded into the library every time the log is loaded or replaced */
+function applyCustom(custom){
+  const builtin=applyCustom.builtin||(applyCustom.builtin=new Set(Object.keys(EXDB)));
+  for(const n of Object.keys(EXDB))if(!builtin.has(n))delete EXDB[n];
+  for(const [n,def] of Object.entries(custom||{})){
+    const c=cleanCustomLift(def,GROUPS,MUSCLE_NAMES);
+    if(c&&n===cleanLiftName(n)&&n.length>=3&&!builtin.has(n))EXDB[n]=c;
+  }
+}
 let db,BOOT_ERR=null;
 try{db=migrateDb(load())}
 catch(e){   /* a corrupt save must never brick the app: stash it beside the live key and boot clean */
@@ -53,7 +62,7 @@ const todayIdx=()=>(new Date().getDay()+6)%7;
 /* rough pacing: compounds are slower than accessories */
 function estMinutes(w,d){
   let m=6;
-  DAYS[d].ex.forEach((e,i)=>{m+=slotMinutes(slotSets(w,d,i),e[2])});
+  dayEx(w,d).forEach((e,i)=>{m+=slotMinutes(slotSets(w,d,i),e[2])});
   return Math.round(m/5)*5;
 }
 /* Slots skipped for time in one session live on that day's log entry, like today-only swaps */
@@ -138,20 +147,42 @@ function bumpEl(id,step){
 function setsFor(w,isComp){return isComp?wk(w).comp:wk(w).acc}
 /* a slot can pin its own set count ({sets:n}); light weeks scale it to about 60% */
 function plannedSets(w,d,i){
-  const e=DAYS[d].ex[i];const o=exOpt(e,"sets");
+  const e=dayEx(w,d)[i];
+  if(isExtra(w,d,i))return exOpt(e,"sets")||3;   /* added for this session: a fixed count, whatever the week */
+  const o=exOpt(e,"sets");
   const n=o?(deloadWeek(w)?Math.max(1,Math.round(o*0.6)):o):setsFor(w,e[2]);
   return rampWeek(w)?rampSets(n):n;
 }
 /* what this session actually asks for: the plan, unless the slot was skipped for time today */
 function slotSets(w,d,i){return isSkipped(w,d,i)?0:plannedSets(w,d,i)}
-function totalSets(w,d){return DAYS[d].ex.reduce((a,e,i)=>a+slotSets(w,d,i),0)}
+function totalSets(w,d){return dayEx(w,d).reduce((a,e,i)=>a+slotSets(w,d,i),0)}
 function loggedSets(w,d,logs){logs=logs||db.logs;const L=logs[logKey(w,d)];if(!L)return 0;let n=0;for(const ex of Object.values(L.ex||{}))n+=ex.filter(s=>s&&s.kg!=null).length;return n}
 function sessionTonnage(w,d,logs){logs=logs||db.logs;const L=logs[logKey(w,d)];if(!L)return 0;let t=0;for(const ex of Object.values(L.ex||{}))for(const s of ex)if(s&&s.kg!=null)t+=setTonnage(s);return Math.round(t)}
 function ytLink(name){return "https://www.youtube.com/results?search_query="+encodeURIComponent(name+" proper form")}
-function exName(d,i){return (db.swaps&&db.swaps[d+"-"+i])||(DAYS[d].ex[i]||["—"])[0]}
+function exName(d,i){return (db.swaps&&db.swaps[d+"-"+i])||(baseEx(d)[i]||["—"])[0]}
+/* ---------- lifts that belong to one session only ----------
+   A session can carry extra lifts on its own log entry (L.extra, same tuples as the programme);
+   they sit after the day's programme slots. A freestyle session is a log entry with a day id of
+   its own (Z1, Z2…) and no programme day behind it, so every lift in it is an extra. */
+const FREE_DAY={title:"Pick as you go",ex:[]};
+const isFree=d=>/^Z\d/.test(d);
+const baseEx=d=>(DAYS[d]||FREE_DAY).ex;
+function extras(w,d){const L=db.logs[logKey(w,d)];return (L&&L.extra)||[]}
+function dayEx(w,d){const x=extras(w,d);return x.length?baseEx(d).concat(x):baseEx(d)}
+const isExtra=(w,d,i)=>i>=baseEx(d).length;
+const dayTitle=d=>isFree(d)?FREE_DAY.title:(DAYS[d]||{title:""}).title;
+const dayLabel=d=>isFree(d)?"Freestyle":"Day "+d;
+const hasDay=(w,d)=>!!DAYS[d]||(isFree(d)&&!!db.logs[logKey(w,d)]);
+function freeIds(w,logs){return Object.keys(logs||db.logs).filter(k=>parseInt(k)===+w&&isFree(k.split("-")[1])).map(k=>k.split("-")[1])}
+const weekDays=w=>dayIds().concat(freeIds(w));
+const blockDays=(B,w)=>Object.keys(B.programme||{}).concat(freeIds(w,B.logs||db.logs));
 /* Name in a specific session: a "just today" swap on that day's log wins over the programme/permanent swap */
 function onceName(w,d,i){const L=db.logs[logKey(w,d)];return (L&&L.once&&L.once[i])||null}
-function sessName(w,d,i){return onceName(w,d,i)||exName(d,i)}
+function sessName(w,d,i){
+  const b=baseEx(d).length;
+  if(i>=b){const x=extras(w,d)[i-b];return x?x[0]:"—"}
+  return onceName(w,d,i)||exName(d,i);
+}
 /* ---------- per-lift settings (Lift screen) over global defaults (Settings) ---------- */
 function increment(name){return incrementFor(name,db.lifts,BIG_INC)}
 function isUni(name){return isUnilateral(name,db.lifts,EXDB)}
@@ -162,11 +193,11 @@ const isAssisted=name=>/^Assisted /.test(name);
 /* The slot's rep range, unless the lift now in it is timed and the planned one wasn't (or vice versa):
    "45–60" seconds makes no sense for Machine Crunch, so a swap across that line gets a default range. */
 function slotRange(w,d,i){
-  const e=DAYS[d].ex[i],name=sessName(w,d,i);
+  const e=dayEx(w,d)[i],name=sessName(w,d,i);
   if(onceName(w,d,i)&&isTimed(name)!==isTimed(exName(d,i)))return isTimed(name)?"30–45":"10–15";   /* today-only swap across the seconds/reps line */
   return e[1];
 }
-function restSecs(w,d,i){const e=DAYS[d].ex[i];return restFor(sessName(w,d,i),e[2],db.lifts,db.settings.rest)}
+function restSecs(w,d,i){const e=dayEx(w,d)[i];return restFor(sessName(w,d,i),e[2],db.lifts,db.settings.rest)}
 function liftOpt(name){return db.lifts[name]||{}}
 /* v===null clears the override; an explicit 0 is kept (e.g. uni:0 = "not per side") */
 function setLiftOpt(name,k,v){
@@ -178,6 +209,8 @@ function setLiftOpt(name,k,v){
 const COMP_PATTERNS=["Squat","Hinge","Horizontal Push","Vertical Push","Horizontal Pull","Vertical Pull"];
 const isCompPattern=name=>!!(EXDB[name]&&COMP_PATTERNS.includes(EXDB[name].pat));
 function weekComplete(w){const ds=dayIds().filter(d=>totalSets(w,d)>0);return ds.length>0&&ds.every(d=>sessionDone(db.logs[logKey(w,d)],loggedSets(w,d),totalSets(w,d)))}
+/* finished in the app (including "end early") or fully logged: nothing left to come back for */
+function isFinished(w,d){const L=db.logs[logKey(w,d)];return !!(L&&L.done&&hasSets(L))||(totalSets(w,d)>0&&loggedSets(w,d)>=totalSets(w,d))}
 const programmeEmpty=()=>!dayIds().some(d=>DAYS[d].ex.length>0);
 
 /* ---------- in-app confirm (replaces native confirm dialogs) ---------- */
@@ -224,7 +257,7 @@ function showNow(name,dir){
   void el.offsetWidth;                       /* restart the animation */
   el.classList.add(dir==="back"?"in-back":"in-fwd");
   document.body.classList.toggle("in-session",name==="session");   /* no nav mid-set: fewer mis-taps, more room */
-  $("nav-home").classList.toggle("active",name==="home"||name==="preview"||name==="settings"||name==="prog"||name==="nutri");
+  $("nav-home").classList.toggle("active",name==="home"||name==="preview"||name==="settings"||name==="prog"||name==="nutri"||name==="help");
   $("nav-lib").classList.toggle("active",name==="lib"||name==="lift");
   $("nav-stats").classList.toggle("active",name==="stats");
   $("nav-progress").classList.toggle("active",name==="progress");
@@ -247,7 +280,8 @@ function showNow(name,dir){
 }
 addEventListener("popstate",e=>{
   /* back closes any overlay first, consuming the gesture */
-  const veil=$("restveil").classList.contains("active");
+  /* the rest bar stays up over the Lift guide: back from there returns to the session, it doesn't end the rest */
+  const veil=$("restveil").classList.contains("active")&&document.querySelector(".screen.active").id==="scr-session";
   const sw=$("swapsheet").classList.contains("active");
   const ed=$("editsheet").classList.contains("active");
   const pk=$("picksheet").classList.contains("active");
@@ -256,6 +290,7 @@ addEventListener("popstate",e=>{
   const ch=$("choosesheet").classList.contains("active");
   const bk=$("bulksheet").classList.contains("active");
   const ci=$("cisheet").classList.contains("active"),pvw=$("photoview").classList.contains("active");
+  if($("customsheet").classList.contains("active")&&!pk&&!cf){closeCustom();history.pushState({scr:document.querySelector(".screen.active").id.slice(4)},"");return}
   if(veil||sw||ed||pk||cf||pd||ch||bk||ci||pvw){
     if(veil)endRest();if(sw)closeSwap();if(ed)closeEdit();if(pk)closePick();if(cf)closeAsk(false);if(pd)closePad();if(ch)closeChoose();if(bk)closeBulk();if(ci)closeCheckin();if(pvw)closePhoto();
     history.pushState({scr:document.querySelector(".screen.active").id.slice(4)},"");
@@ -291,14 +326,14 @@ function renderHero(){
   /* ring: the block for block plans; this week for an open plan */
   const ringWeeks=isOpen()?[w]:weekNums();
   const totalSess=dayIds().filter(d=>DAYS[d].ex.length).length*ringWeeks.length;
-  for(const ww of ringWeeks)for(const dd of dayIds())if(totalSets(ww,dd)>0&&loggedSets(ww,dd)>=totalSets(ww,dd))sessDone++;
+  for(const ww of ringWeeks)for(const dd of dayIds())if(totalSets(ww,dd)>0&&isFinished(ww,dd))sessDone++;
   const q=db.session;
-  if(q&&Date.now()-q.t<6*3600e3&&DAYS[q.d]&&loggedSets(q.w,q.d)<totalSets(q.w,q.d)){
+  if(q&&Date.now()-q.t<6*3600e3&&hasDay(q.w,q.d)&&!isFinished(q.w,q.d)){
     const mins=Math.round((Date.now()-q.t)/60000);
     $("hero").innerHTML=`<button class="hero d${q.d}" onclick="resumeSession()">
       <div class="hinfo"><div class="hkick" style="color:var(--plate-yellow)">Session in progress</div>
-      <div class="hname">Day ${q.d} · ${esc(DAYS[q.d].title)}</div>
-      <div class="hmeta">Left off at ${sessName(q.w,q.d,Math.min(q.exIdx,DAYS[q.d].ex.length-1))} · ${mins<60?mins+" min":Math.round(mins/60)+" h"} ago</div></div>
+      <div class="hname">${dayLabel(q.d)} · ${esc(dayTitle(q.d))}</div>
+      <div class="hmeta">Left off at ${sessName(q.w,q.d,Math.min(q.exIdx,dayEx(q.w,q.d).length-1))} · ${mins<60?mins+" min":Math.round(mins/60)+" h"} ago</div></div>
       <div class="hring">${ringSVG(sessDone,totalSess)}</div></button>`;
     return;
   }
@@ -312,8 +347,8 @@ function renderHero(){
   }
   let nd=null;
   /* open plan, this week: today's session first if it's still open */
-  if(isOpen()&&w===curWeek()){const td=dayIds()[todayIdx()];if(td&&totalSets(w,td)>0&&loggedSets(w,td)<totalSets(w,td))nd=td}
-  if(!nd)for(const d of dayIds())if(totalSets(w,d)>0&&loggedSets(w,d)<totalSets(w,d)){nd=d;break}
+  if(isOpen()&&w===curWeek()){const td=dayIds()[todayIdx()];if(td&&totalSets(w,td)>0&&!isFinished(w,td))nd=td}
+  if(!nd)for(const d of dayIds())if(totalSets(w,d)>0&&!isFinished(w,d)){nd=d;break}
   if(nd){
     const started=loggedSets(w,nd)>0;
     const first=sessName(w,nd,0),h0=prevSession(w,nd,0);
@@ -552,30 +587,86 @@ function renderHome(){
     +(canPostpone?` <button class="pill ss" style="margin-left:6px;vertical-align:middle" onclick="postponeLight()">Postpone${deloadWeek(w)?"":" W"+nl}</button>`:"");
   const dl=$("daylist");dl.innerHTML="";
   for(const d of dayIds()){
-    const total=totalSets(w,d),done=loggedSets(w,d);
+    const total=totalSets(w,d),done=loggedSets(w,d),fin=total>0&&isFinished(w,d);   /* ended early counts as done */
     const card=document.createElement("button");card.className="daycard d"+d;
     let state="",cls="";
     const isToday=isOpen()&&w===curWeek()&&dayIds()[todayIdx()]===d;
     if(total===0)state="No lifts yet";
-    else if(done>=total){state="Done ✓";cls="done"}
+    else if(fin){state="Done ✓";cls="done"}
     else if(done>0){state=done+"/"+total+" sets";cls="part"}
     else if(isOpen()&&w<curWeek()){state="Missed";cls="missed"}
     else if(isToday){state="Today · "+total+" sets";cls="today"}
     else if(isOpen()&&w>curWeek())state="Upcoming · "+total+" sets";
     else state=total+" sets";
-    const pct=total?Math.round(100*done/total):0;
+    const pct=fin?100:total?Math.round(100*done/total):0;
     card.innerHTML=`<div class="dayrow"><div class="dayletter">${d}</div>
       <div class="dayinfo"><div class="dtitle">${esc(DAYS[d].title)}</div>
       <div class="dsub">${dayWeekday(d)?dayWeekday(d)+" · ":""}${DAYS[d].ex.length} exercises · ~${estMinutes(w,d)} min</div></div>
       <div class="daystate ${cls}">${state}</div></div>
       <div class="dayprog"><i class="${cls}" style="width:${pct}%"></i></div>`;
-    card.onclick=()=>{tap(8);if(total===0){go("prog");return}shareTitle(card.querySelector(".dtitle"));done>=total?showDone(w,d):showPreview(w,d)};
+    card.onclick=()=>{tap(8);if(total===0){go("prog");return}shareTitle(card.querySelector(".dtitle"));fin?showDone(w,d,true):showPreview(w,d)};
     dl.appendChild(card);
   }
-  animateRings();renderStreaks();
+  for(const f of freeIds(w)){
+    const L=db.logs[logKey(w,f)],n=loggedSets(w,f),fin=isFinished(w,f);
+    if(!n&&!(db.session&&db.session.d===f))continue;
+    const card=document.createElement("button");card.className="daycard free";
+    const when=sessionDate(L)?fmtDay(sessionDate(L)):"";
+    card.innerHTML=`<div class="dayrow"><div class="dayletter">F</div>
+      <div class="dayinfo"><div class="dtitle">Freestyle</div>
+      <div class="dsub">${[when,dayEx(w,f).map(e=>e[0]).slice(0,3).join(", ")+(dayEx(w,f).length>3?"…":"")].filter(Boolean).join(" · ")}</div></div>
+      <div class="daystate ${fin?"done":"part"}">${fin?"Done ✓":n+" sets"}</div></div>`;
+    card.onclick=()=>{tap(8);fin?showDone(w,f,true):startSession(w,f)};
+    dl.appendChild(card);
+  }
+  if(!programmeEmpty()&&(!isOpen()||w===curWeek())){
+    const b=document.createElement("button");b.className="quietbtn freebtn";b.textContent="+ Freestyle session · pick lifts as you go";
+    b.onclick=()=>{tap(8);openAddLift(w,null)};dl.appendChild(b);
+  }
+  animateRings();renderStreaks();renderReady();renderSyncHealth();
 }
+/* Hours since each major muscle was last a primary mover, oldest first. A guide from the log, not a recovery measure. */
+function muscleReadiness(){
+  const last={};
+  for(const B of allBlocks().slice(-2))for(const [k,L] of Object.entries(B.logs||{})){
+    const d=k.split("-")[1];
+    for(const [i,sets] of Object.entries(L.ex||{}))for(const s of sets||[]){
+      if(!s||s.kg==null||!s.t)continue;
+      const e=EXDB[setName(s,B,d,i)];if(!e)continue;
+      for(const m of e.pri)if(!MINOR_MUSCLES.includes(m)&&s.t>(last[m]||0))last[m]=s.t;
+    }
+  }
+  return Object.entries(last).map(([m,t])=>{const h=(Date.now()-t)/3600e3;return{g:MUSCLE_NAMES[m],h,state:readiness(h)}}).sort((a,b)=>b.h-a.h);
+}
+function renderReady(){
+  const el=$("ready");if(!el)return;
+  const R=muscleReadiness().filter(r=>r.h<24*21);   /* after three weeks off, "due" says nothing */
+  if(!R.length||(isOpen()&&db.selWeek!==curWeek())){el.innerHTML="";return}
+  const age=h=>h<24?"today":Math.floor(h/24)+"d";
+  el.innerHTML=`<details class="ready"${db.settings.readyOpen?" open":""} ontoggle="db.settings.readyOpen=this.open?1:0;save({quiet:true})">
+    <summary><span>Muscles</span><span class="rsum">${["due","ready","recovering"].map(s=>{const n=R.filter(r=>r.state===s).length;return n?`<i class="${s}"></i>${n} ${s}`:""}).filter(Boolean).join(" · ")}</span></summary>
+    <div class="readychips">${R.map(r=>`<span class="rchip ${r.state}">${r.g} <b>${age(r.h)}</b></span>`).join("")}</div>
+    <div class="hsets" style="color:var(--ink-faint);margin-top:8px">Days since each muscle was last trained hard. Under 2 days it is still recovering, from 5 it is due. A rough guide, not a measurement.</div></details>`;
+}
+/* Drive sync that has quietly stopped is worse than no sync: say so on Home */
+function renderSyncHealth(){
+  const el=$("home-sync");if(!el)return;
+  const days=db.sync&&db.sync.lastSync?Math.floor((Date.now()-db.sync.lastSync)/86400e3):null;
+  const bad=driveOn()&&(db.sync.error||days===null||days>=3);
+  el.innerHTML=!bad?"":`<button class="nudge tap" onclick="driveSync({})"><svg viewBox="0 0 24 24" class="gico"><path d="M12 3.6 21.2 20H2.8z"/><path d="M12 10v4.2M12 17v.4"/></svg>
+    <span>${db.sync.error==="auth"?"Google Drive has signed out, so nothing is syncing.":db.sync.error?"The last Drive sync failed ("+esc(db.sync.error)+").":days===null?"Drive is connected but has never synced.":"Drive hasn't synced for "+days+" days."} <b>Sync now</b></span></button>`;
+}
+/* Several lifts stalled at once: take the light week now rather than waiting for the calendar */
+function lightNext(w){
+  if(!isOpen())return;
+  db.plan.lightWeeks=[...(db.plan.lightWeeks||[]).filter(x=>x!==w),w];save();renderProgress();
+  toast("Week "+w+" is now a light week","Undo",()=>{dropLight(w);renderProgress()});
+}
+function dropLight(w){db.plan.lightWeeks=(db.plan.lightWeeks||[]).filter(x=>x!==w);if(!db.plan.lightWeeks.length)delete db.plan.lightWeeks;save()}
 function postponeLight(){
   if(!isOpen())return;
+  const nl=nextLightWeek(db.plan,curWeek());
+  if((db.plan.lightWeeks||[]).includes(nl)){dropLight(nl);renderHome();toast("Week "+nl+" is a hard week again");return}   /* one brought forward by hand: just take it back */
   db.plan.lightOffset=(db.plan.lightOffset||0)+1;save();renderHome();
   toast("Light week moved to week "+nextLightWeek(db.plan,curWeek()));
 }
@@ -585,18 +676,18 @@ let PV=null;
 function showPreview(w,d){PV={w,d};show("preview")}
 function renderPreview(){
   const {w,d}=PV;
-  $("pv-title").textContent=(dayWeekday(d)?dayWeekday(d)+" · ":"")+"Day "+d+" · Week "+w;
-  $("pv-sub").textContent=DAYS[d].title+" · "+phaseLabel(w);
+  $("pv-title").textContent=(dayWeekday(d)?dayWeekday(d)+" · ":"")+dayLabel(d)+" · Week "+w;
+  $("pv-sub").textContent=dayTitle(d)+" · "+phaseLabel(w);
   const total=totalSets(w,d),done=loggedSets(w,d);
   $("pv-stats").innerHTML=
-    `<div class="pvstat"><div class="v">${DAYS[d].ex.length}</div><div class="k">Lifts</div></div>
+    `<div class="pvstat"><div class="v">${dayEx(w,d).length}</div><div class="k">Lifts</div></div>
      <div class="pvstat"><div class="v">${total}</div><div class="k">Sets</div></div>
      <div class="pvstat"><div class="v">~${estMinutes(w,d)}</div><div class="k">Min</div></div>
      <div class="pvstat"><div class="v">${rirOf(w)}</div><div class="k">RIR</div></div>`;
   renderTimebox(w,d);
   const L=(db.logs[logKey(w,d)]||{}).ex||{};
   let nextFound=false,html="";
-  DAYS[d].ex.forEach((e,i)=>{
+  dayEx(w,d).forEach((e,i)=>{
     const [,,isComp]=e,range=slotRange(w,d,i);
     const name=sessName(w,d,i);
     const skipped=isSkipped(w,d,i);
@@ -613,13 +704,13 @@ function renderPreview(){
       :isDone?`<span class="rstate done">✓</span>`
       :have>0?`<span class="rstate part">${have}/${need}</span>`
       :`<span class="rstate">›</span>`;
-    html+=`<button class="rstep${isDone?" done":""}${isNext?" next":""}${skipped?" skipped":""}${i===DAYS[d].ex.length-1?" last":""}"
+    html+=`<button class="rstep${isDone?" done":""}${isNext?" next":""}${skipped?" skipped":""}${i===dayEx(w,d).length-1?" last":""}"
       onclick="${skipped?`unskipSlot(${w},'${d}',${i})`:`openLift('${name.replace(/'/g,"\\'")}','preview')`}">
       <div class="rrail"><div class="rnode">${isDone?"✓":i+1}</div><div class="rline"></div></div>
       <div class="rbody"><div class="rinfo">
         ${isNext&&done>0?'<div class="nextlabel">Up next</div>':""}
         <div class="rname">${name}</div>
-        <div class="rmeta"><span class="rdot" style="background:var(--plate-${isComp?"red":"blue"})"></span>${need} × ${range}${isTimed(name)?" s":""}${isUni(name)?"/side":""}${pairOf(DAYS[d].ex,i)>=0?" · ⇄ superset":""} · ${lastTxt}</div>
+        <div class="rmeta"><span class="rdot" style="background:var(--plate-${isComp?"red":"blue"})"></span>${need} × ${range}${isTimed(name)?" s":""}${isUni(name)?"/side":""}${pairOf(dayEx(w,d),i)>=0?" · ⇄ superset":""} · ${lastTxt}</div>
       </div>${state}</div></button>`;
   });
   $("pv-route").innerHTML=html;
@@ -633,7 +724,7 @@ const TIME_BUDGETS=[30,45,60];
 function renderTimebox(w,d){
   const skip=skipList(w,d),est=estMinutes(w,d);
   const full=!skip.length;
-  const hasAcc=DAYS[d].ex.some((e,i)=>!e[2]&&!isSkipped(w,d,i));
+  const hasAcc=dayEx(w,d).some((e,i)=>!e[2]&&!isSkipped(w,d,i));
   const budgets=TIME_BUDGETS.filter(b=>b<est||skip.length);
   if(!budgets.length&&full){$("pv-time").innerHTML="";return}
   $("pv-time").innerHTML=`<span class="tlabel">Short on time?</span><div class="libchips">
@@ -647,7 +738,7 @@ function setTimeBudget(w,d,budget){
   const L=db.logs[k];
   delete L.skip;
   if(!budget){save();renderPreview();toast("Full session restored");return}
-  const slots=DAYS[d].ex.map((e,i)=>({i,comp:!!e[2],min:slotMinutes(plannedSets(w,d,i),e[2]),
+  const slots=dayEx(w,d).map((e,i)=>({i,comp:!!e[2],min:slotMinutes(plannedSets(w,d,i),e[2]),
     locked:((L.ex[i])||[]).some(s=>s&&s.kg!=null)}));
   const r=trimForTime(slots,budget,6);
   if(!r.skip.length){save();renderPreview();toast("Nothing to trim — the compounds alone need ~"+Math.round(r.min/5)*5+" min");return}
@@ -665,7 +756,7 @@ function startSession(w,d){
   const k=logKey(w,d);
   if(!db.logs[k])db.logs[k]={date:todayISO(),ex:{}};
   let exIdx=0,setIdx=0,found=false;
-  const exs=DAYS[d].ex;
+  const exs=dayEx(w,d);
   for(let i=0;i<exs.length&&!found;i++){
     const need=slotSets(w,d,i);
     const have=(db.logs[k].ex[i]||[]).filter(s=>s&&s.kg!=null).length;
@@ -681,10 +772,10 @@ function exitSession(){if(restEnd>Date.now())endRest();pruneLog(logKey(S.w,S.d))
 function pruneLog(k){const L=db.logs[k];if(L&&!hasSets(L)&&!L.once&&!L.skip&&!L.done)delete db.logs[k]}
 function resumeSession(){
   const q=db.session;
-  if(!q||!DAYS[q.d]){toast("That session is no longer in the plan");db.session=null;save();renderHome();return}
+  if(!q||!hasDay(q.w,q.d)){toast("That session is no longer in the plan");db.session=null;save();renderHome();return}
   const k=logKey(q.w,q.d);
   if(!db.logs[k])db.logs[k]={date:todayISO(),ex:{}};
-  S={w:q.w,d:q.d,exIdx:Math.min(q.exIdx,DAYS[q.d].ex.length-1),setIdx:0};
+  S={w:q.w,d:q.d,exIdx:Math.max(0,Math.min(q.exIdx,dayEx(q.w,q.d).length-1)),setIdx:0};
   S.setIdx=Math.min(q.setIdx,firstOpenSet());
   lockScreen();TON_SHOWN=0;LAST_EX=null;renderSet();show("session");
   /* pick the rest clock back up if it was still running */
@@ -701,7 +792,7 @@ function prevSession(w,d,exIdx){
   /* same slot first (the common case), then any slot on that day, then any other day —
      so a template switch or a reorder doesn't reset the coach to "first time on this lift" */
   const pick=(logs,pw,ctx)=>{
-    const days=Object.keys(ctx.programme||{});
+    const days=[...Object.keys(ctx.programme||{}),...freeIds(pw,logs)];
     for(const dd of [d,...days.filter(x=>x!==d)]){
       const L=logs[logKey(pw,dd)];if(!L||!L.ex)continue;
       const idxs=dd===d?[exIdx,...Object.keys(L.ex).map(Number).filter(i=>i!==exIdx)]:Object.keys(L.ex).map(Number);
@@ -735,7 +826,7 @@ const CO={
   fresh:'<svg viewBox="0 0 24 24" class="gico"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.1"/></svg>'
 };
 function coachAdvice(w,d,exIdx){
-  const [,,isComp]=DAYS[d].ex[exIdx],range=slotRange(w,d,exIdx);
+  const [,,isComp]=dayEx(w,d)[exIdx],range=slotRange(w,d,exIdx);
   const name=sessName(w,d,exIdx);
   const hist=prevSession(w,d,exIdx);
   const timed=isTimed(name),unit=timed?"seconds":"reps",u=timed?" s":"";
@@ -746,9 +837,19 @@ function coachAdvice(w,d,exIdx){
   const planned=slotSets(w,d,exIdx),cutShort=hist.sets.length<Math.min(2,planned);   /* one set logged last time proves nothing */
   if(!cutShort&&hitTop(reps,top,bottom)){
     const inc=increment(name);
+    if(isAssisted(name)){
+      const less=Math.max(0,Math.round((Math.min(...hist.sets.map(s=>s.kg))-inc)*100)/100);
+      return{cls:"",ico:CO.up,rec:less,recReps:bottom,
+        txt:`<b>Less help: ${fmtKg(less)} kg assistance.</b> ${reps.every(r=>r>=top)?"Top of the range on every set":"Top of the range on all but one set"} (${ref}). Drop back to ${bottom} and build up again.`};
+    }
     const newKg=hist.sets[0].kg+inc;
     return{cls:"",ico:CO.up,rec:newKg,recReps:bottom,
       txt:`<b>Add ${timed&&hist.sets[0].kg===0?"load":"weight"}: ${fmtKg(newKg)} kg.</b> ${reps.every(r=>r>=top)?"Top of the range on every set":"Top of the range on all but one set"} (${ref}). Drop back to ${bottom}${u} and build up again.`};
+  }
+  if(!cutShort&&underRange(reps,bottom)&&isAssisted(name)){
+    const more=Math.round((hist.sets[0].kg+increment(name))*100)/100;
+    return{cls:"hold",ico:CO.hold,rec:more,recReps:bottom,
+      txt:`<b>More help: ${fmtKg(more)} kg assistance.</b> ${ref} most sets fell under ${bottom} (${reps.join(", ")}). A little more assistance puts you back in the range where the reps do the work.`};
   }
   if(!cutShort&&underRange(reps,bottom)&&hist.sets[0].kg>0){
     const inc=increment(name),backKg=Math.max(inc,snapStep(hist.sets[0].kg*0.95,inc));
@@ -765,26 +866,30 @@ function coachAdvice(w,d,exIdx){
         txt:`<b>Reset to ${fmtKg(r)} kg.</b> Stuck at ${fmtSet(peak)} for ${n} weeks. Take about 10% off, aim for ${top} reps, then build back up from there.`};
     }
   }
-  return{cls:"hold",ico:CO.hold,txt:`<b>Same weight, chase ${unit}.</b> ${ref} you got ${reps.map(r=>r+u).join(", ")} — get to ${top}${u} on all but one set and it's time to add load.`};
+  return{cls:"hold",ico:CO.hold,txt:`<b>Same weight, chase ${unit}.</b> ${ref} you got ${reps.map(r=>r+u).join(", ")} — get to ${top}${u} on all but one set and it's time to ${isAssisted(name)?"take some assistance off":"add load"}.${
+    !db.settings.failFlag||cutShort?"":hist.sets.every(s=>s.f)?" Every set went to failure, so that is your ceiling for now: match it and steal a rep where you can.":hist.sets.some(s=>s.f)?"":" None of those were marked to failure, so there should be reps in hand."}`};
 }
 
 function renderSet(){
   const {w,d,exIdx,setIdx}=S;
-  const [,,isComp]=DAYS[d].ex[exIdx],reps=slotRange(w,d,exIdx);
+  const [,,isComp]=dayEx(w,d)[exIdx],reps=slotRange(w,d,exIdx);
   const name=sessName(w,d,exIdx);
   const nsets=slotSets(w,d,exIdx);
-  $("ss-title").textContent=(dayWeekday(d)?dayWeekday(d)+" · ":"")+"Day "+d+" · Week "+w;
-  $("ss-sub").textContent=DAYS[d].title+" · "+phaseLabel(w);
-  $("ss-exnum").textContent="Exercise "+(exIdx+1)+" of "+DAYS[d].ex.length;
+  $("ss-title").textContent=(dayWeekday(d)?dayWeekday(d)+" · ":"")+dayLabel(d)+" · Week "+w;
+  $("ss-sub").textContent=dayTitle(d)+" · "+phaseLabel(w);
+  $("ss-exnum").textContent="Exercise "+(exIdx+1)+" of "+dayEx(w,d).length;
   $("ss-exname").textContent=name;
-  const pair=pairOf(DAYS[d].ex,exIdx),uni=isUni(name),timed=isTimed(name);
+  const pair=pairOf(dayEx(w,d),exIdx),uni=isUni(name),timed=isTimed(name);
   resetTimer();
   $("lbl-reps").textContent=timed?"Seconds":"Reps";
   $("ss-timer").style.display=timed?"":"none";
   $("ss-tags").innerHTML=`<span class="tag ${isComp?"comp":"acc"}">${isComp?"Compound":"Accessory"}</span>
     <span class="tag">${reps}${timed?" s":" reps"}${uni?" / side":""}</span><span class="tag">${rirOf(w)} RIR</span>`
     +(pair>=0?`<span class="tag ss">⇄ Superset · ${sessName(w,d,pair)}</span>`:"")
-    +(onceName(w,d,exIdx)?`<span class="tag once">Today only</span>`:"");
+    +(onceName(w,d,exIdx)?`<span class="tag once">Today only</span>`:"")
+    +(liftOpt(name).pain?`<span class="tag pain">Flagged</span>`:"")
+    +(isExtra(w,d,exIdx)&&!isFree(d)?`<span class="tag once">Added today</span>`:"");
+  $("ss-swapbtn").style.display=isExtra(w,d,exIdx)?"none":"";
   const ak=exIdx+"|"+name;S.adv=S.adv||{};
   const adv=S.adv[ak]||(S.adv[ak]=coachAdvice(w,d,exIdx));   /* once per lift per session: it walks the history */
   const co=$("ss-coach");co.className="coach "+adv.cls;
@@ -796,6 +901,7 @@ function renderSet(){
   for(let i=0;i<nsets;i++){const p=document.createElement("div");p.className="pip"+(i<setIdx?" done":i===setIdx?" cur":"");
     if(FX&&FX.ex===exIdx&&FX.pip===i)p.classList.add("just");pips.appendChild(p)}
   FX=null;
+  $("loghint").style.display=db.settings.failFlag?"none":"";
   $("ss-setlabel").textContent="Set "+(setIdx+1)+" of "+nsets+(uni?" · per side":"");
   /* the coach card slides in when the lift changes, not on every set */
   const exKey=d+"-"+exIdx;
@@ -804,7 +910,7 @@ function renderSet(){
   /* persistent "last set" row: tap to edit or delete without leaving the session */
   let li=-1;for(let i=L.length-1;i>=0;i--)if(L[i]&&L[i].kg!=null){li=i;break}
   const lr=$("ss-lastrow");
-  if(li>=0){lr.style.display="flex";lr.innerHTML=`<span>Logged set ${li+1} · <b>${fmtSet(L[li])}</b></span><span class="act">Edit</span>`;
+  if(li>=0){lr.style.display="flex";lr.innerHTML=`<span>Logged set ${li+1} · <b>${fmtSet(L[li])}</b>${failMark(L[li])}</span><span class="act">Edit</span>`;
     lr.onclick=()=>openEdit(w,d,exIdx,li,"session")}
   else lr.style.display="none";
   const prevSet=setIdx>0?L[setIdx-1]:null;
@@ -815,6 +921,8 @@ function renderSet(){
     co.className="coach hold"+(co.classList.contains("anim")?" anim":"");$("ss-coachico").innerHTML=CO.hold;
     $("ss-coachtxt").innerHTML=`<b>Set ${setIdx} fell under ${bottom}.</b> ${fmtKg(drop)} kg for this one should put you back in the range. Stay at ${fmtKg(prevSet.kg)} if that set was a one-off.`;
   }
+  if(isExtra(w,d,exIdx)&&!L.some(s=>s&&s.kg!=null))$("ss-coachtxt").innerHTML+=`<br><button class="linkbtn" onclick="removeExtra()">Picked the wrong lift? Remove it</button>`;
+  if(liftOpt(name).pain&&!isExtra(w,d,exIdx))$("ss-coachtxt").innerHTML+=`<br><button class="linkbtn" onclick="openSwap()">You flagged this lift as irritating. Swap it for today</button>`;
   const hist=prevSession(w,d,exIdx);
   let lastTxt="First time — start light";
   if(hist){const ref=hist.block<db.block?"B"+hist.block+" wk"+hist.w:"Wk "+hist.w;
@@ -830,13 +938,13 @@ function renderSet(){
   $("ss-prog").style.width=Math.round(100*loggedSets(w,d)/totalSets(w,d))+"%";
   $("ss-setcount").textContent=loggedSets(w,d)+"/"+totalSets(w,d)+" sets";
   tickTon(sessionTonnage(w,d));
-  $("ss-upnext").innerHTML=DAYS[d].ex.map((e2,j)=>{
+  $("ss-upnext").innerHTML=dayEx(w,d).map((e2,j)=>{
     const need2=slotSets(w,d,j);
     const have2=((db.logs[logKey(w,d)].ex[j])||[]).filter(s=>s&&s.kg!=null).length;
     const st=isSkipped(w,d,j)?"skip":have2>=need2?"done":j===exIdx?"cur":"";
-    const link=j>0&&exOpt(DAYS[d].ex[j-1],"ss")?"⇄ ":"";
+    const link=j>0&&exOpt(dayEx(w,d)[j-1],"ss")?"⇄ ":"";
     return `<button class="upchip ${st}" onclick="${st==="done"?"editLift("+j+")":st==="skip"?"unskipHere("+j+")":"jumpTo("+j+")"}" aria-label="${st==="done"?"Edit sets for ":st==="skip"?"Skipped for time, tap to add back: ":""}${sessName(w,d,j)}">${st==="done"?"✓ ":(j+1)+". "}${link}${sessName(w,d,j)}</button>`;
-  }).join("");
+  }).join("")+`<button class="upchip add" onclick="openAddLift(${w},'${d}')">+ Add a lift</button>`;
   {const c=$("ss-upnext"),cur=c.querySelector(".upchip.cur");if(cur)c.scrollLeft=Math.max(0,cur.offsetLeft-c.clientWidth/2+cur.offsetWidth/2)}   /* keep the current lift in view */
   renderPlates();
   renderWarmup();
@@ -886,14 +994,14 @@ async function endEarly(){
   const {w,d}=S;
   const left=totalSets(w,d)-loggedSets(w,d);
   if(await ask({title:"Finish this session?",
-    body:"<b>"+left+" set"+(left===1?"":"s")+"</b> will stay unlogged. You can come back to them any time this week.",
+    body:"<b>"+left+" set"+(left===1?"":"s")+"</b> will stay unlogged and the day is marked done. If you change your mind, the summary lets you pick a lift back up.",
     ok:"Finish"}))showDone(w,d);
 }
 
 /* ---------- warm-up ramp (first exercise, first set only) ---------- */
 function renderWarmup(){
   const box=$("ss-warmup");
-  if(!S||S.setIdx!==0||!(S.exIdx===0||DAYS[S.d].ex[S.exIdx][2])){box.style.display="none";return}   /* first set of the day, or of any compound */
+  if(!S||S.setIdx!==0||!(S.exIdx===0||dayEx(S.w,S.d)[S.exIdx][2])){box.style.display="none";return}   /* first set of the day, or of any compound */
   const kg=parseFloat($("in-kg").value);
   if(isNaN(kg)||kg<=0){box.style.display="none";return}
   const name=sessName(S.w,S.d,S.exIdx);
@@ -958,7 +1066,8 @@ function edBump(f,dir){
   el.value=f==="kg"?fmtKg(v):Math.round(v);
 }
 
-function logSet(){
+/* fail===true: the Log button was held, the set went to failure */
+function logSet(fail){
   if(TIMER)stopTimer();
   let kg=parseFloat($("in-kg").value);const reps=parseInt($("in-reps").value);
   const {w,d,exIdx,setIdx}=S;
@@ -973,15 +1082,16 @@ function logSet(){
   const set={kg,reps,t:Date.now(),name};
   if(isUni(name))set.uni=1;   /* stamped so history stays honest if the flag changes later */
   if(timed)set.timed=1;
+  if(fail===true){set.f=1;db.settings.failFlag=1}
   db.logs[k].ex[exIdx][setIdx]=set;
   const pos={w,d,exIdx,setIdx};
-  const isPR=!!prevBest&&betterSet(set,prevBest.best);
+  const isPR=!!prevBest&&!isAssisted(name)&&betterSet(set,prevBest.best);   /* more assistance is not a record */
   FX={ex:exIdx,pip:setIdx};
   const b=$("logbtn");b.classList.add("pressed");setTimeout(()=>b.classList.remove("pressed"),140);
   if(isPR){haptic("pr");const f=$("prflash");f.classList.remove("go");void f.offsetWidth;f.classList.add("go")}
   else haptic("log");
-  const e1=!isPR&&prevBest&&!timed&&setScore(set)>prevBest.bestE.e+0.05;   /* a rep PR at a lighter weight still beats your best estimated 1RM */
-  toast((isPR?"🏆 New PR — ":e1?"🏆 Best e1RM — ":"Logged ")+fmtSet(set),"Undo",()=>undoSet(pos));
+  const e1=!isPR&&prevBest&&!timed&&!isAssisted(name)&&setScore(set)>prevBest.bestE.e+0.05;   /* a rep PR at a lighter weight still beats your best estimated 1RM */
+  toast((isPR?"🏆 New PR — ":e1?"🏆 Best e1RM — ":"Logged ")+fmtSet(set)+(set.f?" · to failure":""),"Undo",()=>undoSet(pos));
   advance(true);   /* advance saves once for both */
 }
 function undoSet(pos){
@@ -996,8 +1106,8 @@ function undoSet(pos){
 function skipExercise(){
   const {w,d,exIdx}=S;
   const open=j=>(db.logs[logKey(w,d)].ex[j]||[]).filter(s=>s&&s.kg!=null).length;
-  let j=exIdx+1;while(j<DAYS[d].ex.length&&open(j)>=slotSets(w,d,j))j++;   /* past finished and time-skipped slots */
-  if(j<DAYS[d].ex.length){S.exIdx=j;S.setIdx=open(j);renderSet();save();toast("Skipped "+sessName(w,d,exIdx))}
+  let j=exIdx+1;while(j<dayEx(w,d).length&&open(j)>=slotSets(w,d,j))j++;   /* past finished and time-skipped slots */
+  if(j<dayEx(w,d).length){S.exIdx=j;S.setIdx=open(j);renderSet();save();toast("Skipped "+sessName(w,d,exIdx))}
   else endEarly();   /* nothing left after this lift: finishing is a decision, not a side effect */
 }
 function firstOpenSet(){
@@ -1008,7 +1118,7 @@ function firstOpenSet(){
    first set 1 → short rest → second set 1 → full rest → first set 2 … until
    both are done, then on to the next slot. Returns null when the day is over. */
 function nextTarget(){
-  const {w,d,exIdx,setIdx}=S,exs=DAYS[d].ex;
+  const {w,d,exIdx,setIdx}=S,exs=dayEx(w,d);
   const open=j=>(db.logs[logKey(w,d)].ex[j]||[]).filter(s=>s&&s.kg!=null).length;
   const pair=pairOf(exs,exIdx);
   let after;
@@ -1030,6 +1140,11 @@ function nextTarget(){
 function advance(withRest){
   const {w,d,exIdx}=S;
   const nx=nextTarget();
+  if(!nx&&isFree(d)){   /* freestyle has no end until you say so */
+    S.setIdx=firstOpenSet();renderSet();save();
+    chooseSheet("That lift is done","Add another, or call it a session.",[{label:"+ Add another lift",value:"add"},{label:"Finish session",value:"fin"}],v=>v==="add"?openAddLift(w,d):showDone(w,d));
+    return;
+  }
   if(!nx){showDone(w,d);return}
   const nextLabel=nx.exIdx===exIdx?"Next: set "+(nx.setIdx+1)+" — "+sessName(w,d,exIdx):"Next: "+sessName(w,d,nx.exIdx);
   const hint=restHint(nx);
@@ -1144,11 +1259,12 @@ function renderSwap(){
   const q=s=>s.replace(/'/g,"\\'");
   const meta=n=>{const e=EXDB[n];return e?`<span class="pemeta" style="flex-shrink:0">${e.eq} · ${e.pri.map(m=>MUSCLE_NAMES[m]).join(", ")}</span>`:""};
   const mark=SWAP_MODE==="once"?cur:planned;
-  const row=(n,fn,note)=>`<button class="subopt bulkrow ${n===mark?"current":""}" onclick="${fn}('${q(n)}')"><span style="flex:1;min-width:0">${n}${note?` <span style='color:var(--ink-faint);font-weight:400'>${note}</span>`:""}</span>${meta(n)}</button>`;
+  const row=(n,fn,note)=>{note=[note,liftOpt(n).pain?"(flagged)":""].filter(Boolean).join(" ");return `<button class="subopt bulkrow ${n===mark?"current":""}" onclick="${fn}('${q(n)}')"><span style="flex:1;min-width:0">${n}${note?` <span style='color:var(--ink-faint);font-weight:400'>${note}</span>`:""}</span>${meta(n)}</button>`};
+  const unflaggedFirst=a=>a.slice().sort((x,y)=>(liftOpt(x).pain?1:0)-(liftOpt(y).pain?1:0));
   let html;
   if(SWAP_MODE==="once"){
     $("swap-hint").textContent="Machine busy? Pick something that works the same muscles for this session only. Your plan and progression on "+planned+" are untouched.";
-    html=row(planned,"doSwapOnce","(planned)")+sameMuscleLifts(EXDB,planned,SUBS).map(n=>row(n,"doSwapOnce")).join("");
+    html=row(planned,"doSwapOnce","(planned)")+unflaggedFirst(sameMuscleLifts(EXDB,planned,SUBS)).map(n=>row(n,"doSwapOnce")).join("");
   }else{
     $("swap-hint").textContent="Same movement pattern and muscles, different tool. The swap sticks until you change it back, so your progression stays comparable.";
     html=[orig,...similarLifts(orig)].map(o=>row(o,"doSwap",o===orig?"(programme default)":"")).join("");
@@ -1218,7 +1334,8 @@ function renderLib(){
         ${days.length?`<span class="daybadge">${days.join("·")}</span>`:""}<svg viewBox="0 0 24 24" class="chev"><path d="M9.6 5.4 16.2 12l-6.6 6.6"/></svg></button>`;
     }
   }
-  $("liblist").innerHTML=html||`<div class="emptymsg">No ${LIB.eq==="All"?"":LIB.eq.toLowerCase()+" "}lifts match${LIB.q?` "${esc(LIB.q)}"`:""}.<br>Try a muscle — "hamstrings", "rear delts", "abs"…</div>`;
+  const mk=`<button class="quietbtn freebtn" onclick="openCustom()">+ Create your own lift</button>`;
+  $("liblist").innerHTML=(html?html+mk:"")||mk+`<div class="emptymsg">No ${LIB.eq==="All"?"":LIB.eq.toLowerCase()+" "}lifts match${LIB.q?` "${esc(LIB.q)}"`:""}.<br>Try a muscle — "hamstrings", "rear delts", "abs"…</div>`;
   $("lib-sub").textContent=Object.keys(EXDB).length+" lifts · every movement in the plan and its swaps";
 }
 function openLift(name,src){
@@ -1228,7 +1345,7 @@ function openLift(name,src){
   $("lift-name").textContent=name;
   $("lift-sub").textContent=e.g+" · "+e.pat;
   const days=planDays(name);
-  $("lift-tags").innerHTML=`<span class="tag comp">${e.pat}</span><span class="tag">${e.eq}</span>`
+  $("lift-tags").innerHTML=`<span class="tag comp">${e.pat}</span><span class="tag">${e.eq}</span>`+(e.custom?`<span class="tag once">Custom</span>`:"")
     +(days.length?`<span class="tag" style="color:var(--plate-green)">In plan · Day ${days.join(", ")}</span>`
                  :`<span class="tag">Swap option</span>`);
   /* muscle diagram: mark the regions, then face whichever side carries the primaries */
@@ -1284,7 +1401,7 @@ function liftHistHTML(name){
     const when=h.date?new Date(h.date+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"}):"—";
     const delta=dl==null?(timed?"score":"e1RM"):dl>0?`▲ +${dl}${unit}`:dl<0?`▼ ${dl}${unit}`:"● same";
     return `<${tap?"button":"div"} class="recrow"${tap?` onclick="openSession(LIB.hist[${k}],'lift')"`:""}>
-      <div class="rinfo2"><div class="rn">${when} <span class="lhmeta">Wk ${h.w} · Day ${h.d}${h.cur?"":" · block "+h.block}</span></div>
+      <div class="rinfo2"><div class="rn">${when} <span class="lhmeta">Wk ${h.w} · ${dayLabel(h.d)}${h.cur?"":" · block "+h.block}</span></div>
         <div class="rd">${h.sets.map(s=>fmtSet(s,true)).join(" · ")}</div></div>
       <div class="rv"><b>${h.e}${unit}</b><span class="${dl>0?"up":dl<0?"down":""}">${delta}</span></div></${tap?"button":"div"}>`;
   }).join("");
@@ -1304,8 +1421,42 @@ function renderLiftSettings(name){
      <div class="setrow"><div class="lrtext"><b>Per side</b><i>${uni?"Logged once, tonnage counts both sides":"Both sides move together"}</i></div>
       <button class="pill ${uni?"comp":""}" role="switch" aria-checked="${uni}" onclick="liftToggleUni()">${uni?"UNILATERAL":"BILATERAL"}</button></div>
      <div class="setrow"><div class="lrtext"><b>Measure</b><i>${timed?"Seconds held, with a stopwatch in the session":"Repetitions"}</i></div>
-      <button class="pill ${timed?"comp":""}" role="switch" aria-checked="${timed}" onclick="liftToggleTimed()">${timed?"SECONDS":"REPS"}</button></div>`
-    +(Object.keys(o).length?`<button class="quietbtn" onclick="liftResetOpts()">Reset this lift to defaults</button>`:"");
+      <button class="pill ${timed?"comp":""}" role="switch" aria-checked="${timed}" onclick="liftToggleTimed()">${timed?"SECONDS":"REPS"}</button></div>
+     <div class="setrow"><div class="lrtext"><b>Irritates a joint</b><i>${o.pain?"Flagged: sessions offer a swap for the day, and swap lists put it last":"Flag it and sessions will offer a swap. Nothing is swapped for you"}</i></div>
+      <button class="pill ${o.pain?"comp":""}" role="switch" aria-checked="${!!o.pain}" onclick="liftTogglePain()">${o.pain?"FLAGGED":"FINE"}</button></div>`
+    +(Object.keys(o).length?`<button class="quietbtn" onclick="liftResetOpts()">Reset this lift to defaults</button>`:"")
+    +(EXDB[name]&&EXDB[name].custom?`<button class="quietbtn" style="color:var(--plate-red)" onclick="deleteCustom()">Delete this custom lift</button>`:"");
+}
+/* ---------- custom lifts: a name, plus a library lift to borrow muscles and movement from ---------- */
+let CU=null;
+function openCustom(){CU={base:null,eq:null};$("cu-name").value=LIB.q&&!Object.keys(EXDB).some(n=>n.toLowerCase()===LIB.q.trim().toLowerCase())?cleanLiftName(LIB.q):"";renderCustom();$("customsheet").classList.add("active");tap(8)}
+function closeCustom(){$("customsheet").classList.remove("active")}
+function renderCustom(){
+  const e=CU.base&&EXDB[CU.base];
+  $("cu-base").innerHTML=e?`<b>${CU.base}</b><i>${e.pri.map(m=>MUSCLE_NAMES[m]).join(", ")} · ${e.pat}</i>`:`<b>Choose the most similar lift</b><i>Yours borrows its muscles, swaps and movement type</i>`;
+  $("cu-eq").innerHTML=EQUIPMENT.map(g=>`<button class="libchip eq ${g===CU.eq?"sel":""}" aria-pressed="${g===CU.eq}" onclick="CU.eq='${g}';renderCustom()">${g}</button>`).join("");
+}
+function customPickBase(){
+  closeCustom();openPick(null);$("pick-title").textContent="Most similar lift";
+  PICK_FN=name=>{CU.base=name;CU.eq=CU.eq||EXDB[name].eq;renderCustom();$("customsheet").classList.add("active")};
+}
+function saveCustom(){
+  const name=cleanLiftName($("cu-name").value),e=CU.base&&EXDB[CU.base];
+  if(name.length<3){toast("Give it a name (letters and numbers)");return}
+  if(Object.keys(EXDB).some(n=>n.toLowerCase()===name.toLowerCase())){toast("There is already a lift called that");return}
+  if(!e){toast("Choose the most similar lift");return}
+  const def={g:e.g,pat:e.pat,eq:CU.eq||e.eq,pri:e.pri.slice(),sec:e.sec.slice(),base:CU.base};
+  if(e.uni)def.uni=1;if(e.timed)def.timed=1;
+  db.custom[name]=def;applyCustom(db.custom);
+  if(!EXDB[name]){delete db.custom[name];toast("That lift couldn't be saved");return}
+  save();closeCustom();haptic("log");toast(name+" added to your library");
+  if(document.querySelector(".screen.active").id==="scr-lib")renderLib();
+}
+async function deleteCustom(){
+  const n=LIB.current;if(!db.custom[n])return;
+  if(planDays(n).length){toast("It's in your programme: remove it there first");return}
+  if(!await ask({title:"Delete "+n+"?",body:"It leaves your library. Sets you logged on it stay in your history under the same name.",ok:"Delete",danger:1}))return;
+  delete db.custom[n];delete db.lifts[n];applyCustom(db.custom);save();toast(n+" deleted");history.back();
 }
 function liftInc(d,typed){
   const n=LIB.current;
@@ -1329,6 +1480,7 @@ function liftToggleTimed(){
   const n=LIB.current,def=!!(EXDB[n]&&EXDB[n].timed),next=!isTimed(n);
   setLiftOpt(n,"timed",next===def?null:(next?1:0));renderLiftSettings(n);
 }
+function liftTogglePain(){const n=LIB.current;setLiftOpt(n,"pain",liftOpt(n).pain?null:1);renderLiftSettings(n)}
 function liftResetOpts(){delete db.lifts[LIB.current];save();renderLiftSettings(LIB.current);toast("Defaults restored")}
 function backFromLift(){history.back()}
 
@@ -1520,7 +1672,7 @@ function renderPast(){
   $("done-dur").textContent=sessionDuration(L)||"—";
   $("done-durbtn").disabled=true;
   $("done-list").innerHTML=rows+`<div class="hsets" style="padding:2px 4px;color:var(--ink-faint)">From an archived block, so it's read-only.</div>`;
-  for(const id of ["done-acts","done-move","done-nudge"])$(id).style.display="none";
+  for(const id of ["done-acts","done-move","done-nudge","done-add"])$(id).style.display="none";
 }
 /* Session length on the summary: worked out from the set times, or typed when those are wrong */
 async function editDuration(){
@@ -1535,24 +1687,25 @@ async function editDuration(){
 }
 function renderDone(w,d){
   if(DONE.past)return renderPast();
-  if(!DAYS[d]){showNow("home");return}
+  if(!hasDay(w,d)){showNow("home");return}
   $("done-title").textContent="Session complete";
-  for(const id of ["done-acts","done-move","done-nudge"])$(id).style.display="";
+  for(const id of ["done-acts","done-move","done-nudge","done-add"])$(id).style.display="";
+  if(isFree(d))$("done-move").style.display="none";
   $("done-durbtn").disabled=false;
-  $("done-sub").textContent="Day "+d+" · Week "+w+" · "+DAYS[d].title;
+  $("done-sub").textContent=dayLabel(d)+" · Week "+w+" · "+dayTitle(d);
   const L=db.logs[logKey(w,d)]||{ex:{}};
   const dur=sessionDuration(L);
   $("done-tonnage").textContent=sessionTonnage(w,d).toLocaleString();
   $("done-sets").textContent=loggedSets(w,d);
   $("done-dur").textContent=dur||"—";
-  let html=DAYS[d].ex.map((e,i)=>{
+  let html=dayEx(w,d).map((e,i)=>{
     const arr=L.ex[i]||[];
     const chips=arr.map((s,si)=>s&&s.kg!=null
-      ?`<button class="setchip" data-w="${w}" data-d="${d}" data-ex="${i}" data-si="${si}" onclick="openEdit(${w},'${d}',${i},${si})">${fmtSet(s)}</button>`:"").join("");
+      ?`<button class="setchip" data-w="${w}" data-d="${d}" data-ex="${i}" data-si="${si}" onclick="openEdit(${w},'${d}',${i},${si})">${fmtSet(s)}${failMark(s)}</button>`:"").join("");
     if(!chips)return "";
     return `<div class="histrow"><div class="hname">${setName(arr.find(x=>x&&x.kg!=null),blockCtx(),d,i)}</div><div class="setchips">${chips}</div></div>`;
   }).join("");
-  const undone=DAYS[d].ex.map((e,i)=>({n:sessName(w,d,i),i,has:(L.ex[i]||[]).some(s=>s&&s.kg!=null),skip:isSkipped(w,d,i)})).filter(x=>!x.has);
+  const undone=dayEx(w,d).map((e,i)=>({n:sessName(w,d,i),i,has:(L.ex[i]||[]).some(s=>s&&s.kg!=null),skip:isSkipped(w,d,i)})).filter(x=>!x.has);
   const chip=x=>`<button class="setchip" onclick="resumeAt(${w},'${d}',${x.i})">${esc(x.n)} →</button>`;
   const forTime=undone.filter(x=>x.skip),notDone=undone.filter(x=>!x.skip);
   if(forTime.length)html+=`<div class="histrow"><div class="hname" style="color:var(--ink-faint)">Skipped for time · tap to do one now</div><div class="setchips">${forTime.map(chip).join("")}</div></div>`;
@@ -1571,6 +1724,8 @@ function resumeAt(w,d,i){
 }
 
 /* ---------- edit a logged set ---------- */
+const failMark=s=>s&&s.f?' <span class="fmark" aria-label="to failure">F</span>':"";
+function edFail(on){ED.f=on;const b=$("ed-fail");b.classList.toggle("comp",on);b.setAttribute("aria-checked",on);b.textContent=on?"TO FAILURE":"NOT TO FAILURE"}
 let ED=null;
 function openEdit(w,d,ex,si,src){
   ED={w,d,ex,si,src};
@@ -1578,6 +1733,7 @@ function openEdit(w,d,ex,si,src){
   $("ed-sub").textContent=sessName(w,d,ex)+" · set "+(si+1);
   $("ed-lbl-reps").textContent=s.timed?"Seconds":"Reps";
   $("in-ed-kg").value=s.kg;$("in-ed-reps").value=s.reps;
+  edFail(!!s.f);
   $("editsheet").classList.add("active");
 }
 function closeEdit(){$("editsheet").classList.remove("active")}
@@ -1585,7 +1741,7 @@ function saveEditSet(){
   const kg=parseFloat($("in-ed-kg").value),reps=parseInt($("in-ed-reps").value);
   if(isNaN(kg)||isNaN(reps)||reps<=0){toast("Enter weight and reps");return}
   const s=db.logs[logKey(ED.w,ED.d)].ex[ED.ex][ED.si];
-  s.kg=kg;s.reps=reps;save();
+  s.kg=kg;s.reps=reps;if(ED.f){s.f=1;db.settings.failFlag=1}else delete s.f;save();
   closeEdit();editReturn();toast("Set updated");
 }
 /* after an edit: back to the session if that's where we came from, else re-render the summary */
@@ -1622,7 +1778,7 @@ function sparkSVG(series,w2,h2,color){
 function tonChartHTML(){
   const vals=[],proj=[],ws=weekWindow(db.selWeek).filter(w=>!isOpen()||w<=curWeek()),N=ws.length;
   for(const w of ws){
-    const v=dayIds().reduce((a,d)=>a+sessionTonnage(w,d),0);
+    const v=weekDays(w).reduce((a,d)=>a+sessionTonnage(w,d),0);
     const done=dayIds().reduce((a,d)=>a+loggedSets(w,d),0),plan=dayIds().reduce((a,d)=>a+totalSets(w,d),0);
     vals.push(v);
     /* a week that's underway would read as a crash — show where it's heading instead */
@@ -1670,9 +1826,9 @@ function muscleVolume(w){
     e.sec.forEach(m=>put(m,sets*0.5));
   };
   const ctx=blockCtx();
-  for(const d of dayIds()){
+  for(const d of weekDays(w)){
     const L=db.logs[logKey(w,d)];
-    DAYS[d].ex.forEach((e,i)=>{
+    dayEx(w,d).forEach((e,i)=>{
       bump(sessName(w,d,i),slotSets(w,d,i),"planned");
       const done=((L&&L.ex[i])||[]).filter(s=>s&&s.kg!=null);
       if(!done.length)return;
@@ -1723,7 +1879,50 @@ function volumeHTML(){
       <div class="hsets" style="margin-bottom:12px">The shaded band, 8 to 20 sets a week, is the productive range for the major muscles. Solid = logged, faint = planned. A primary muscle counts 1 set, a secondary ½.</div>
       ${bars||'<div class="emptymsg">No exercises in the programme yet.</div>'}
       ${verdict}
-    </div>`;
+    </div>`+balanceHTML(vol)+trendHTML(w);
+}
+/* planned sets on two sides of the body; a lopsided plan shows up before a lopsided physique does */
+const BAL=[["Push","Pull",["Chest","Front Delts","Side Delts","Triceps"],["Lats","Upper Back","Rear Delts","Biceps"]],
+  ["Front","Back",["Chest","Front Delts","Biceps","Abs","Quads"],["Lats","Upper Back","Rear Delts","Hamstrings","Glutes"]]];
+function balanceHTML(vol){
+  const sum=gs=>Math.round(gs.reduce((a,g)=>a+((vol[g]||{}).planned||0),0)*10)/10;
+  const rows=BAL.map(([an,bn,ag,bg])=>{
+    const b=balance(sum(ag),sum(bg));if(!b)return "";
+    const pct=Math.round(100*b.a/(b.a+b.b)),lead=b.lead==="a"?an:b.lead==="b"?bn:null,diff=Math.round(Math.abs(b.a-b.b));
+    return `<div class="balrow"><div class="balhead"><span>${an} <b>${b.a}</b></span><span class="${lead?"warn":"ok"}">${lead?`${lead} leads by ${diff} sets`:"balanced"}</span><span><b>${b.b}</b> ${bn}</span></div>
+      <div class="baltrack"><i style="width:${pct}%"></i></div>
+      <div class="balsub">${ag.join(", ")} against ${bg.join(", ").toLowerCase()}</div></div>`;
+  }).join("");
+  return rows?`<div class="chartcard"><div class="sectlabel" style="margin:0 0 4px">Balance · planned sets, week ${db.selWeek}</div>
+    <div class="hsets" style="margin-bottom:12px">Anything inside 1.5 to 1 counts as balanced. A lead is only a problem if it isn't on purpose.</div>${rows}</div>`:"";
+}
+/* logged sets per major muscle over the last four weeks, with a note when volume climbs while a lift there is stuck */
+function trendHTML(w){
+  const ws=[w-3,w-2,w-1,w].filter(x=>x>=1);
+  if(ws.length<2)return "";
+  const V=ws.map(x=>muscleVolume(x));
+  const live=ws.map((x,i)=>Object.values(V[i]).some(v=>v.logged>0));
+  if(live.filter(Boolean).length<2)return "";
+  const majors=Object.keys(V[0]).filter(g=>!V[0][g].minor);
+  const WK=allWeekLifts(),ref=WK[w]&&WK[w].size?w:w-1;
+  const stalled=WK[ref]?[...WK[ref].keys()].filter(n=>stallStreak(n,ref,WK,deloadWeek)>=2):[];
+  const notes=[];
+  const rows=majors.map(g=>{
+    const vals=V.map(v=>Math.round(((v[g]||{}).logged||0)*10)/10);
+    if(!vals.some(Boolean))return "";
+    const full=vals.slice(0,-1).filter((v,i)=>live[i]&&!deloadWeek(ws[i]));   /* finished hard weeks only: this week may be half done */
+    const d=full.length>=2?full[full.length-1]-full[0]:0;
+    if(d>=3&&full[0]>0&&d/full[0]>=0.25){
+      const hit=stalled.filter(n=>EXDB[n]&&EXDB[n].pri.some(m=>MUSCLE_NAMES[m]===g));
+      if(hit.length)notes.push(`<b>${g}</b> volume is up ${Math.round(d)} sets while ${esc(hit[0])} has stalled. More sets are not fixing it; recovery or a reset might.`);
+    }
+    return `<div class="trow"><span class="tname">${g}</span>${vals.map((v,i)=>`<span class="tval${i===vals.length-1?" cur":""}">${v||"·"}</span>`).join("")}<span class="tdelta ${d>=3?"up":d<=-3?"down":""}">${full.length<2?"":d>0?"▲":d<0?"▼":"●"}</span></div>`;
+  }).join("");
+  return `<div class="chartcard"><div class="sectlabel" style="margin:0 0 4px">Four-week trend · sets logged</div>
+    <div class="trow thead"><span class="tname"></span>${ws.map(x=>`<span class="tval">W${x}${deloadWeek(x)?"·L":""}</span>`).join("")}<span class="tdelta"></span></div>
+    ${rows}
+    <div class="hsets" style="margin-top:10px;color:var(--ink-faint)">The arrow compares finished hard weeks. L marks a light week.</div>
+    ${notes.slice(0,2).map(n=>`<div class="nudge" style="margin:10px 0 0">${n}</div>`).join("")}</div>`;
 }
 
 /* ---------- all-time records ---------- */
@@ -1760,7 +1959,7 @@ function recordsHTML(){
 /* ---------- per-lift progression (estimated 1RM) ---------- */
 function liftSeries(name){
   const pts=[];
-  for(const B of allBlocks())for(let w=1;w<=blockWeeks(B);w++)for(const d of Object.keys(B.programme||{})){
+  for(const B of allBlocks())for(let w=1;w<=blockWeeks(B);w++)for(const d of blockDays(B,w)){
     const L=(B.logs||{})[logKey(w,d)];if(!L)continue;
     for(const[i,sets]of Object.entries(L.ex||{})){
       const done=(sets||[]).filter(s=>s&&s.kg!=null);
@@ -1805,7 +2004,7 @@ function sessionsByDate(){
 }
 /* current block: the normal summary (sets editable); archived: the read-only one */
 function openSession(s,from){if(s.cur)showDone(s.w,s.d,true,from);else showPast(s.bi,s.key,from)}
-const sessLabel=s=>`Day ${s.d}${s.title?" · "+esc(s.title):""} · Week ${s.w}${s.cur?"":" · block "+s.block}`;
+const sessLabel=s=>`${dayLabel(s.d)}${s.title?" · "+esc(s.title):""} · Week ${s.w}${s.cur?"":" · block "+s.block}`;
 const monthOf=(y,m)=>y+"-"+String(m).padStart(2,"0");
 function calendarHTML(){
   const byDate=sessionsByDate(),today=todayISO(),thisMonth=today.slice(0,7);
@@ -1871,7 +2070,7 @@ function weekLifts(w,B){
   B=B||blockCtx();
   const logs=B.logs||db.logs;
   const out=new Map();
-  for(const d of Object.keys(B.programme||{})){
+  for(const d of blockDays(B,w)){
     const L=logs[logKey(w,d)];
     if(!L)continue;
     for(const [i,sets] of Object.entries(L.ex||{})){
@@ -1932,8 +2131,8 @@ function weekSummary(w,WK){
      delivers the overall good news, so the list is for acting on */
   const order={down:0,hold:1,new:2,up:3};
   rows.sort((a,b)=>order[a.status]-order[b.status]||(a.pct||0)-(b.pct||0));
-  const ton=dayIds().reduce((a,d)=>a+sessionTonnage(w,d),0);
-  const baseTon=base&&base.sameBlock?dayIds().reduce((a,d)=>a+sessionTonnage(base.w,d),0):null;
+  const ton=weekDays(w).reduce((a,d)=>a+sessionTonnage(w,d),0);
+  const baseTon=base&&base.sameBlock?weekDays(base.w).reduce((a,d)=>a+sessionTonnage(base.w,d),0):null;
   return {w,cur,base,rows,up,down,hold,
     avgPct:pctN?pctSum/pctN:null,ton,baseTon,
     doneSets:dayIds().reduce((a,d)=>a+loggedSets(w,d),0),
@@ -1944,13 +2143,14 @@ function readyToAddLoad(w){
   const out=[];
   for(const d of dayIds()){
     const L=db.logs[logKey(w,d)];if(!L)continue;
-    DAYS[d].ex.forEach((e,i)=>{
+    dayEx(w,d).forEach((e,i)=>{
       const done=(L.ex[i]||[]).filter(s=>s&&s.kg!=null);
       if(!done.length||done.length<slotSets(w,d,i))return;
       const rng=slotRange(w,d,i),top=repTop(rng);
       if(hitTop(done.map(s=>s.reps),top,repBottom(rng))){
         const name=sessName(w,d,i);
-        out.push({name,kg:Math.max(...done.map(s=>s.kg)),inc:increment(name),low:repBottom(rng)});
+        const inc=increment(name),as=isAssisted(name);
+        out.push({name,kg:as?Math.min(...done.map(s=>s.kg)):Math.max(...done.map(s=>s.kg)),inc:as?-inc:inc,low:repBottom(rng)});
       }
     });
   }
@@ -2000,6 +2200,18 @@ function weekTips(S,WK){
     t.push({k:"warn",title:`${s0.name} has stalled ${s0.n} weeks`,
       body:`Stuck at <b>${fmtSet({kg:s0.kg,reps:s0.reps,timed:s0.timed})}</b>. Three things worth trying, in order: make sure you're genuinely near failure (target is ${rirOf(w)} RIR this week), ${reset?`reset to <b>${fmtKg(reset)} kg</b> (about 90%) and build back up`:"drop to about 90% for one week and rebuild"}, or swap to a close variation for the rest of the block — the Lifts tab lists alternatives.`
       +(stalled.length>1?`<br><br>Also stalled: ${stalled.slice(1,4).map(x=>x.name).join(", ")}.`:"")});
+    /* three or more at once is fatigue, not three separate problems */
+    const cw=curWeek(),nw=cw+1;
+    if(stalled.length>=3&&!deloadWeek(w)){
+      if(isOpen()&&w>=cw-1&&!deloadWeek(cw)&&!deloadWeek(nw)&&!weekHasLogs(nw))
+        t.push({k:"info",title:`${stalled.length} lifts have stalled together`,
+          body:`When several lifts stick in the same week it is usually accumulated fatigue. Your next light week is week ${nextLightWeek(db.plan,nw)}; taking one sooner often gets everything moving again.
+            <button class="bigbtn ghost scalebtn" onclick="lightNext(${nw})">Make week ${nw} a light week</button>
+            <span class="scalehint">Same weights, fewer sets. The regular light week stays where it is; Postpone on the Plan screen moves it.</span>`});
+      else if(!isOpen())
+        t.push({k:"info",title:`${stalled.length} lifts have stalled together`,
+          body:`When several lifts stick in the same week it is usually accumulated fatigue. If the deload is still more than a week away, consider cutting a set from each lift until it arrives.`});
+    }
   }
 
   const big=S.rows.filter(r=>r.status==="down"&&r.pct<-4);
@@ -2025,7 +2237,7 @@ function weekTips(S,WK){
   /* adding load contradicts the deload brief, so don't suggest it there */
   const ready=deloadWeek(w)?[]:readyToAddLoad(w);
   if(ready.length){
-    const names=ready.slice(0,3).map(r=>`<b>${r.name}</b> → ${r.kg+r.inc} kg`).join(", ");
+    const names=ready.slice(0,3).map(r=>`<b>${r.name}</b> → ${fmtKg(Math.max(0,r.kg+r.inc))} kg${r.inc<0?" assistance":""}`).join(", ");
     t.push({k:"good",title:"Ready for more weight",
       body:`${names}${ready.length>3?` and ${ready.length-3} more`:""}. You hit the top of the rep range on all but one set, so add the increment and drop back to the bottom of the range next time.`});
   }
@@ -2126,7 +2338,92 @@ function renderProgress(){
       <span class="tipico">${TIPICO[t.k]}</span>
       <div class="tiptext"><b>${t.title}</b><p>${t.body}</p></div></div>`).join("");
   }
+  if(SM.cur.size)html+=`<button class="bigbtn ghost" style="margin-top:14px" onclick="shareWeekReview(${w})"><svg viewBox="0 0 24 24" class="gico"><path d="M12 3.5v11M7.5 8 12 3.5 16.5 8M4 14.5v3.2a2.3 2.3 0 0 0 2.3 2.3h11.4a2.3 2.3 0 0 0 2.3-2.3v-3.2"/></svg> Share week ${w} review</button>`;
   $("pg-body").innerHTML=html;
+}
+/* the week in plain text: what got done, what moved, what is stuck, what the scale did */
+function weekReviewText(w){
+  const WK=allWeekLifts(),SM=weekSummary(w,WK),V=weekVerdict(SM);
+  const days=dayIds().filter(d=>totalSets(w,d)>0),done=days.filter(d=>isFinished(w,d)||sessionDone(db.logs[logKey(w,d)],loggedSets(w,d),totalSets(w,d)));
+  const dates=new Set(days.map(d=>db.logs[logKey(w,d)]).filter(hasSets).map(sessionDate));
+  const prs=allRecords().filter(r=>r.best.block===db.block&&dates.has(r.best.date)&&r.sets>dayIds().length).map(r=>`${r.name} ${fmtSet(r.best)}`);
+  const stalled=SM.rows.filter(r=>r.p&&stallStreak(r.name,w,WK,deloadWeek)>=2).map(r=>r.name);
+  const tr=weightTrend(db.metrics,todayISO());
+  const strip=s=>s.replace(/<[^>]+>/g,"").replace(/\s+/g," ").trim();
+  const L=[`ATLAS · Week ${w} · ${phaseLabel(w)}`,db.programmeName||"",
+    `Sessions ${done.length}/${days.length} · sets ${SM.doneSets}/${SM.planSets} · ${SM.ton.toLocaleString()} kg moved`,
+    `${V.title}. ${strip(V.body)}`];
+  if(prs.length)L.push("PRs: "+prs.slice(0,5).join(", ")+(prs.length>5?` and ${prs.length-5} more`:""));
+  if(stalled.length)L.push("Stalled: "+stalled.slice(0,4).join(", "));
+  if(tr)L.push(`Bodyweight ${fmtKg(tr.avg)} kg (7-day average)`+(tr.rate!=null?`, ${rateTxt(tr.rate)}`:""));
+  return L.filter(Boolean).join("\n");
+}
+async function shareText(text,title){
+  try{if(navigator.share){await navigator.share({title,text});return}}catch(e){if(e&&e.name==="AbortError")return}
+  try{await navigator.clipboard.writeText(text);toast("Copied, paste it anywhere")}catch(e){toast("Couldn't share from this browser")}
+}
+function shareWeekReview(w){shareText(weekReviewText(w),"ATLAS week "+w)}
+
+/* ---------- programme links ----------
+   The programme and plan packed into the link itself (#plan=…): no server, no logs, nothing personal. */
+const b64u={enc:b=>{let s="";for(const x of b)s+=String.fromCharCode(x);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")},
+  dec:s=>Uint8Array.from(atob(s.replace(/-/g,"+").replace(/_/g,"/")),c=>c.charCodeAt(0))};
+async function pipeBytes(bytes,stream){const r=new Response(new Blob([bytes]).stream().pipeThrough(stream));return new Uint8Array(await r.arrayBuffer())}
+async function packPlan(o){
+  const raw=new TextEncoder().encode(JSON.stringify(o));
+  try{if(window.CompressionStream)return "z"+b64u.enc(await pipeBytes(raw,new CompressionStream("deflate-raw")))}catch(e){}
+  return "j"+b64u.enc(raw);
+}
+async function unpackPlan(code){
+  let bytes=b64u.dec(code.slice(1));
+  if(code[0]==="z")bytes=await pipeBytes(bytes,new DecompressionStream("deflate-raw"));
+  else if(code[0]!=="j")throw 0;
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+async function shareProgramme(){
+  if(programmeEmpty()){toast("Add some lifts first");return}
+  const programme={};
+  for(const d of dayIds())programme[d]={title:DAYS[d].title,ex:DAYS[d].ex.map((e,i)=>{const t=clone(e);t[0]=exName(d,i);return t})};   /* permanent swaps travel as the lift itself */
+  const plan=clone(db.plan);delete plan.startDate;delete plan.lightOffset;delete plan.lightWeeks;
+  const custom={};for(const d of dayIds())for(const e of programme[d].ex)if(db.custom[e[0]])custom[e[0]]=db.custom[e[0]];
+  const url=location.origin+location.pathname+"#plan="+await packPlan(Object.assign({v:1,name:db.programmeName,programme,plan},Object.keys(custom).length?{custom}:{}));
+  try{if(navigator.share){await navigator.share({title:"ATLAS programme: "+db.programmeName,url});return}}catch(e){if(e&&e.name==="AbortError")return}
+  try{await navigator.clipboard.writeText(url);toast("Link copied, send it to anyone")}catch(e){toast("Couldn't share from this browser")}
+}
+/* from a pasted link or the address bar. Returns true when a programme was imported. */
+async function importProgramme(text){
+  const m=String(text||"").match(/plan=([A-Za-z0-9_-]+)/);
+  let p=null,incoming={};
+  try{if(m){
+    const raw=await unpackPlan(m[1]);
+    /* custom lifts travel with the programme; ones this phone already has (or that clash with the library) are left alone */
+    for(const [n,def] of Object.entries((raw&&raw.custom)||{}).slice(0,40))
+      if(!EXDB[n]&&n===cleanLiftName(n)&&n.length>=3&&cleanCustomLift(def,GROUPS,MUSCLE_NAMES))incoming[n]=def;
+    const view=Object.assign({},EXDB);for(const n of Object.keys(incoming))view[n]=1;
+    p=cleanSharedProgramme(raw,view);
+  }}catch(e){}
+  if(!p){toast("That isn't an ATLAS programme link");return false}
+  if(S){toast("Finish your session first");return false}
+  const logged=Object.keys(db.logs).length>0;
+  if(!await ask({title:"Use this programme?",ok:"Use it",
+    body:`<b>${esc(p.name)}</b> · ${p.days} day${p.days===1?"":"s"}, ${p.lifts} lifts.<br><br>It replaces your current programme.${logged?" What you've logged so far is filed in the archive and your records carry over.":""}`}))return false;
+  const carry={s:sessionStreakNow(),w:weekStreakNow()};
+  if(logged)archiveCurrent();
+  Object.assign(db.custom,incoming);applyCustom(db.custom);
+  db.programme=p.programme;db.swaps={};db.programmeName=p.name;db.templateChosen=1;DAYS=db.programme;
+  db.plan=validatePlan(p.plan,DEFAULT_PLAN,PHASES);
+  if(db.plan.open){
+    const t0=todayISO(),from=new Date(t0+"T12:00:00").getDay()===0?nextMonday(t0):t0;
+    db.plan.startDate=isoDate(mondayOf(from));db.startedOn=from;db.autoWeekFor=null;
+  }
+  db.selWeek=isOpen()?curWeek():1;db.streakCarry=(carry.s||carry.w)?carry:null;db.pending=null;PV=null;
+  save();showNow("home");toast(p.name+" is ready");
+  return true;
+}
+async function pasteProgramme(){
+  if(!await ask({title:"Import a programme",ok:"Import",
+    body:`Paste a link someone shared from their ATLAS.<input class="searchbar" id="in-plan" style="margin:12px 0 0" placeholder="https://…#plan=…" autocomplete="off" spellcheck="false">`}))return;
+  importProgramme($("in-plan").value);
 }
 const TIPICO={
   good:'<svg viewBox="0 0 24 24" class="gico"><path d="M4.5 12.5 9.5 17.5 19.5 7"/></svg>',
@@ -2808,9 +3105,36 @@ function applyBulk(){
   toast(n?`${r} reps set on ${n} lift${n>1?"s":""}`:"Those lifts already use "+r);
 }
 /* ---------- exercise picker ---------- */
-let PICK=null,PICK_EQ="All";
-function openPick(d){PICK=d;PICK_EQ="All";$("picksearch").value="";renderPick();$("picksheet").classList.add("active")}
-function closePick(){$("picksheet").classList.remove("active")}
+let PICK=null,PICK_EQ="All",PICK_FN=null;
+function openPick(d){PICK=d;PICK_FN=null;PICK_EQ="All";$("pick-title").textContent="Add exercise";$("picksearch").value="";renderPick();$("picksheet").classList.add("active")}
+function closePick(){$("picksheet").classList.remove("active");PICK_FN=null}
+/* a lift for this session only. d===null starts a new freestyle session in week w. */
+function openAddLift(w,d){
+  openPick(null);PICK_FN=name=>addLiftTo(w,d,name);
+  $("pick-title").textContent=d==null?"Freestyle · first lift":isFree(d)?"Next lift":"Add a lift to this session";
+}
+function addLiftTo(w,d,name){
+  if(d==null){let n=1;while(db.logs[logKey(w,"Z"+n)])n++;d="Z"+n;db.logs[logKey(w,d)]={date:todayISO(),ex:{},free:1}}
+  const k=logKey(w,d),L=db.logs[k]||(db.logs[k]={date:todayISO(),ex:{}});
+  const comp=isCompPattern(name)?1:0;
+  (L.extra=L.extra||[]).push([name,isTimed(name)?"30–60":comp?"8–12":"10–15",comp,{sets:3}]);
+  const i=baseEx(d).length+L.extra.length-1;
+  toast(name+(isFree(d)?" added":" added to this session"));
+  if(S&&S.w===w&&S.d===d){if(restEnd>Date.now())endRest();S.exIdx=i;S.setIdx=0;renderSet();save()}
+  else resumeAt(w,d,i);
+}
+/* take back a lift added by mistake (only offered before it has any sets) */
+function removeExtra(){
+  const {w,d,exIdx}=S,L=db.logs[logKey(w,d)],b=baseEx(d).length,j=exIdx-b;
+  if(j<0||!L.extra||!L.extra[j])return;
+  const n=L.extra.length,name=L.extra[j][0];L.extra.splice(j,1);
+  for(let x=exIdx;x<b+n;x++){if(L.ex[x+1])L.ex[x]=L.ex[x+1];else delete L.ex[x]}
+  if(L.skip){L.skip=L.skip.filter(x=>x!==exIdx).map(x=>x>exIdx?x-1:x);if(!L.skip.length)delete L.skip}
+  if(!L.extra.length)delete L.extra;
+  toast(name+" removed");
+  if(!dayEx(w,d).length){exitSession();return}
+  S.adv={};S.exIdx=Math.min(exIdx,dayEx(w,d).length-1);S.setIdx=firstOpenSet();renderSet();save();
+}
 function renderPick(){
   const q=$("picksearch").value.trim().toLowerCase();
   $("pickeq").innerHTML=["All",...EQUIPMENT].map(g=>
@@ -2830,7 +3154,9 @@ function renderPick(){
   $("picklist").innerHTML=html||`<div class="emptymsg">Nothing matches "${esc($("picksearch").value)}".</div>`;
 }
 function pickAdd(name){
+  if(PICK_FN){const f=PICK_FN;closePick();f(name);return}
   const isComp=isCompPattern(name)?1:0;
+  remapDay(PICK,a=>{a.push(null);return a});   /* lifts added to single sessions sit after the programme's slots: move them along */
   DAYS[PICK].ex.push([name,isTimed(name)?"30–60":isComp?"6–10":"10–15",isComp]);
   closePick();progChanged();toast(name+" added to day "+PICK);
 }
@@ -2902,13 +3228,13 @@ function restoreJSON(input){
 }
 function exportCSV(){
   const q=v=>/[",]/.test(v)?'"'+String(v).replace(/"/g,'""')+'"':v;
-  let rows=[["block","week","day","date","time","exercise","set","kg","reps_or_seconds","timed","per_side","score_e1rm"]];
+  let rows=[["block","week","day","date","time","exercise","set","kg","reps_or_seconds","timed","per_side","score_e1rm","to_failure"]];
   for(const B of allBlocks()){
     for(const[k,L]of Object.entries(B.logs||{})){
       const[w,d]=k.split("-");
       for(const[i,sets]of Object.entries(L.ex||{}))
         sets.forEach((s,si)=>{if(s&&s.kg!=null)
-          rows.push([B.block,w,d,L.date||"",s.t?new Date(s.t).toISOString().slice(11,16):"",q(setName(s,B,d,i)),si+1,s.kg,s.reps,s.timed?1:0,s.uni?1:0,setScore(s)])});
+          rows.push([B.block,w,d,L.date||"",s.t?new Date(s.t).toISOString().slice(11,16):"",q(setName(s,B,d,i)),si+1,s.kg,s.reps,s.timed?1:0,s.uni?1:0,setScore(s),s.f?1:0])});
     }
   }
   download("atlas-"+new Date().toISOString().slice(0,10)+".csv",rows.map(r=>r.join(",")).join("\n"),"text/csv");
@@ -2981,7 +3307,7 @@ async function init(){
     chooseSheet("Add "+name,"Which training day should it go on?",dayIds().map(d=>({label:"Day "+d+" · "+DAYS[d].title,value:d})),d=>{PICK=d;pickAdd(name)});
   });
   /* swipe down from the top of any sheet to dismiss it; swipe down on the rest veil to peek */
-  const closers={swapsheet:closeSwap,editsheet:closeEdit,picksheet:closePick,cfsheet:()=>closeAsk(false),padsheet:closePad,choosesheet:closeChoose,bulksheet:closeBulk,cisheet:closeCheckin};
+  const closers={swapsheet:closeSwap,editsheet:closeEdit,picksheet:closePick,cfsheet:()=>closeAsk(false),padsheet:closePad,choosesheet:closeChoose,bulksheet:closeBulk,cisheet:closeCheckin,customsheet:closeCustom};
   for(const [id,fn] of Object.entries(closers)){
     const panel=document.querySelector("#"+id+" .panel");if(!panel)continue;
     let y0=null;
@@ -2993,7 +3319,9 @@ async function init(){
     v.addEventListener("touchend",e=>{const dy=e.changedTouches[0].clientY-y0;if(!v.classList.contains("peek")&&dy>80)peekRest(true);else if(v.classList.contains("peek")&&dy<-40)peekRest(false)},{passive:true});
     $("rest-time").parentElement.addEventListener("click",()=>{if(v.classList.contains("peek"))peekRest(false)});
   }
+  onLongPress($("logbtn").parentElement,"#logbtn",()=>logSet(true));   /* hold Log: the set went to failure */
   checkPending();
+  if(/[#&]plan=/.test(location.hash)){const h=location.hash;history.replaceState(null,"",location.pathname+location.search);setTimeout(()=>importProgramme(h),400)}
   document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!S&&checkPending())showNow("home")});
   history.replaceState({scr:"home"},"");
   renderHome();
@@ -3001,7 +3329,7 @@ async function init(){
   /* launcher shortcut (manifest.json → ?start): jump straight to the next session */
   if(new URLSearchParams(location.search).has("start")){
     history.replaceState({scr:"home"},"",location.pathname);
-    const w=db.selWeek,nd=dayIds().find(d=>loggedSets(w,d)<totalSets(w,d));
+    const w=db.selWeek,nd=dayIds().find(d=>totalSets(w,d)>0&&!isFinished(w,d));
     if(nd)showPreview(w,nd);
   }
 }

@@ -408,6 +408,65 @@ test("mergeDb unions check-ins by id, later edit wins",()=>{
   assert.equal(m.metrics.find(x=>x.id==="x").kg,79.5);
 });
 
+test("balance: within 1.5 to 1 is balanced",()=>{
+  assert.equal(C.balance(30,24).lead,null);
+  assert.equal(C.balance(32,20).lead,"a");
+  assert.equal(C.balance(10,20).lead,"b");
+  assert.equal(C.balance(5,0).lead,"a");
+  assert.equal(C.balance(0,0),null);
+});
+
+test("readiness: recovering under two days, due from five",()=>{
+  assert.equal(C.readiness(20),"recovering");
+  assert.equal(C.readiness(48),"ready");
+  assert.equal(C.readiness(119),"ready");
+  assert.equal(C.readiness(120),"due");
+});
+
+test("cleanSharedProgramme keeps only known lifts and valid shapes",()=>{
+  const p={name:"Mine",junk:1,logs:{"1-A":{}},programme:{
+    A:{title:"Push",ex:[["Back Squat","6-8",1,{sets:4,evil:"x"}],["Not A Lift","8–10",0],["Lat Pulldown","nope",1],["Lat Pulldown","8–10",1,{ss:1}]]},
+    Z:{title:"bad",ex:[["Back Squat","5",1]]},B:"nope"}};
+  const c=C.cleanSharedProgramme(p,D.EXDB);
+  assert.deepEqual(Object.keys(c.programme),["A"]);
+  assert.deepEqual(c.programme.A.ex,[["Back Squat","6–8",1,{sets:4}],["Lat Pulldown","8–10",1]],"trailing superset flag is cleared");
+  assert.equal(c.lifts,2);assert.equal(c.name,"Mine");assert.equal(c.logs,undefined);
+  assert.equal(C.cleanSharedProgramme({programme:{A:{ex:[["Nope","5",1]]}}},D.EXDB),null);
+  assert.equal(C.cleanSharedProgramme("x",D.EXDB),null);
+});
+
+test("remapSlots keeps a session's added lifts after the programme slots",()=>{
+  const mk=()=>({"1-A":{extra:[["Hammer Curl","10–15",0,{sets:3}]],skip:[2],ex:{0:[{kg:1,reps:1}],1:[{kg:2,reps:2}],2:[{kg:9,reps:9}]}}});
+  let logs=mk();
+  C.remapSlots(logs,{},"A",2,a=>{a.push(null);return a},1);          /* a third programme slot is added */
+  assert.deepEqual(Object.keys(logs["1-A"].ex),["0","1","3"]);assert.equal(logs["1-A"].ex[3][0].kg,9);
+  assert.deepEqual(logs["1-A"].skip,[3]);
+  logs=mk();
+  C.remapSlots(logs,{},"A",2,a=>{a.splice(0,1);return a},1);          /* the first programme slot is removed */
+  assert.equal(logs["1-A"].ex[0][0].kg,2);assert.equal(logs["1-A"].ex[1][0].kg,9);assert.equal(logs["1-A"].ex[2],undefined);
+});
+
+test("isLightWeek: a week brought forward is light, the cadence stays",()=>{
+  const p=C.validatePlan({open:true,every:6,lightWeeks:[4,"x",-1],weeks:[{phase:"Build",comp:3,acc:3,rir:"1"},{phase:"Deload",comp:2,acc:2,rir:"3"}]},D.DEFAULT_PLAN,D.PHASES);
+  assert.deepEqual(p.lightWeeks,[4]);
+  assert.equal(C.isLightWeek(p,4),true);assert.equal(C.isLightWeek(p,5),false);assert.equal(C.isLightWeek(p,6),true);
+  assert.equal(C.nextLightWeek(p,1),4);
+  const q=C.validatePlan({open:true,every:6,weeks:p.weeks},D.DEFAULT_PLAN,D.PHASES);
+  assert.equal("lightWeeks" in q,false);
+});
+
+test("custom lifts: names and definitions are cut down to safe values",()=>{
+  assert.equal(C.cleanLiftName(`  Gym80 <b>Row</b> 'x' "y"  (plate-loaded) `),"Gym80 bRow/b x y (plate-loaded)");
+  const groups=["Back","Chest"];
+  const c=C.cleanCustomLift({g:"Back",pat:"Horizontal Pull<script>",eq:"Machine",pri:["lats","nope","lats"],sec:["biceps","lats"],base:"Seated Cable Row",junk:1,uni:1},groups,D.MUSCLE_NAMES);
+  assert.deepEqual(c.pri,["lats"]);assert.deepEqual(c.sec,["biceps"]);assert.equal(c.pat,"Horizontal Pullscript");
+  assert.equal(c.custom,1);assert.equal(c.uni,1);assert.equal(c.junk,undefined);assert.ok(Array.isArray(c.form));
+  assert.equal(C.cleanCustomLift({g:"Nope",pri:["lats"]},groups,D.MUSCLE_NAMES),null);
+  assert.equal(C.cleanCustomLift({g:"Back",pri:["constructor"]},groups,D.MUSCLE_NAMES),null);
+  const m=C.mergeDb({updatedAt:2,logs:{},archive:[],custom:{A:{g:"Back"}}},{updatedAt:1,logs:{},archive:[],custom:{B:{g:"Chest"}}});
+  assert.deepEqual(Object.keys(m.custom).sort(),["A","B"]);
+});
+
 test("betterSet: heavier wins, then more reps; anything beats nothing",()=>{
   assert.equal(C.betterSet({kg:100,reps:5},{kg:95,reps:12}),true);
   assert.equal(C.betterSet({kg:100,reps:6},{kg:100,reps:5}),true);

@@ -158,9 +158,9 @@ function syncStatusText(){
   if(db.sync.error)return "Last attempt failed · "+db.sync.error;
   if(!db.sync.lastSync)return "Not synced yet";
   const m=Math.round((Date.now()-db.sync.lastSync)/60000);
-  return "Synced "+(m<1?"just now":m<60?m+" min ago":Math.round(m/60)+" h ago");
+  return "Synced "+(m<1?"just now":m<60?m+" min ago":m<48*60?Math.round(m/60)+" h ago":Math.round(m/1440)+" days ago");
 }
-function renderSyncStatus(txt){const el=$("drive-status");if(el)el.textContent=txt||syncStatusText()}
+function renderSyncStatus(txt){const el=$("drive-status");if(el)el.textContent=txt||syncStatusText();if(typeof renderSyncHealth==="function")renderSyncHealth()}
 function renderDrive(){
   const el=$("set-drive");if(!el)return;
   const hasCfg=!!(typeof GOOGLE_CLIENT_ID!=="undefined"&&GOOGLE_CLIENT_ID);

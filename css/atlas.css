@@ -983,3 +983,50 @@ html[data-theme=dark] .cidate{color-scheme:dark} html[data-theme=light] .cidate{
 .pvctl .pvcmp{flex:1;font-size:.86rem;font-weight:700}
 .pvctl button:disabled{opacity:.3}
 .pvctl button .gico{width:20px;height:20px}
+
+/* ================= 8.2 ================= */
+.fmark{display:inline-block;font-size:.62rem;font-weight:800;color:var(--ember);border:1px solid currentColor;border-radius:4px;padding:0 3px;margin-left:3px;vertical-align:.08em}
+.loghint{text-align:center;font-size:.7rem;color:var(--ink-faint);margin-top:6px}
+.tag.pain{color:var(--gold);background:rgba(242,180,65,.14)}
+.coach .linkbtn{text-align:left;padding:6px 0 0}
+/* muscle readiness */
+.ready{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:0 13px;margin:-8px 0 18px;box-shadow:var(--card-sh)}
+.ready[open]{padding-bottom:12px}
+.ready summary{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:44px;list-style:none;cursor:pointer;
+  font-size:.7rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
+.ready summary::-webkit-details-marker{display:none}
+.ready .rsum{letter-spacing:0;text-transform:none;font-size:.76rem;font-weight:650;color:var(--ink-dim)}
+.ready .rsum i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+.ready i.due{background:var(--ember)} .ready i.ready{background:var(--green)} .ready i.recovering{background:var(--ink-faint)}
+.readychips{display:flex;flex-wrap:wrap;gap:6px}
+.rchip{font-size:.74rem;font-weight:650;padding:6px 10px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);color:var(--ink-dim)}
+.rchip b{font-weight:700;margin-left:3px}
+.rchip.due{color:var(--ink);border-color:var(--ember)} .rchip.due b{color:var(--ember)}
+.rchip.ready b{color:var(--green)} .rchip.recovering{opacity:.7}
+/* balance and trend */
+.balrow+.balrow{margin-top:16px}
+.balhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:.8rem;color:var(--ink-dim)}
+.balhead b{color:var(--ink);font-family:var(--f-dp)}
+.balhead .ok{font-size:.72rem;color:var(--plate-green)} .balhead .warn{font-size:.72rem;color:var(--plate-yellow);font-weight:700}
+.baltrack{height:8px;border-radius:4px;background:var(--blue);margin:7px 0 5px;overflow:hidden}
+.baltrack i{display:block;height:100%;background:var(--ember);border-right:2px solid var(--surface)}
+.balsub{font-size:.7rem;color:var(--ink-faint);line-height:1.4}
+.trow{display:flex;align-items:center;gap:4px;padding:6px 0;font-size:.8rem}
+.trow+.trow{border-top:1px solid var(--line-2)}
+.trow .tname{flex:1;min-width:0;font-weight:650;color:var(--ink-dim)}
+.trow .tval{width:40px;text-align:right;font-family:var(--f-dp);font-weight:700;color:var(--ink-faint)}
+.trow .tval.cur{color:var(--ink)}
+.trow .tdelta{width:20px;text-align:right;font-size:.7rem;color:var(--ink-faint)}
+.trow .tdelta.up{color:var(--plate-green)} .trow .tdelta.down{color:var(--plate-yellow)}
+.trow.thead .tval{font-family:var(--f-ui);font-size:.66rem;font-weight:800;letter-spacing:.06em}
+
+/* ================= 8.3 ================= */
+.upchip.add{border-style:dashed;color:var(--blue)}
+.daycard.free .dayletter{color:var(--ink-dim);background:var(--surface2)}
+.daycard.free .dsub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.freebtn{border:1px dashed var(--line);border-radius:14px;margin-top:4px;color:var(--ink-dim)}
+
+/* ================= 8.4 ================= */
+.cubase{width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:13px}
+#scr-help .formcard li b{color:var(--ink)}
+.tip .scalebtn{margin:10px 0 4px}
