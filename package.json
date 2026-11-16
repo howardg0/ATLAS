@@ -1,6 +1,6 @@
 {
   "name": "atlas-training-log",
-  "version": "8.4.1",
+  "version": "8.5.0",
   "private": true,
   "description": "ATLAS — offline-first strength training log (static PWA, no build step)",
   "scripts": {

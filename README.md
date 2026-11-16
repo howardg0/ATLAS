@@ -99,6 +99,9 @@ The app is a public static site: anyone with the link gets their own independent
 
 ## Changelog
 
+### 8.5
+- **Keep going with no end date:** Programme → Block structure → "Keep going with no end date" turns a fixed block into an open-ended plan without touching the days or lifts. The block is archived, the week count carries on (week 13 after a 12-week block), and the hard and light weeks are taken from the block's biggest working week and its deload.
+
 ### 8.4.1
 - Fixed the Muscles card on Home: the "ready" chips and the green legend dot were picking up the card's own box styling, so they sat out of line.
 

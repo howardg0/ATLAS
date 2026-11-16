@@ -92,6 +92,16 @@ test("every preset is valid as-is",()=>{
 });
 
 /* ---------- open-ended plans ---------- */
+test("openPlanFrom turns a block into a valid open plan that carries the week count on",()=>{
+  const p=C.openPlanFrom(D.DEFAULT_PLAN,6,6);
+  assert.deepEqual(C.validatePlan(p,D.DEFAULT_PLAN,D.PHASES),p,"already clean");
+  assert.deepEqual(p.weeks[0],{phase:"Build",comp:4,acc:3,rir:"1"},"hard week is the biggest working week, latest on a tie");
+  assert.equal(p.weeks[1].phase,"Deload");assert.equal(p.weeks[1].comp,2);
+  assert.equal(C.isLightWeek(p,6),false,"weeks already trained are not light");
+  assert.equal(C.nextLightWeek(p,7),12);
+  const nd=C.openPlanFrom({name:"x",weeks:D.PLAN_PRESETS["5-week · no deload"]},4,0);
+  assert.deepEqual(nd.weeks[1],{phase:"Deload",comp:3,acc:2,rir:"3–4"},"no deload in the block: a cut-down hard week");
+});
 test("validatePlan keeps an open plan's shape and clamps its cadence",()=>{
   const v=C.validatePlan({name:"Go",open:true,every:99,lightOffset:-3,startDate:"2026-09-07",weeks:[{phase:"Build",comp:3,acc:3,rir:"0-1"},{phase:"Deload",comp:2,acc:2,rir:"2–3"}]},D.DEFAULT_PLAN,D.PHASES);
   assert.equal(v.open,true);

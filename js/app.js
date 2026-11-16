@@ -6,7 +6,7 @@
    address of every logged set on the device. */
 const KEY="block-log-v2";
 /* Keep in step with CACHE in sw.js and the ?v= stamps in index.html (tests/version.test.js checks) */
-const APP_VERSION="8.4.1";
+const APP_VERSION="8.5";
 let restEnd=0,restTick=null,restDur=1,restLabel="",restHintTxt="";
 let S=null;
 const migrateDb=d=>{const m=migrate(d,DEFAULT_DAYS,DEFAULT_SETTINGS,DEFAULT_PLAN,PHASES);applyCustom(m.custom);return m};
@@ -49,15 +49,18 @@ const phaseOf=w=>wk(w).phase,rirOf=w=>wk(w).rir,deloadWeek=w=>phaseOf(w)==="Delo
 const rampWeek=w=>isRampWeek(db.plan,w);
 const phaseLabel=w=>isOpen()?(deloadWeek(w)?"Light week":rampWeek(w)?"Ramp-in week":"Hard week"):phaseOf(w);
 const weekNums=()=>Array.from({length:WEEKS()},(_,i)=>i+1);
+/* an open plan can begin part-way through its numbering (a block carried on with no end): weeks before this were never due */
+const firstWeek=()=>isOpen()&&db.startedOn?calendarWeek(db.plan.startDate,db.startedOn):1;
 const blockComplete=()=>!isOpen()&&weekNums().every(weekComplete);
 /* the weeks a strip or chart shows: everything for a block, a rolling window for an open plan */
 function weekWindow(focus){
   if(!isOpen())return weekNums();
-  const hi=Math.max(focus||0,curWeek())+1,lo=Math.max(1,hi-7);
+  const hi=Math.max(focus||0,curWeek())+1,lo=Math.max(Math.min(firstWeek(),focus||hi),1,hi-7);
   return Array.from({length:hi-lo+1},(_,i)=>lo+i);
 }
 /* weekday for a day slot in an open plan (fixed days, Monday first) */
-function dayWeekday(d){const i=dayIds().indexOf(d);return isOpen()&&dayIds().length<=7&&i>=0?WEEKDAYS[i]:""}
+const fixedDays=()=>isOpen()&&!db.plan.flex;   /* flex plans count calendar weeks but leave the days to you */
+function dayWeekday(d){const i=dayIds().indexOf(d);return fixedDays()&&dayIds().length<=7&&i>=0?WEEKDAYS[i]:""}
 const todayIdx=()=>(new Date().getDay()+6)%7;
 /* rough pacing: compounds are slower than accessories */
 function estMinutes(w,d){
@@ -347,7 +350,7 @@ function renderHero(){
   }
   let nd=null;
   /* open plan, this week: today's session first if it's still open */
-  if(isOpen()&&w===curWeek()){const td=dayIds()[todayIdx()];if(td&&totalSets(w,td)>0&&!isFinished(w,td))nd=td}
+  if(fixedDays()&&w===curWeek()){const td=dayIds()[todayIdx()];if(td&&totalSets(w,td)>0&&!isFinished(w,td))nd=td}
   if(!nd)for(const d of dayIds())if(totalSets(w,d)>0&&!isFinished(w,d)){nd=d;break}
   if(nd){
     const started=loggedSets(w,nd)>0;
@@ -356,7 +359,7 @@ function renderHero(){
       ?`Starts with <b>${first}</b>${h0?` · last <b>${fmtSet(h0.sets[0])}</b>`:""}`
       :"No lifts on this day yet";
     $("hero").innerHTML=`<button class="hero d${nd}" onclick="shareTitle(this.querySelector('.hname'));showPreview(${w},'${nd}')">
-      <div class="hinfo"><div class="hkick">${started?"Continue":isOpen()&&w<curWeek()?"Missed":isOpen()&&w>curWeek()?"Upcoming":(isOpen()&&w===curWeek()&&dayIds()[todayIdx()]===nd?"Today":"Next up")} · Week ${w}${isOpen()&&deloadWeek(w)?" · light":""}</div>
+      <div class="hinfo"><div class="hkick">${started?"Continue":isOpen()&&w<curWeek()?"Missed":isOpen()&&w>curWeek()?"Upcoming":(fixedDays()&&w===curWeek()&&dayIds()[todayIdx()]===nd?"Today":"Next up")} · Week ${w}${isOpen()&&deloadWeek(w)?" · light":""}</div>
       <div class="hname">${dayWeekday(nd)?dayWeekday(nd)+" · ":"Day "+nd+" · "}${esc(DAYS[nd].title)}</div>
       <div class="hmeta">${started?loggedSets(w,nd)+"/"+totalSets(w,nd)+" sets logged — pick it back up":firstTxt}</div>
       <div class="hmeta2">${DAYS[nd].ex.length} lifts · ${totalSets(w,nd)} sets · ~${estMinutes(w,nd)} min</div></div>
@@ -508,22 +511,23 @@ function sessionList(){
   const cw=isOpen()?curWeek():Math.max(1,maxLoggedWeek(db.logs));   /* block plans: browsing the strip must not change the streak */
   const ti=todayIdx();
   /* an open plan started mid-week: the days before the start were never due */
-  const startIdx=isOpen()&&db.startedOn&&calendarWeek(db.plan.startDate,db.startedOn)===1?(new Date(db.startedOn+"T12:00:00").getDay()+6)%7:0;
-  for(let w=1;w<=cw;w++)dayIds().forEach((d,i)=>{
+  const sw=firstWeek(),startIdx=isOpen()&&db.startedOn?(new Date(db.startedOn+"T12:00:00").getDay()+6)%7:0;
+  for(let w=sw;w<=cw;w++)dayIds().forEach((d,i)=>{
     const total=totalSets(w,d);if(!total)return;
     const done=sessionDone(db.logs[logKey(w,d)],loggedSets(w,d),total);
     let due;
-    if(isOpen())due=(w<cw||i<ti||done)&&!(w===1&&i<startIdx&&!done);   /* today counts only once it's finished */
+    if(db.plan.flex&&isOpen())due=done||(w<cw&&!(w===sw&&startIdx>0));   /* no fixed days: a past week is due, a part first week is not */
+    else if(isOpen())due=(w<cw||i<ti||done)&&!(w===sw&&i<startIdx&&!done);   /* today counts only once it's finished */
     else due=done||w<cw;                           /* block plans have no calendar: earlier weeks are due */
     out.push({done,due,w,d});
   });
   /* block plans: within the latest week, a session is due once a later one has been logged */
-  if(!isOpen()){let seen=false;for(let i=out.length-1;i>=0;i--){if(out[i].w!==cw)break;if(out[i].done)seen=true;else if(seen)out[i].due=true}}
+  if(!fixedDays()){let seen=false;for(let i=out.length-1;i>=0;i--){if(out[i].w!==cw)break;if(out[i].done)seen=true;else if(seen)out[i].due=true}}
   return out;
 }
 function weekStreak(){
   let n=0;const last=isOpen()?curWeek()-1:Math.max(1,maxLoggedWeek(db.logs));
-  for(let w=last;w>=1;w--){if(weekComplete(w))n++;else if(isOpen()||w<last)break;}
+  for(let w=last;w>=firstWeek();w--){if(weekComplete(w))n++;else if(isOpen()||w<last)break;}
   return n;
 }
 /* streaks including anything carried over a plan switch */
@@ -590,7 +594,7 @@ function renderHome(){
     const total=totalSets(w,d),done=loggedSets(w,d),fin=total>0&&isFinished(w,d);   /* ended early counts as done */
     const card=document.createElement("button");card.className="daycard d"+d;
     let state="",cls="";
-    const isToday=isOpen()&&w===curWeek()&&dayIds()[todayIdx()]===d;
+    const isToday=fixedDays()&&w===curWeek()&&dayIds()[todayIdx()]===d;
     if(total===0)state="No lifts yet";
     else if(fin){state="Done ✓";cls="done"}
     else if(done>0){state=done+"/"+total+" sets";cls="part"}
@@ -2986,6 +2990,26 @@ function removeWeek(w){
   if(weekNums().some(x=>x>=w&&weekHasLogs(x))){toast("Week "+w+" or a later week has sets logged — finish the block first");return}
   db.plan.weeks.splice(w-1,1);db.plan.name="Custom";planChanged();
 }
+/* Block plan → no end date. The block is archived as it stands and the week count carries on from it. */
+function keepGoing(){
+  if(isOpen())return;
+  if(S){toast("Finish your session first");return}
+  chooseSheet("Keep going with no end date","Weeks keep counting up and nothing rolls over. Pick how often a light week falls; you can change it afterwards.",
+    [4,6,8].map(n=>({label:`Light week every ${n} weeks`,value:String(n)})),async n=>{
+      const done=maxLoggedWeek(db.logs),logged=Object.keys(db.logs).length>0;
+      const t0=todayISO(),from=new Date(t0+"T12:00:00").getDay()===0?nextMonday(t0):t0;
+      const p=openPlanFrom(db.plan,+n,done);
+      if(!await ask({title:"Remove the end date?",ok:"Keep going",
+        body:`Your days and lifts stay as they are. ${from===t0?"This week":"Next week"} becomes <b>week ${done+1}</b>${logged?`, and weeks 1 to ${done} are filed in the archive with your records and weights carried over`:""}.<br><br>Hard weeks use ${p.weeks[0].comp} sets for compounds and ${p.weeks[0].acc} for accessories at ${esc(p.weeks[0].rir)} RIR; the first light week is week ${done+ +n}.<br><br>Weeks now run Monday to Sunday on the calendar and move on by themselves; which days you train is still up to you.`}))return;
+      const carry={s:sessionStreakNow(),w:weekStreakNow()};
+      if(logged)archiveCurrent();
+      const st=mondayOf(from);st.setDate(st.getDate()-7*done);
+      p.startDate=isoDate(st);db.plan=validatePlan(p,DEFAULT_PLAN,PHASES);db.startedOn=from;db.autoWeekFor=null;db.selWeek=curWeek();
+      db.streakCarry=(carry.s||carry.w)?carry:null;db.pending=null;PV=null;
+      save();showNow("home");toast("Week "+curWeek()+" · no end date");
+      if(driveOn())driveSync({quiet:true});
+    });
+}
 function setOpenField(k,v){
   if(k==="every"){const n=parseInt(v);if(isNaN(n)||n<2||n>12){toast("Light week every 2 to 12 weeks");renderProg();return}db.plan.every=n}
   else if(k==="ramp"){const n=parseInt(v);if(isNaN(n)||n<0||n>4){toast("Ramp-in 0 to 4 weeks");renderProg();return}db.plan.rampWeeks=n}
@@ -3033,6 +3057,7 @@ function planCardHTML(){
     <div class="planrow head"><span class="wn"></span><span>Phase</span><span>Comp</span><span>Acc</span><span>RIR</span><span></span></div>
     ${rows}
     <button class="bigbtn ghost" style="margin-top:10px" onclick="addWeek()">+ Add a week</button>
+    <button class="bigbtn ghost" style="margin-top:8px" onclick="keepGoing()">Keep going with no end date</button>
     <div class="hsets" style="margin-top:8px;color:var(--ink-faint)">Comp and Acc are working sets per lift that week. Weeks with sets logged can't be removed.</div>
   </div>`;
 }

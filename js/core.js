@@ -259,6 +259,7 @@ function validatePlan(p,fallback,phases){
     /* one-off light weeks brought forward by hand; the regular cadence is untouched */
     const lw=(Array.isArray(p.lightWeeks)?p.lightWeeks:[]).map(Number).filter(n=>n>0&&n<1000).slice(-20);
     if(lw.length)o.lightWeeks=lw;
+    if(p.flex)o.flex=1;   /* days are not tied to weekdays (a block carried on with no end) */
     return o;
   }
   return{name:String((p.name||"Custom")).slice(0,40),weeks:p.weeks.map(cleanWeek)};
@@ -268,6 +269,16 @@ function isLightWeek(plan,w){if(!plan.open)return false;if((plan.lightWeeks||[])
 /* the first rampWeeks of an open plan run at about two-thirds of the sets */
 function isRampWeek(plan,w){return !!plan.open&&w<=(plan.rampWeeks||0)}
 function rampSets(n){return n<=1?n:Math.max(2,Math.round(n*0.67))}
+/* A block plan carried on with no end: the hard week is the block's biggest
+   working week, the light week its deload (or a cut-down hard week). Light
+   weeks are counted from `doneWeeks`, the last week already trained. */
+function openPlanFrom(plan,every,doneWeeks){
+  const work=plan.weeks.filter(k=>k.phase!=="Deload"),del=plan.weeks.filter(k=>k.phase==="Deload").pop();
+  const hard=(work.length?work:plan.weeks).reduce((a,b)=>b.comp+b.acc>=a.comp+a.acc?b:a);
+  return{name:String(plan.name||"Custom").slice(0,40),open:true,every:clampInt(every,2,12,6),lightOffset:clampInt(doneWeeks,0,999,0),rampWeeks:0,startDate:null,flex:1,
+    weeks:[{phase:"Build",comp:hard.comp,acc:hard.acc,rir:hard.rir},
+      del?{phase:"Deload",comp:del.comp,acc:del.acc,rir:del.rir}:{phase:"Deload",comp:Math.max(1,hard.comp-1),acc:Math.max(0,hard.acc-1),rir:"3–4"}]};
+}
 function nextLightWeek(plan,fromW){let w=Math.max(1,fromW);while(!isLightWeek(plan,w))w++;return w}
 const planWeeks=plan=>plan.open?Infinity:plan.weeks.length;
 const planWeek=(plan,w)=>plan.open?plan.weeks[isLightWeek(plan,w)?1:0]:plan.weeks[Math.min(w,plan.weeks.length)-1];
@@ -568,5 +579,5 @@ function migrate(d,defaultDays,defaultSettings,defaultPlan,phases){
 }
 
 if(typeof module!=="undefined"&&module.exports)module.exports={clone,logKey,parseRange,repTop,repBottom,normaliseRange,fmtKg,snapStep,
-  e1rm,setScore,setTonnage,fmtSet,validatePlan,planWeeks,planWeek,isDeload,isLightWeek,isRampWeek,rampSets,nextLightWeek,isoDate,mondayOf,calendarWeek,maxLoggedWeek,historyOrder,sessionStreak,adherence,buildICS,syncDecision,exNameIn,setName,incrementFor,restFor,isUnilateral,plateBreakdown,
+  e1rm,setScore,setTonnage,fmtSet,validatePlan,planWeeks,planWeek,isDeload,isLightWeek,isRampWeek,rampSets,nextLightWeek,openPlanFrom,isoDate,mondayOf,calendarWeek,maxLoggedWeek,historyOrder,sessionStreak,adherence,buildICS,syncDecision,exNameIn,setName,incrementFor,restFor,isUnilateral,plateBreakdown,
   exOpt,setExOpt,pairOf,normaliseSupersets,remapSlots,stallStreak,migrate,bulkRange,sameMuscleLifts,slotMinutes,trimForTime,nutritionTargets,weightTrend,calorieNudge,betterSet,sessionDuration,sessionDate,nextMonday,carriedStreak,balance,readiness,cleanSharedProgramme,cleanLiftName,cleanCustomLift,stepValue,hitTop,underRange,dropOffKg,resetKg,hasSets,sessionDone,mergeSets,mergeLogs,mergeDb};
