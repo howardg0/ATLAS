@@ -99,6 +99,9 @@ The app is a public static site: anyone with the link gets their own independent
 
 ## Changelog
 
+### 8.4.1
+- Fixed the Muscles card on Home: the "ready" chips and the green legend dot were picking up the card's own box styling, so they sat out of line.
+
 ### 8.4
 - **Light week brought forward:** when three or more lifts have stalled in the same week, Progress offers "Make week N a light week" (open-ended plans). It is a one-off stored in `plan.lightWeeks`; the regular cadence does not move. Postpone on a brought-forward week cancels it. Block plans get the advice without the button.
 - **Custom lifts:** Lifts, "Create your own lift": a name plus the most similar library lift, whose group, movement, muscles and per-side/seconds defaults it borrows. Stored in `db.custom`, folded into the library on every load, merged across phones, and carried inside shared programme links. Names and fields are reduced to a safe alphabet (`cleanLiftName`, `cleanCustomLift`). A custom lift can be deleted from its Lift screen once it is out of the programme; logged sets keep their name.

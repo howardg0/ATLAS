@@ -6,7 +6,7 @@
    address of every logged set on the device. */
 const KEY="block-log-v2";
 /* Keep in step with CACHE in sw.js and the ?v= stamps in index.html (tests/version.test.js checks) */
-const APP_VERSION="8.4";
+const APP_VERSION="8.4.1";
 let restEnd=0,restTick=null,restDur=1,restLabel="",restHintTxt="";
 let S=null;
 const migrateDb=d=>{const m=migrate(d,DEFAULT_DAYS,DEFAULT_SETTINGS,DEFAULT_PLAN,PHASES);applyCustom(m.custom);return m};
@@ -643,7 +643,7 @@ function renderReady(){
   const R=muscleReadiness().filter(r=>r.h<24*21);   /* after three weeks off, "due" says nothing */
   if(!R.length||(isOpen()&&db.selWeek!==curWeek())){el.innerHTML="";return}
   const age=h=>h<24?"today":Math.floor(h/24)+"d";
-  el.innerHTML=`<details class="ready"${db.settings.readyOpen?" open":""} ontoggle="db.settings.readyOpen=this.open?1:0;save({quiet:true})">
+  el.innerHTML=`<details class="readybox"${db.settings.readyOpen?" open":""} ontoggle="db.settings.readyOpen=this.open?1:0;save({quiet:true})">
     <summary><span>Muscles</span><span class="rsum">${["due","ready","recovering"].map(s=>{const n=R.filter(r=>r.state===s).length;return n?`<i class="${s}"></i>${n} ${s}`:""}).filter(Boolean).join(" · ")}</span></summary>
     <div class="readychips">${R.map(r=>`<span class="rchip ${r.state}">${r.g} <b>${age(r.h)}</b></span>`).join("")}</div>
     <div class="hsets" style="color:var(--ink-faint);margin-top:8px">Days since each muscle was last trained hard. Under 2 days it is still recovering, from 5 it is due. A rough guide, not a measurement.</div></details>`;

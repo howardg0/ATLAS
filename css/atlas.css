@@ -990,14 +990,14 @@ html[data-theme=dark] .cidate{color-scheme:dark} html[data-theme=light] .cidate{
 .tag.pain{color:var(--gold);background:rgba(242,180,65,.14)}
 .coach .linkbtn{text-align:left;padding:6px 0 0}
 /* muscle readiness */
-.ready{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:0 13px;margin:-8px 0 18px;box-shadow:var(--card-sh)}
-.ready[open]{padding-bottom:12px}
-.ready summary{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:44px;list-style:none;cursor:pointer;
+.readybox{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:0 13px;margin:-8px 0 18px;box-shadow:var(--card-sh)}
+.readybox[open]{padding-bottom:12px}
+.readybox summary{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:44px;list-style:none;cursor:pointer;
   font-size:.7rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
-.ready summary::-webkit-details-marker{display:none}
-.ready .rsum{letter-spacing:0;text-transform:none;font-size:.76rem;font-weight:650;color:var(--ink-dim)}
-.ready .rsum i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
-.ready i.due{background:var(--ember)} .ready i.ready{background:var(--green)} .ready i.recovering{background:var(--ink-faint)}
+.readybox summary::-webkit-details-marker{display:none}
+.readybox .rsum{letter-spacing:0;text-transform:none;font-size:.76rem;font-weight:650;color:var(--ink-dim)}
+.readybox .rsum i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+.readybox i.due{background:var(--ember)} .readybox i.ready{background:var(--green)} .readybox i.recovering{background:var(--ink-faint)}
 .readychips{display:flex;flex-wrap:wrap;gap:6px}
 .rchip{font-size:.74rem;font-weight:650;padding:6px 10px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);color:var(--ink-dim)}
 .rchip b{font-weight:700;margin-left:3px}
